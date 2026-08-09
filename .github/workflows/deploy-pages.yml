@@ -31,6 +31,7 @@ jobs:
       - run: npm run build
         env:
           PAGES_BASE_PATH: ${{ steps.pages.outputs.base_path }}
+          VITE_WORLD_APP_ID: ${{ vars.WORLD_APP_ID }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

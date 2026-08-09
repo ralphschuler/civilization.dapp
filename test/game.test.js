@@ -1,6 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { COLLECTION_COOLDOWN_MS, MARCH_DURATION_MS, createInitialState, gather, getRequirements, resolveRaidMarch, sendRaid, settle, startGathering, startRaidMarch, swapInternal, trainTroop, upgradeBuilding } from "../src/game.js";
+import { installWorldAppBridge } from "../src/world.js";
+
+test("World bridge remains inactive in the regular browser demo", () => {
+  assert.deepEqual(installWorldAppBridge(), { installed: false });
+});
 
 test("resource buildings fill raidable field stock before collection", () => {
   const state = createInitialState(0);

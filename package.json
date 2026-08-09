@@ -11,5 +11,9 @@
   },
   "devDependencies": {
     "vite": "^7.3.6"
+  },
+  "dependencies": {
+    "@worldcoin/minikit-js": "^2.0.3",
+    "viem": "^2.45.3"
   }
 }

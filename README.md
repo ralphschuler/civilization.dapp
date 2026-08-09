@@ -30,6 +30,10 @@ The game board uses project-owned Civilisation DApp building, resource and unit 
 
 Raid targets are deterministic local demo villages. Raids take only their unclaimed field stock; stored resources are not part of raid loot. No real player identity, request, matchmaking, server, wallet, or Worldchain state exists yet. Real player-vs-player raids need an authoritative multiplayer backend with authentication, durable village state, server-side battle resolution, anti-cheat/rate limiting and an explicit consent/product policy before they can be connected to this interface.
 
-## Worldchain handoff
+## World App / Worldchain handoff
 
-The later World App integration follows the Civilisation pattern: check `MiniKit.isInstalled()` before mounting providers, use MiniKit `sendTransaction` for a user-authorized transaction, and use wagmi/viem only for read-side ERC-20 balance data. World App requires contract and Permit2-token allowlisting for each approved token interaction; verify every submitted user operation before crediting a game balance. `contracts/src/IdleCoin.sol` is a legacy undeployed ERC-20 draft; new resource work uses `GameResourceToken.sol` instead.
+IdleMint includes `@worldcoin/minikit-js` and only initializes MiniKit when it is actually opened inside World App. Regular browsers remain a walletless local demo. The public portal app ID belongs in the GitHub Actions repository variable `WORLD_APP_ID` (see `.env.example`); it is intentionally not a secret.
+
+The Developer Portal team API key must remain local to the trusted Developer Portal MCP client. Do not add it to GitHub Actions: the current static demo has no server-side payment or proof verification path that needs it. When a backend is added, store any verification or transaction credentials server-side only.
+
+Before using MiniKit `sendTransaction`, World App requires contract and Permit2-token allowlisting in the portal; verify every submitted user operation on a backend before crediting a game balance. `contracts/src/IdleCoin.sol` is a legacy undeployed ERC-20 draft; new resource work uses `GameResourceToken.sol` instead.
