@@ -1,8 +1,10 @@
 import { defineConfig } from "vite";
 
-const repository = process.env.GITHUB_REPOSITORY?.split("/")[1];
+const pagesBasePath = process.env.PAGES_BASE_PATH;
+const base = pagesBasePath ? `${pagesBasePath.replace(/\/$/, "")}/` : "/";
 
 export default defineConfig({
-  // GitHub Pages serves project sites below /<repository>/; local demo stays at root.
-  base: process.env.GITHUB_ACTIONS && repository ? `/${repository}/` : "/",
+  // `actions/configure-pages` owns this value, including custom-domain paths.
+  // Local demos intentionally remain mounted at the web root.
+  base,
 });
