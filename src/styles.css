@@ -16,3 +16,28 @@
 
 /* The village atlas is freistellt and shares the map's isometric material language. */
 .resource img,.map-building img,.inspector-art img,.token-row img{mix-blend-mode:normal}.resource img{filter:drop-shadow(0 .12rem .15rem #07100e99)}.map-building img{filter:drop-shadow(0 .42rem .28rem #07100ed9)}.inspector-art{background:radial-gradient(circle at 50% 34%,#8f9f59,#314528 68%)}.inspector-art img{filter:drop-shadow(0 .45rem .35rem #091108a8)}
+
+/* Ground anchors keep every sprite's visible base on its terrain plot as the map scales. */
+.map-building{--ground-anchor:-100%;transform:translate(-50%,var(--ground-anchor))}
+.map-building:hover,.map-building.is-selected{z-index:4;transform:translate(-50%,calc(var(--ground-anchor) - .35rem)) scale(1.05)}
+.map-building:active{transform:translate(-50%,calc(var(--ground-anchor) - .1rem)) scale(.96)}
+.map-townhall{left:50%;top:49%;--ground-anchor:-99%}
+.map-timber{left:14%;top:43%;--ground-anchor:-99.5%}
+.map-claypit{left:30%;top:82%;--ground-anchor:-100%}
+.map-quarry{left:11%;top:70%;--ground-anchor:-90.5%}
+.map-warehouse{left:82%;top:56%;--ground-anchor:-91%}
+.map-workshop{left:79%;top:39%;--ground-anchor:-93.5%}
+.map-goldmine{left:78%;top:20%;--ground-anchor:-85.5%}
+.map-barracks{left:53%;top:80%;--ground-anchor:-96.5%}
+.map-market{left:78%;top:79%;--ground-anchor:-93.5%}
+@media(max-width:640px){
+  .map-townhall{left:50%;top:53%;--ground-anchor:-99%}
+  .map-timber{left:24%;top:31%;--ground-anchor:-99.5%}
+  .map-claypit{left:28%;top:85%;--ground-anchor:-100%}
+  .map-quarry{left:12%;top:58%;--ground-anchor:-90.5%}
+  .map-warehouse{left:79%;top:55%;--ground-anchor:-91%}
+  .map-workshop{left:78%;top:41%;--ground-anchor:-93.5%}
+  .map-goldmine{left:76%;top:22%;--ground-anchor:-85.5%}
+  .map-barracks{left:53%;top:84%;--ground-anchor:-96.5%}
+  .map-market{left:78%;top:76%;--ground-anchor:-93.5%}
+}
