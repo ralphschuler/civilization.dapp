@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createInitialState, gather, getRequirements, sendRaid, settle, swapInternal, trainTroop, upgradeBuilding } from "../src/game.js";
+import { COLLECTION_COOLDOWN_MS, MARCH_DURATION_MS, createInitialState, gather, getRequirements, resolveRaidMarch, sendRaid, settle, startGathering, startRaidMarch, swapInternal, trainTroop, upgradeBuilding } from "../src/game.js";
 
 test("resource buildings fill raidable field stock before collection", () => {
   const state = createInitialState(0);
@@ -19,6 +19,15 @@ test("collection moves field stock into the protected storage", () => {
   assert.ok(result.collected.wood > 0);
   assert.equal(state.resources.wood, beforeWood + beforeFieldWood);
   assert.equal(state.unclaimed.wood, 0);
+});
+
+test("collection locks for one minute after gathering", () => {
+  const state = createInitialState(0);
+  settle(state, 10_000);
+  assert.equal(startGathering(state, 10_000).ok, true);
+  assert.equal(state.gatherAvailableAt, 10_000 + COLLECTION_COOLDOWN_MS);
+  assert.equal(startGathering(state, 10_001).reason, "cooldown");
+  assert.equal(startGathering(state, 10_000 + COLLECTION_COOLDOWN_MS).ok, true);
 });
 
 test("field stock cannot pay building costs before collection", () => {
@@ -55,6 +64,24 @@ test("a winning raid transfers resources and removes some troops", () => {
   assert.ok(state.resources.wood > beforeWood);
   assert.ok(target.unclaimed.wood < beforeTargetWood);
   assert.ok(state.troops.spear < 6);
+});
+
+test("a raid resolves only after its one-minute march and blocks another march", () => {
+  const state = createInitialState(0);
+  state.troops.spear = 6;
+  const beforeWood = state.resources.wood;
+  const first = startRaidMarch(state, "river", { spear: 6, archer: 0, rider: 0 }, 10_000);
+  assert.equal(first.ok, true);
+  assert.equal(first.arrivesAt, 10_000 + MARCH_DURATION_MS);
+  assert.equal(state.resources.wood, beforeWood);
+  assert.equal(state.troops.spear, 6);
+  assert.equal(startRaidMarch(state, "river", { spear: 1, archer: 0, rider: 0 }, 10_001).reason, "march");
+  assert.equal(resolveRaidMarch(state, first.arrivesAt - 1).reason, "march");
+  assert.equal(state.resources.wood, beforeWood);
+  const result = resolveRaidMarch(state, first.arrivesAt);
+  assert.equal(result.ok, true);
+  assert.equal(state.pendingRaid, null);
+  assert.equal(state.raids, 1);
 });
 
 test("only non-gold resources can use the local market", () => {

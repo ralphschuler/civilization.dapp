@@ -15,6 +15,8 @@ export const TOKEN_REGISTRY = {
 };
 
 const INTERNAL_VALUES = { wood: 1, clay: 1.1, stone: 1.25 };
+export const COLLECTION_COOLDOWN_MS = 60_000;
+export const MARCH_DURATION_MS = 60_000;
 
 const cost = (wood = 0, clay = 0, stone = 0, gold = 0) => ({ wood, clay, stone, gold });
 
@@ -74,6 +76,8 @@ export function createInitialState(now = Date.now()) {
     targets: DEMO_TARGETS.map((item) => ({ ...item, unclaimed: { ...item.unclaimed }, initialUnclaimed: { ...item.initialUnclaimed } })),
     raids: 0,
     lastRaid: null,
+    gatherAvailableAt: 0,
+    pendingRaid: null,
     last: now,
   };
 }
@@ -149,6 +153,13 @@ export function gather(state, now = Date.now()) {
   return { collected, unclaimed: state.unclaimed };
 }
 
+export function startGathering(state, now = Date.now()) {
+  if (now < (state.gatherAvailableAt || 0)) return { ok: false, reason: "cooldown" };
+  const result = gather(state, now);
+  state.gatherAvailableAt = now + COLLECTION_COOLDOWN_MS;
+  return { ok: true, ...result, availableAt: state.gatherAvailableAt };
+}
+
 export function swapInternal(state, from, to, amount, now = Date.now()) {
   settle(state, now);
   const safeAmount = Math.max(0, Math.floor(Number(amount) || 0));
@@ -207,4 +218,23 @@ export function sendRaid(state, targetId, selected, now = Date.now()) {
   state.raids += 1;
   state.lastRaid = { ok: won, target: target.name, stolen, casualties, attack, defense: target.defense };
   return { ok: true, ...state.lastRaid };
+}
+
+export function startRaidMarch(state, targetId, selected, now = Date.now()) {
+  settle(state, now);
+  if (state.pendingRaid) return { ok: false, reason: "march" };
+  const target = state.targets.find((item) => item.id === targetId);
+  const army = Object.fromEntries(Object.keys(TROOPS).map((id) => [id, Math.max(0, Math.floor(Number(selected[id]) || 0))]));
+  const total = Object.values(army).reduce((sum, value) => sum + value, 0);
+  if (!target || !total) return { ok: false, reason: "army" };
+  if (Object.keys(army).some((id) => army[id] > state.troops[id])) return { ok: false, reason: "availability" };
+  state.pendingRaid = { targetId, army, arrivesAt: now + MARCH_DURATION_MS };
+  return { ok: true, ...state.pendingRaid };
+}
+
+export function resolveRaidMarch(state, now = Date.now()) {
+  if (!state.pendingRaid || now < state.pendingRaid.arrivesAt) return { ok: false, reason: "march" };
+  const { targetId, army } = state.pendingRaid;
+  state.pendingRaid = null;
+  return sendRaid(state, targetId, army, now);
 }
