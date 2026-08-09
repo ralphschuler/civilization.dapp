@@ -1,0 +1,9 @@
+{
+  "chainId": 480,
+  "network": "World Chain Mainnet",
+  "goldSettlementAssets": {
+    "WLD": "0x2cfc85d8e48f8eab294be644d9e25c3030863003",
+    "WBTC": "0x03c7054bcb39f7b2e5b2c7acb37583e32d70cfa3"
+  },
+  "notice": "Reference configuration only. Verify addresses against the current official World Chain deployment registry before allowlisting or deployment. No Gold swap is implemented in the browser demo."
+}
