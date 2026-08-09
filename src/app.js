@@ -103,6 +103,10 @@ function raidPanel() {
 
 function panelContents() { return { build: buildInspector, army: armyPanel, market: marketPanel, raid: raidPanel }[activePanel](); }
 
+function isEditingCommand() {
+  return document.activeElement?.matches(".command-panel input, .command-panel select, .command-panel textarea");
+}
+
 function render() {
   settle(state);
   const production = getProduction(state);
@@ -121,4 +125,9 @@ function render() {
 }
 
 render();
-setInterval(() => { settle(state); save(); render(); }, 1000);
+setInterval(() => {
+  settle(state);
+  save();
+  // Replacing the complete panel while a player types would discard troop amounts.
+  if (!isEditingCommand()) render();
+}, 1000);
