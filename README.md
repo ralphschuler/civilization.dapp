@@ -4,7 +4,7 @@ Browser-first idle clicker for **Idle Coin (IDC)**. The local demo keeps its bal
 
 ## Demo
 
-Use the existing Vite binary from the Civilisation workspace or install the declared dev dependency, then run `npm run dev`. The demo persists one local village: gather wood, clay, stone and gold; meet building requirements before upgrading the town hall; train troops in the barracks; and choose the exact march group for a raid.
+Use the existing Vite binary from the Civilisation workspace or install the declared dev dependency, then run `npm run dev`. Production first fills a raidable field stock. Press **Sammeln** to move available wood, clay, stone and gold into protected storage; only stored resources pay for upgrades, training and the market. The demo persists one local village: meet building requirements before upgrading the town hall; train troops in the barracks; and choose the exact march group for a raid.
 
 `npm test` verifies the two critical progression locks and resource transfer after a successful raid.
 
@@ -22,9 +22,13 @@ Every resource has a planned ERC-20 identity, with 18 decimals: `IMW` (Mint Wood
 
 `contracts/worldchain.tokens.example.json` is an example reference for WLD and WBTC on World Chain Mainnet. Re-verify every address against the current [World Chain useful-contract registry](https://docs.world.org/world-chain/reference/useful-contracts) before allowlisting.
 
+## Visual assets
+
+The game board uses project-owned Civilisation DApp building, resource and unit art. See [asset provenance](./ASSET_ATTRIBUTION.md) for the copied files and the temporary Stone visual stand-in.
+
 ## Raid demo boundary
 
-Raid targets are deterministic local demo villages. No real player identity, request, matchmaking, server, wallet, or Worldchain state exists yet. Real player-vs-player raids need an authoritative multiplayer backend with authentication, durable village state, server-side battle resolution, anti-cheat/rate limiting and an explicit consent/product policy before they can be connected to this interface.
+Raid targets are deterministic local demo villages. Raids take only their unclaimed field stock; stored resources are not part of raid loot. No real player identity, request, matchmaking, server, wallet, or Worldchain state exists yet. Real player-vs-player raids need an authoritative multiplayer backend with authentication, durable village state, server-side battle resolution, anti-cheat/rate limiting and an explicit consent/product policy before they can be connected to this interface.
 
 ## Worldchain handoff
 

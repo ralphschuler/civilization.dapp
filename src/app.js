@@ -2,8 +2,8 @@ import "./styles.css";
 import {
   BUILDINGS,
   RESOURCE_DEFS,
-  TROOPS,
   TOKEN_REGISTRY,
+  TROOPS,
   createInitialState,
   format,
   gather,
@@ -19,7 +19,17 @@ import {
 } from "./game.js";
 
 const STORAGE_KEY = "idlemint-village-demo-v1";
-let feedback = "Baue dein Dorf aus und öffne die Kaserne.";
+const BUILDING_ASSETS = {
+  townhall: "/assets/buildings/town-hall.png", timber: "/assets/buildings/wood-cutter.png", claypit: "/assets/buildings/clay-pit.png",
+  quarry: "/assets/buildings/iron-mine.png", warehouse: "/assets/buildings/storage.png", workshop: "/assets/buildings/house.png",
+  goldmine: "/assets/buildings/iron-mine.png", barracks: "/assets/buildings/barracks.png", market: "/assets/buildings/market.png",
+};
+const RESOURCE_ASSETS = { wood: "/assets/resources/wood.png", clay: "/assets/resources/clay.png", stone: "/assets/resources/iron.png", gold: "/assets/resources/gold.png" };
+const TROOP_ASSETS = { spear: "/assets/units/spearman.png", archer: "/assets/units/archer.png", rider: "/assets/units/knight.png" };
+const BUILDING_IDS = ["townhall", "timber", "claypit", "quarry", "warehouse", "workshop", "goldmine", "barracks"];
+let feedback = "Wähle ein Gebäude auf dem Dorfplan.";
+let selectedBuilding = "townhall";
+let activePanel = "build";
 let state = load();
 
 function load() {
@@ -27,65 +37,54 @@ function load() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
     if (!saved?.resources || !saved?.buildings || !saved?.troops) return initial;
-    return {
-      ...initial,
-      ...saved,
-      resources: { ...initial.resources, ...saved.resources },
-      buildings: { ...initial.buildings, ...saved.buildings },
-      troops: { ...initial.troops, ...saved.troops },
-      targets: saved.targets || initial.targets,
-    };
-  } catch {
-    return initial;
-  }
+    const targets = (saved.targets || initial.targets).map((target) => ({
+      ...target,
+      unclaimed: { ...initial.unclaimed, ...(target.unclaimed || target.loot || {}) },
+      initialUnclaimed: { ...initial.unclaimed, ...(target.initialUnclaimed || target.initialLoot || target.unclaimed || target.loot || {}) },
+    }));
+    return { ...initial, ...saved, resources: { ...initial.resources, ...saved.resources }, unclaimed: { ...initial.unclaimed, ...saved.unclaimed }, buildings: { ...initial.buildings, ...saved.buildings }, troops: { ...initial.troops, ...saved.troops }, targets };
+  } catch { return initial; }
 }
 
-function save() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-}
+function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
 
 function costLine(value) {
-  return Object.entries(RESOURCE_DEFS)
-    .filter(([resource]) => value[resource] > 0)
-    .map(([resource, definition]) => `<span class="cost ${definition.color}">${format(value[resource])} ${definition.short}</span>`)
-    .join("");
+  return Object.entries(RESOURCE_DEFS).filter(([resource]) => value[resource] > 0).map(([resource, definition]) => `<span class="cost ${definition.color}">${format(value[resource])} ${definition.short}</span>`).join("");
 }
 
-function requirementsLine(requirements) {
-  return requirements.map(({ id, level }) => `${BUILDINGS[id].label} ${level}`).join(" · ");
-}
+function requirementsLine(requirements) { return requirements.map(({ id, level }) => `${BUILDINGS[id].label} ${level}`).join(" · "); }
 
-function buildingCard(id) {
+function buildingSpot(id) {
   const building = BUILDINGS[id];
   const level = state.buildings[id];
-  const requirements = getRequirements(state, id);
-  const required = getBuildingCost(state, id);
+  return `<button class="map-building map-${id} ${selectedBuilding === id && activePanel === "build" ? "is-selected" : ""}" data-map-building="${id}" aria-label="${building.label}, Level ${level}"><img src="${BUILDING_ASSETS[id]}" alt=""><span><b>${building.label}</b><small>LVL ${level}</small></span></button>`;
+}
+
+function buildInspector() {
+  const building = BUILDINGS[selectedBuilding];
+  const level = state.buildings[selectedBuilding];
+  const requirements = getRequirements(state, selectedBuilding);
+  const required = getBuildingCost(state, selectedBuilding);
   const affordable = Object.keys(RESOURCE_DEFS).every((resource) => state.resources[resource] >= required[resource]);
-  const locked = requirements.length > 0;
-  return `
-    <article class="building-card ${locked ? "is-locked" : ""}">
-      <div class="building-icon building-${id}">${building.icon}</div>
-      <div class="building-copy"><div><b>${building.label}</b><span>LVL ${level}</span></div><small>${building.detail}</small></div>
-      <div class="building-action">
-        ${locked ? `<small class="locked-copy">Benötigt: ${requirementsLine(requirements)}</small>` : `<small>${costLine(required)}</small>`}
-        <button data-building="${id}" ${locked || !affordable ? "disabled" : ""}>Ausbauen</button>
-      </div>
-    </article>`;
+  const production = Object.entries(building.produces || {}).map(([resource, rate]) => `+${format(rate * (level + 1))}/s ${RESOURCE_DEFS[resource].label}`).join(" · ");
+  return `<div class="inspector build-inspector"><div class="inspector-art"><img src="${BUILDING_ASSETS[selectedBuilding]}" alt="${building.label}"></div><div class="inspector-title"><p>GEBÄUDEDETAIL</p><h2>${building.label}</h2><span>Stufe ${level} → ${level + 1}</span></div><p class="inspector-copy">${building.detail}${production ? ` Nächste Produktion: ${production}.` : ""}</p><div class="inspector-divider"></div>${requirements.length ? `<div class="requirement-box"><span>AUSBAU GESPERRT</span><b>${requirementsLine(requirements)}</b><small>Erfülle diese Stufen, um den Ausbau freizuschalten.</small></div>` : `<div class="upgrade-cost"><span>KOSTEN FÜR STUFE ${level + 1}</span><div>${costLine(required)}</div></div>`}<button class="primary-action" data-building="${selectedBuilding}" ${requirements.length || !affordable ? "disabled" : ""}>${requirements.length ? "Voraussetzungen erfüllen" : `Auf Stufe ${level + 1} ausbauen`}</button></div>`;
 }
 
 function troopCard(id) {
   const troop = TROOPS[id];
   const requirements = troop.requires.filter(({ id: required, level }) => state.buildings[required] < level);
   const affordable = Object.keys(RESOURCE_DEFS).every((resource) => state.resources[resource] >= troop.cost[resource]);
-  return `
-    <article class="troop-card ${requirements.length ? "is-locked" : ""}">
-      <div class="troop-icon">${troop.icon}</div>
-      <div class="troop-copy"><b>${troop.label}</b><small>Angriff ${troop.attack} · Bestand ${state.troops[id]}</small></div>
-      <div class="troop-action">
-        ${requirements.length ? `<small class="locked-copy">${requirementsLine(requirements)}</small>` : `<small>${costLine(troop.cost)}</small>`}
-        <button data-train="${id}" ${requirements.length || !affordable ? "disabled" : ""}>+1 ausbilden</button>
-      </div>
-    </article>`;
+  return `<article class="troop-card ${requirements.length ? "is-locked" : ""}"><img src="${TROOP_ASSETS[id]}" alt="${troop.label}"><div><b>${troop.label}</b><small>Angriff ${troop.attack} · ${state.troops[id]} bereit</small>${requirements.length ? `<em>${requirementsLine(requirements)}</em>` : `<em>${costLine(troop.cost)}</em>`}</div><button data-train="${id}" ${requirements.length || !affordable ? "disabled" : ""}>+1</button></article>`;
+}
+
+function armyPanel() { return `<div class="inspector army-inspector"><div class="inspector-title"><p>KASERNE</p><h2>Armee ausbilden</h2><span>${Object.values(state.troops).reduce((sum, amount) => sum + amount, 0)} Einheiten bereit</span></div><div class="troop-list">${Object.keys(TROOPS).map(troopCard).join("")}</div></div>`; }
+
+function tokenRows() {
+  return Object.entries(TOKEN_REGISTRY).map(([resource, token]) => `<div class="token-row ${token.externalSettlement ? "token-gold" : ""}"><img src="${RESOURCE_ASSETS[resource]}" alt=""><span><b>${token.name} · ${token.symbol}</b><small>${token.externalSettlement ? `Gold-Paare: ${token.pairs.join(" / ")}` : "ERC-20 · In-Game-Markt"}</small></span><em>${token.externalSettlement ? "SETTLEMENT" : "IN-GAME"}</em></div>`).join("");
+}
+
+function marketPanel() {
+  return `<div class="inspector market-inspector"><div class="inspector-title"><p>TAUSCHHALLE</p><h2>Rohstoffe handeln</h2><span>Spielinterne ERC-20-Transfers</span></div><div class="token-registry">${tokenRows()}</div><div class="market-controls"><label>Von<select id="market-from"><option value="wood">Holz · IMW</option><option value="clay">Lehm · IMC</option><option value="stone">Stein · IMS</option></select></label><label>Zu<select id="market-to"><option value="clay">Lehm · IMC</option><option value="wood">Holz · IMW</option><option value="stone">Stein · IMS</option></select></label><label>Menge<input id="market-amount" type="number" min="1" value="25" inputmode="numeric"></label></div><button class="primary-action" id="market-swap">Im Spiel tauschen</button><div class="gold-boundary"><span>GOLD-SETTLEMENT</span><b>IMG ist einzige externe Brücke.</b><small>WLD / WBTC erst nach Audit, Liquidität und World-App-Allowlisting.</small><button disabled>Gold gegen WLD oder WBTC tauschen</button></div></div>`;
 }
 
 function raidResult() {
@@ -93,106 +92,30 @@ function raidResult() {
   const result = state.lastRaid;
   const stolen = costLine(result.stolen) || "Keine Beute";
   const losses = Object.entries(result.casualties).filter(([, amount]) => amount).map(([id, amount]) => `${amount} ${TROOPS[id].label}`).join(", ") || "Keine Verluste";
-  return `<div class="raid-result ${result.ok ? "success" : "failure"}"><span>LETZTER BERICHT · ${result.ok ? "SIEG" : "RÜCKZUG"}</span><b>${result.target}: Angriff ${result.attack} gegen ${result.defense}</b><small>Beute: ${stolen} · Verluste: ${losses}</small></div>`;
+  return `<div class="raid-result ${result.ok ? "success" : "failure"}"><span>LETZTER BERICHT · ${result.ok ? "SIEG" : "RÜCKZUG"}</span><b>${result.target}: Angriff ${result.attack} gegen ${result.defense}</b><small>Feldlager-Beute: ${stolen} · Verluste: ${losses}</small></div>`;
 }
 
-function tokenRows() {
-  return Object.entries(TOKEN_REGISTRY).map(([resource, token]) => `
-    <div class="token-row ${token.externalSettlement ? "token-gold" : ""}">
-      <i>${token.symbol}</i><span><b>${token.name}</b><small>${token.externalSettlement ? `ERC-20 · Gold-Paare: ${token.pairs.join(" / ")}` : "ERC-20 · nur In-Game-Markt"}</small></span>
-      <em>${token.externalSettlement ? "SETTLEMENT" : "IN-GAME"}</em>
-    </div>`).join("");
+function raidPanel() {
+  return `<div class="inspector raid-inspector"><div class="inspector-title"><p>ÜBERFALL</p><h2>Marsch planen</h2><span>Lokale Demo-Gegner · nur Feldlager raidbar</span></div><label class="target-select">Zielort <select id="raid-target">${state.targets.map((target) => `<option value="${target.id}">${target.name} · Verteidigung ${target.defense} · Feldlager ${format(Object.values(target.unclaimed).reduce((sum, amount) => sum + amount, 0))}</option>`).join("")}</select></label><div class="army-inputs">${Object.entries(TROOPS).map(([id, troop]) => `<label><span>${troop.label}<b>${state.troops[id]} bereit</b></span><input type="number" min="0" max="${state.troops[id]}" value="0" id="raid-${id}" inputmode="numeric"></label>`).join("")}</div><button class="primary-action" id="send-raid">Feldlager überfallen</button>${raidResult()}</div>`;
 }
+
+function panelContents() { return { build: buildInspector, army: armyPanel, market: marketPanel, raid: raidPanel }[activePanel](); }
 
 function render() {
   settle(state);
   const production = getProduction(state);
   const capacity = getCapacity(state);
-  document.querySelector("#app").innerHTML = `
-    <section class="game-shell village-shell">
-      <header class="hud village-hud">
-        <div class="game-mark"><span>IM</span><div><b>IDLE MINT</b><small>DORF // 01</small></div></div>
-        <div class="resource-hud" aria-live="polite">${Object.entries(RESOURCE_DEFS).map(([id, definition]) => `<div class="resource ${definition.color}"><i>${definition.icon}</i><span><small>${definition.short}</small><strong>${format(state.resources[id])}</strong><em>+${format(production[id])}/s</em></span></div>`).join("")}</div>
-        <span class="demo-badge">DEMO · LOKAL</span>
-      </header>
+  const readyToClaim = Object.values(state.unclaimed).reduce((sum, amount) => sum + amount, 0);
+  document.querySelector("#app").innerHTML = `<section class="game-shell village-shell"><header class="hud village-hud"><div class="game-mark"><span>IM</span><div><b>IDLE MINT</b><small>DORF VON MINTIA</small></div></div><div class="resource-hud" aria-live="polite">${Object.entries(RESOURCE_DEFS).map(([id, definition]) => `<div class="resource ${definition.color}"><img src="${RESOURCE_ASSETS[id]}" alt=""><span><small>${TOKEN_REGISTRY[id].symbol} · SPEICHER</small><strong>${format(state.resources[id])}</strong><em>Feld ${format(state.unclaimed[id])} · +${format(production[id])}/s</em></span></div>`).join("")}</div><span class="demo-badge">DEMO · LOKAL</span></header><main class="command-layout"><section class="village-map" id="dorf" aria-label="Interaktive Stadtkarte von Mintia. Wähle ein Gebäude, um seinen Ausbau zu planen."><div class="map-head"><p>DORF VON MINTIA</p><h1>Dein Dorf.</h1><span>Rathaus ${state.buildings.townhall} · Speicher ${format(capacity)}</span></div><button class="collect-button" id="gather"><span>FELDLAGER · RAIDBAR</span><b>${format(readyToClaim)} sammeln</b></button><div class="map-buildings">${BUILDING_IDS.map(buildingSpot).join("")}<button class="map-building map-market ${activePanel === "market" ? "is-selected" : ""}" data-panel="market" aria-label="Tauschhalle öffnen"><img src="${BUILDING_ASSETS.market}" alt=""><span><b>Tauschhalle</b><small>ERC-20 Markt</small></span></button></div><p class="map-feedback" aria-live="polite">${feedback}</p></section><aside class="command-rail"><nav class="command-tabs" aria-label="Dorfaktionen">${[["build", "Bauplan"], ["army", "Kaserne"], ["market", "Markt"], ["raid", "Überfall"]].map(([id, label]) => `<button data-panel="${id}" class="${activePanel === id ? "is-active" : ""}">${label}</button>`).join("")}</nav><section class="command-panel">${panelContents()}</section></aside></main><footer class="game-footer"><span><i></i> Speicher geschützt · Feldlager raidbar</span><span>${state.raids} Demo-Überfälle · Kein Wallet verbunden</span><button id="reset">Demo zurücksetzen</button></footer><nav class="mobile-hud" aria-label="Schnellzugriff">${[["build", "Bau"], ["army", "Armee"], ["market", "Markt"], ["raid", "Raid"]].map(([id, label]) => `<button data-panel="${id}" class="${activePanel === id ? "is-active" : ""}">${label}</button>`).join("")}</nav></section>`;
 
-      <main class="village-board">
-        <section class="village-scene" id="dorf" aria-label="Dorfzentrum">
-          <div class="scene-copy"><p>DORF VON MINTIA</p><h1>Wachse.<br>Verteidige.<br>Plündere.</h1><span>Rathaus ${state.buildings.townhall} · Speicher ${format(capacity)} pro Rohstoff</span></div>
-          <div class="village-status"><span>AKTIVE SCHICHT</span><b>LOKALER TICK</b><small>Worldchain-Link: inaktiv</small></div>
-          <div class="village-core">
-            <span class="orbit orbit-one"></span><span class="orbit orbit-two"></span>
-            <button class="mint-button gather-button" id="gather" aria-label="Rohstoffe einsammeln"><span class="core-symbol">DORF</span><b>SAMMELN</b><small>Rohstoffschicht abholen</small></button>
-          </div>
-          <div class="scene-floor"></div>
-          <p class="game-feedback" aria-live="polite">${feedback}</p>
-        </section>
-
-        <aside class="village-side">
-          <section class="panel building-panel" id="bau"><div class="panel-head"><p>BAUPLAN</p><span>RATHAUS ${state.buildings.townhall}</span><h2>Dorf ausbauen</h2></div><div class="building-list">${["townhall", "timber", "claypit", "quarry", "warehouse", "workshop", "goldmine", "barracks"].map(buildingCard).join("")}</div></section>
-
-          <section class="panel barracks-panel" id="armee"><div class="panel-head"><p>KASERNE</p><span>${Object.values(state.troops).reduce((sum, amount) => sum + amount, 0)} EINHEITEN</span><h2>Armee ausbilden</h2></div><div class="troop-list">${Object.keys(TROOPS).map(troopCard).join("")}</div></section>
-
-          <section class="panel market-panel" id="markt"><div class="panel-head"><p>TAUSCHHALLE</p><span>ERC-20-LEDGER</span><h2>Rohstoffe handeln</h2></div>
-            <div class="token-registry">${tokenRows()}</div>
-            <div class="market-controls"><label>Von<select id="market-from"><option value="wood">Holz · IMW</option><option value="clay">Lehm · IMC</option><option value="stone">Stein · IMS</option></select></label><label>Zu<select id="market-to"><option value="clay">Lehm · IMC</option><option value="wood">Holz · IMW</option><option value="stone">Stein · IMS</option></select></label><label>Menge<input id="market-amount" type="number" min="1" value="25" inputmode="numeric"></label></div>
-            <button class="send-raid market-swap" id="market-swap">Im Spiel tauschen</button>
-            <div class="gold-boundary"><span>GOLD-SETTLEMENT</span><b>IMG ist einzige externe Brücke.</b><small>WLD / WBTC erst nach Audit, Liquidität und World-App-Allowlisting.</small><button disabled>Gold gegen WLD oder WBTC tauschen</button></div>
-          </section>
-
-          <section class="panel raid-panel"><div class="panel-head"><p>ÜBERFALL</p><span>DEMO-GEGNER</span><h2>Marsch planen</h2></div>
-            <label class="target-select">Zielort <select id="raid-target">${state.targets.map((target) => `<option value="${target.id}">${target.name} · Verteidigung ${target.defense}</option>`).join("")}</select></label>
-            <div class="army-inputs">${Object.entries(TROOPS).map(([id, troop]) => `<label><span>${troop.label} <b>${state.troops[id]} bereit</b></span><input type="number" min="0" max="${state.troops[id]}" value="0" id="raid-${id}" inputmode="numeric"></label>`).join("")}</div>
-            <button class="send-raid" id="send-raid">Truppen entsenden</button>
-            ${raidResult()}
-          </section>
-        </aside>
-      </main>
-      <footer class="game-footer"><span><i></i> Lokaler Speicher aktiv</span><span>${state.raids} Demo-Überfälle · Kein Wallet verbunden</span><button id="reset">Demo zurücksetzen</button></footer>
-      <nav class="mobile-hud"><a href="#dorf">DORF</a><a href="#bau">BAU</a><a href="#armee">ARMEE</a></nav>
-    </section>`;
-
-  document.querySelector("#gather").addEventListener("click", () => {
-    gather(state);
-    feedback = "Rohstoffschicht eingesammelt. Baue die Produktionsstätten weiter aus.";
-    save();
-    render();
-  });
-  document.querySelectorAll("[data-building]").forEach((button) => button.addEventListener("click", () => {
-    const id = button.dataset.building;
-    const result = upgradeBuilding(state, id);
-    feedback = result.ok ? `${BUILDINGS[id].label} auf Stufe ${state.buildings[id]} ausgebaut.` : "Ausbau noch gesperrt oder Rohstoffe fehlen.";
-    save();
-    render();
-  }));
-  document.querySelectorAll("[data-train]").forEach((button) => button.addEventListener("click", () => {
-    const id = button.dataset.train;
-    const result = trainTroop(state, id);
-    feedback = result.ok ? `${TROOPS[id].label} ausgebildet.` : "Ausbildung noch gesperrt oder Rohstoffe fehlen.";
-    save();
-    render();
-  }));
-  document.querySelector("#market-swap").addEventListener("click", () => {
-    const from = document.querySelector("#market-from").value;
-    const to = document.querySelector("#market-to").value;
-    const result = swapInternal(state, from, to, document.querySelector("#market-amount").value);
-    feedback = result.ok ? `${format(result.output)} ${RESOURCE_DEFS[to].label} im In-Game-Markt erhalten.` : "Tausch nicht möglich: Quelle, Ziel, Menge oder Speicher prüfen.";
-    save();
-    render();
-  });
-  document.querySelector("#send-raid").addEventListener("click", () => {
-    const selected = Object.fromEntries(Object.keys(TROOPS).map((id) => [id, document.querySelector(`#raid-${id}`).value]));
-    const result = sendRaid(state, document.querySelector("#raid-target").value, selected);
-    feedback = result.ok ? "Marschbericht im Überfall-Panel aktualisiert." : "Wähle verfügbare Truppen für den Überfall.";
-    save();
-    render();
-  });
-  document.querySelector("#reset").addEventListener("click", () => {
-    state = createInitialState();
-    feedback = "Demo-Dorf zurückgesetzt.";
-    localStorage.removeItem(STORAGE_KEY);
-    render();
-  });
+  document.querySelector("#gather").addEventListener("click", () => { const result = gather(state); const collected = costLine(result.collected); feedback = collected ? `Im Speicher gesichert: ${collected}.` : "Feldlager leer oder Speicher voll."; save(); render(); });
+  document.querySelectorAll("[data-map-building]").forEach((button) => button.addEventListener("click", () => { selectedBuilding = button.dataset.mapBuilding; activePanel = "build"; feedback = `${BUILDINGS[selectedBuilding].label} ausgewählt.`; render(); }));
+  document.querySelectorAll("[data-panel]").forEach((button) => button.addEventListener("click", () => { activePanel = button.dataset.panel; feedback = { build: "Wähle ein Gebäude auf dem Dorfplan.", army: "Bilde Truppen aus, sobald die Kaserne bereit ist.", market: "Nur Holz, Lehm und Stein sind im Spielmarkt tauschbar.", raid: "Stelle eine Marschgruppe zusammen." }[activePanel]; render(); }));
+  document.querySelectorAll("[data-building]").forEach((button) => button.addEventListener("click", () => { const id = button.dataset.building; const result = upgradeBuilding(state, id); feedback = result.ok ? `${BUILDINGS[id].label} auf Stufe ${state.buildings[id]} ausgebaut.` : "Ausbau noch gesperrt oder Rohstoffe fehlen."; save(); render(); }));
+  document.querySelectorAll("[data-train]").forEach((button) => button.addEventListener("click", () => { const id = button.dataset.train; const result = trainTroop(state, id); feedback = result.ok ? `${TROOPS[id].label} ausgebildet.` : "Ausbildung noch gesperrt oder Rohstoffe fehlen."; save(); render(); }));
+  document.querySelector("#market-swap")?.addEventListener("click", () => { const from = document.querySelector("#market-from").value; const to = document.querySelector("#market-to").value; const result = swapInternal(state, from, to, document.querySelector("#market-amount").value); feedback = result.ok ? `${format(result.output)} ${RESOURCE_DEFS[to].label} im Spielmarkt erhalten.` : "Tausch nicht möglich: Quelle, Ziel, Menge oder Speicher prüfen."; save(); render(); });
+  document.querySelector("#send-raid")?.addEventListener("click", () => { const selected = Object.fromEntries(Object.keys(TROOPS).map((id) => [id, document.querySelector(`#raid-${id}`).value])); const result = sendRaid(state, document.querySelector("#raid-target").value, selected); feedback = result.ok ? "Marschbericht aktualisiert." : "Wähle verfügbare Truppen für den Überfall."; save(); render(); });
+  document.querySelector("#reset").addEventListener("click", () => { state = createInitialState(); selectedBuilding = "townhall"; activePanel = "build"; feedback = "Demo-Dorf zurückgesetzt."; localStorage.removeItem(STORAGE_KEY); render(); });
 }
 
 render();

@@ -56,7 +56,7 @@ export const TROOPS = {
   rider: { label: "Reiter", icon: "R", attack: 31, cost: cost(45, 35, 24, 4), requires: [{ id: "barracks", level: 3 }, { id: "workshop", level: 2 }] },
 };
 
-const target = (id, name, defense, loot) => ({ id, name, defense, loot, initialLoot: loot });
+const target = (id, name, defense, unclaimed) => ({ id, name, defense, unclaimed, initialUnclaimed: unclaimed });
 export const DEMO_TARGETS = [
   target("river", "Flusswacht", 54, cost(135, 85, 70, 12)),
   target("ash", "Aschenhain", 128, cost(245, 210, 160, 28)),
@@ -66,9 +66,12 @@ export const DEMO_TARGETS = [
 export function createInitialState(now = Date.now()) {
   return {
     resources: cost(240, 220, 210, 40),
+    // Produced resources stay exposed in the field until the player collects them.
+    // Only `resources` is spendable; `unclaimed` is the raidable field stock.
+    unclaimed: cost(),
     buildings: { townhall: 1, timber: 1, claypit: 1, quarry: 1, warehouse: 1, workshop: 0, goldmine: 0, barracks: 0 },
     troops: { spear: 0, archer: 0, rider: 0 },
-    targets: DEMO_TARGETS.map((item) => ({ ...item, loot: { ...item.loot }, initialLoot: { ...item.initialLoot } })),
+    targets: DEMO_TARGETS.map((item) => ({ ...item, unclaimed: { ...item.unclaimed }, initialUnclaimed: { ...item.initialUnclaimed } })),
     raids: 0,
     lastRaid: null,
     last: now,
@@ -96,8 +99,9 @@ export function settle(state, now = Date.now()) {
   const elapsed = Math.min(8 * 60 * 60, Math.max(0, (now - state.last) / 1000));
   const production = getProduction(state);
   const capacity = getCapacity(state);
+  state.unclaimed ||= cost();
   Object.keys(RESOURCE_DEFS).forEach((resource) => {
-    state.resources[resource] = Math.min(capacity, state.resources[resource] + production[resource] * elapsed);
+    state.unclaimed[resource] = Math.min(capacity, state.unclaimed[resource] + production[resource] * elapsed);
   });
   state.last = now;
   return state;
@@ -135,12 +139,14 @@ export function upgradeBuilding(state, id, now = Date.now()) {
 
 export function gather(state, now = Date.now()) {
   settle(state, now);
-  const production = getProduction(state);
   const capacity = getCapacity(state);
+  const collected = cost();
   Object.keys(RESOURCE_DEFS).forEach((resource) => {
-    state.resources[resource] = Math.min(capacity, state.resources[resource] + production[resource] * 6 + state.buildings.townhall * 0.5);
+    collected[resource] = Math.min(state.unclaimed[resource], Math.max(0, capacity - state.resources[resource]));
+    state.resources[resource] += collected[resource];
+    state.unclaimed[resource] -= collected[resource];
   });
-  return production;
+  return { collected, unclaimed: state.unclaimed };
 }
 
 export function swapInternal(state, from, to, amount, now = Date.now()) {
@@ -191,9 +197,11 @@ export function sendRaid(state, targetId, selected, now = Date.now()) {
   const casualtyRate = won ? 0.08 : 0.38;
   const casualties = Object.fromEntries(Object.keys(TROOPS).map((id) => [id, Math.min(army[id], Math.ceil(army[id] * casualtyRate))]));
   Object.keys(TROOPS).forEach((id) => { state.troops[id] -= casualties[id]; });
-  const stolen = won ? loot(target.loot, total * 18) : cost();
+  // Accept legacy demo saves, which used `loot` before field stock existed.
+  target.unclaimed ||= { ...(target.loot || cost()) };
+  const stolen = won ? loot(target.unclaimed, total * 18) : cost();
   Object.keys(RESOURCE_DEFS).forEach((resource) => {
-    target.loot[resource] -= stolen[resource];
+    target.unclaimed[resource] -= stolen[resource];
     state.resources[resource] = Math.min(getCapacity(state), state.resources[resource] + stolen[resource]);
   });
   state.raids += 1;
