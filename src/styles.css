@@ -43,4 +43,4 @@
 
 .world-id-status{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:.65rem;max-width:112rem;margin:0 auto .8rem;padding:.62rem .8rem;border:1px solid #7e9a64aa;border-radius:.8rem;background:#102015e8;color:#dcebd1;box-shadow:0 .5rem 1.2rem #0005}.world-id-status b{color:#e8d36f;font-size:.62rem;letter-spacing:.08em}.world-id-status span{font-size:.64rem}.world-id-status button{border:1px solid #d4bd5e;border-radius:.5rem;padding:.42rem .58rem;color:#271d0b;background:#e1c865;font-size:.6rem;font-weight:800;cursor:pointer}
 @media(max-width:640px){.world-id-status{grid-template-columns:1fr;margin-bottom:.65rem}.world-id-status button{justify-self:start}}
-@media(min-width:961px){.village-map{max-width:calc(100dvh - 9rem)}}
+@media(min-width:961px){.village-map{width:min(100%,calc(100dvh - 9rem));justify-self:start}}
