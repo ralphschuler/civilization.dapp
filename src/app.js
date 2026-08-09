@@ -103,8 +103,23 @@ function raidPanel() {
 
 function panelContents() { return { build: buildInspector, army: armyPanel, market: marketPanel, raid: raidPanel }[activePanel](); }
 
-function isEditingCommand() {
-  return document.activeElement?.matches(".command-panel input, .command-panel select, .command-panel textarea");
+function resourceHudItem(id, definition, production, capacity) {
+  const stored = state.resources[id];
+  const field = state.unclaimed[id];
+  const fullness = Math.min(1, stored / capacity);
+  return `<div class="resource ${definition.color}" data-resource="${id}"><img src="${RESOURCE_ASSETS[id]}" alt=""><span><small>${TOKEN_REGISTRY[id].symbol} · SPEICHER</small><strong data-resource-value>${format(stored)}</strong><b class="storage-capacity" data-resource-capacity>/${format(capacity)}</b><div class="storage-progress ${stored >= capacity ? "is-full" : ""}" role="progressbar" aria-label="${definition.label}-Speicher" aria-valuemin="0" aria-valuemax="${capacity}" aria-valuenow="${stored}"><i data-resource-progress style="transform:scaleX(${fullness})"></i></div><em data-resource-field>Feld ${format(field)} · +${format(production[id])}/s</em></span></div>`;
+}
+
+function refreshTickValues() {
+  const production = getProduction(state);
+  Object.keys(RESOURCE_DEFS).forEach((id) => {
+    const resource = document.querySelector(`[data-resource="${id}"]`);
+    if (!resource) return;
+    resource.querySelector("[data-resource-field]").textContent = `Feld ${format(state.unclaimed[id])} · +${format(production[id])}/s`;
+  });
+  const readyToClaim = Object.values(state.unclaimed).reduce((sum, amount) => sum + amount, 0);
+  const collectLabel = document.querySelector("[data-ready-to-claim]");
+  if (collectLabel) collectLabel.textContent = `${format(readyToClaim)} sammeln`;
 }
 
 function render() {
@@ -112,7 +127,7 @@ function render() {
   const production = getProduction(state);
   const capacity = getCapacity(state);
   const readyToClaim = Object.values(state.unclaimed).reduce((sum, amount) => sum + amount, 0);
-  document.querySelector("#app").innerHTML = `<section class="game-shell village-shell" style="--city-map-desktop:url('${CITY_MAPS.desktop}');--city-map-mobile:url('${CITY_MAPS.mobile}')"><header class="hud village-hud"><div class="game-mark"><span>IM</span><div><b>IDLE MINT</b><small>DORF VON MINTIA</small></div></div><div class="resource-hud" aria-live="polite">${Object.entries(RESOURCE_DEFS).map(([id, definition]) => `<div class="resource ${definition.color}"><img src="${RESOURCE_ASSETS[id]}" alt=""><span><small>${TOKEN_REGISTRY[id].symbol} · SPEICHER</small><strong>${format(state.resources[id])}</strong><em>Feld ${format(state.unclaimed[id])} · +${format(production[id])}/s</em></span></div>`).join("")}</div><span class="demo-badge">DEMO · LOKAL</span></header><main class="command-layout"><section class="village-map" id="dorf" aria-label="Interaktive Stadtkarte von Mintia. Wähle ein Gebäude, um seinen Ausbau zu planen."><div class="map-head"><p>DORF VON MINTIA</p><h1>Dein Dorf.</h1><span>Rathaus ${state.buildings.townhall} · Speicher ${format(capacity)}</span></div><button class="collect-button" id="gather"><span>FELDLAGER · RAIDBAR</span><b>${format(readyToClaim)} sammeln</b></button><div class="map-buildings">${BUILDING_IDS.map(buildingSpot).join("")}<button class="map-building map-market ${activePanel === "market" ? "is-selected" : ""}" data-panel="market" aria-label="Tauschhalle öffnen"><img src="${BUILDING_ASSETS.market}" alt=""><span><b>Tauschhalle</b><small>ERC-20 Markt</small></span></button></div><p class="map-feedback" aria-live="polite">${feedback}</p></section><aside class="command-rail"><nav class="command-tabs" aria-label="Dorfaktionen">${[["build", "Bauplan"], ["army", "Kaserne"], ["market", "Markt"], ["raid", "Überfall"]].map(([id, label]) => `<button data-panel="${id}" class="${activePanel === id ? "is-active" : ""}">${label}</button>`).join("")}</nav><section class="command-panel">${panelContents()}</section></aside></main><footer class="game-footer"><span><i></i> Speicher geschützt · Feldlager raidbar</span><span>${state.raids} Demo-Überfälle · Kein Wallet verbunden</span><button id="reset">Demo zurücksetzen</button></footer><nav class="mobile-hud" aria-label="Schnellzugriff">${[["build", "Bau"], ["army", "Armee"], ["market", "Markt"], ["raid", "Raid"]].map(([id, label]) => `<button data-panel="${id}" class="${activePanel === id ? "is-active" : ""}">${label}</button>`).join("")}</nav></section>`;
+  document.querySelector("#app").innerHTML = `<section class="game-shell village-shell" style="--city-map-desktop:url('${CITY_MAPS.desktop}');--city-map-mobile:url('${CITY_MAPS.mobile}')"><header class="hud village-hud"><div class="game-mark"><span>IM</span><div><b>IDLE MINT</b><small>DORF VON MINTIA</small></div></div><div class="resource-hud">${Object.entries(RESOURCE_DEFS).map(([id, definition]) => resourceHudItem(id, definition, production, capacity)).join("")}</div><span class="demo-badge">DEMO · LOKAL</span></header><main class="command-layout"><section class="village-map" id="dorf" aria-label="Interaktive Stadtkarte von Mintia. Wähle ein Gebäude, um seinen Ausbau zu planen."><div class="map-head"><p>DORF VON MINTIA</p><h1>Dein Dorf.</h1><span>Rathaus ${state.buildings.townhall} · Speicher ${format(capacity)}</span></div><button class="collect-button" id="gather"><span>FELDLAGER · RAIDBAR</span><b data-ready-to-claim>${format(readyToClaim)} sammeln</b></button><div class="map-buildings">${BUILDING_IDS.map(buildingSpot).join("")}<button class="map-building map-market ${activePanel === "market" ? "is-selected" : ""}" data-panel="market" aria-label="Tauschhalle öffnen"><img src="${BUILDING_ASSETS.market}" alt=""><span><b>Tauschhalle</b><small>ERC-20 Markt</small></span></button></div><p class="map-feedback" aria-live="polite">${feedback}</p></section><aside class="command-rail"><nav class="command-tabs" aria-label="Dorfaktionen">${[["build", "Bauplan"], ["army", "Kaserne"], ["market", "Markt"], ["raid", "Überfall"]].map(([id, label]) => `<button data-panel="${id}" class="${activePanel === id ? "is-active" : ""}">${label}</button>`).join("")}</nav><section class="command-panel">${panelContents()}</section></aside></main><footer class="game-footer"><span><i></i> Speicher geschützt · Feldlager raidbar</span><span>${state.raids} Demo-Überfälle · Kein Wallet verbunden</span><button id="reset">Demo zurücksetzen</button></footer><nav class="mobile-hud" aria-label="Schnellzugriff">${[["build", "Bau"], ["army", "Armee"], ["market", "Markt"], ["raid", "Raid"]].map(([id, label]) => `<button data-panel="${id}" class="${activePanel === id ? "is-active" : ""}">${label}</button>`).join("")}</nav></section>`;
 
   document.querySelector("#gather").addEventListener("click", () => { const result = gather(state); const collected = costLine(result.collected); feedback = collected ? `Im Speicher gesichert: ${collected}.` : "Feldlager leer oder Speicher voll."; save(); render(); });
   document.querySelectorAll("[data-map-building]").forEach((button) => button.addEventListener("click", () => { selectedBuilding = button.dataset.mapBuilding; activePanel = "build"; feedback = `${BUILDINGS[selectedBuilding].label} ausgewählt.`; render(); }));
@@ -128,6 +143,5 @@ render();
 setInterval(() => {
   settle(state);
   save();
-  // Replacing the complete panel while a player types would discard troop amounts.
-  if (!isEditingCommand()) render();
+  refreshTickValues();
 }, 1000);
