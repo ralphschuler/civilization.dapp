@@ -1,10 +1,51 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { COLLECTION_COOLDOWN_MS, MARCH_DURATION_MS, createInitialState, gather, getRequirements, resolveRaidMarch, sendRaid, settle, startGathering, startRaidMarch, swapInternal, trainTroop, upgradeBuilding } from "../src/game.js";
-import { installWorldAppBridge } from "../src/world.js";
+import { getWorldIdConfig, installWorldAppBridge, requestWorldIdGameAccess, WORLD_ID_GAME_ACCESS_ACTION } from "../src/world.js";
 
 test("World bridge remains inactive in the regular browser demo", () => {
   assert.deepEqual(installWorldAppBridge(), { installed: false });
+});
+
+test("World ID stays unavailable until both trusted HTTPS endpoints are configured", () => {
+  assert.equal(getWorldIdConfig({ VITE_WORLD_APP_ID: "app_example" }).configured, false);
+  assert.equal(getWorldIdConfig({
+    VITE_WORLD_APP_ID: "app_example", VITE_WORLD_ID_PROOF_CONTEXT_URL: "https://api.example/proof",
+    VITE_WORLD_ID_VERIFY_URL: "https://api.example/verify", VITE_WORLD_ID_ENVIRONMENT: "production",
+  }).configured, true);
+});
+
+test("World ID access is granted only after the server verifies the returned proof", async () => {
+  const config = getWorldIdConfig({
+    VITE_WORLD_APP_ID: "app_example", VITE_WORLD_ID_PROOF_CONTEXT_URL: "https://api.example/proof",
+    VITE_WORLD_ID_VERIFY_URL: "https://api.example/verify", VITE_WORLD_ID_ENVIRONMENT: "production",
+  });
+  const calls = [];
+  const fetchImpl = async (url, options) => {
+    calls.push({ url, body: JSON.parse(options.body) });
+    const body = url === config.proofContextEndpoint
+      ? { rp_id: "rp_example", nonce: "nonce", created_at: 1, expires_at: 2, signature: "0xsignature" }
+      : { verified: true };
+    return { ok: true, json: async () => body };
+  };
+  const idkit = { request: (request) => ({ preset: async () => ({ pollUntilCompletion: async () => ({ success: true, result: { protocol_version: "4.0", action: request.action } }) }) }) };
+  assert.deepEqual(await requestWorldIdGameAccess({ config, fetchImpl, idkit }), { ok: true });
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0].body.action, WORLD_ID_GAME_ACCESS_ACTION);
+  assert.equal(calls[1].body.idkitResponse.action, WORLD_ID_GAME_ACCESS_ACTION);
+});
+
+test("World ID client proof alone cannot grant access", async () => {
+  const config = getWorldIdConfig({
+    VITE_WORLD_APP_ID: "app_example", VITE_WORLD_ID_PROOF_CONTEXT_URL: "https://api.example/proof",
+    VITE_WORLD_ID_VERIFY_URL: "https://api.example/verify", VITE_WORLD_ID_ENVIRONMENT: "production",
+  });
+  let requestCount = 0;
+  const fetchImpl = async () => ({ ok: true, json: async () => (++requestCount === 1
+    ? { rp_id: "rp_example", nonce: "nonce", created_at: 1, expires_at: 2, signature: "0xsignature" }
+    : { verified: false }) });
+  const idkit = { request: () => ({ preset: async () => ({ pollUntilCompletion: async () => ({ success: true, result: {} }) }) }) };
+  assert.deepEqual(await requestWorldIdGameAccess({ config, fetchImpl, idkit }), { ok: false, reason: "verification_rejected" });
 });
 
 test("resource buildings fill raidable field stock before collection", () => {

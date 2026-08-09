@@ -34,6 +34,19 @@ Raid targets are deterministic local demo villages. Raids take only their unclai
 
 IdleMint includes `@worldcoin/minikit-js` and only initializes MiniKit when it is actually opened inside World App. Regular browsers remain a walletless local demo. The public portal app ID belongs in the GitHub Actions repository variable `WORLD_APP_ID` (see `.env.example`); it is intentionally not a secret.
 
+### World ID game access
+
+Inside World App only, IdleMint uses IDKit v4 for the production action `idlemint-game-access-v1`. The UI has explicit states for not verified, checking, verified, and error/configuration failure. The browser demo remains fully local and does not request World ID.
+
+Set these public build-time variables to the HTTPS endpoints of the trusted backend (the example values are placeholders):
+
+- `VITE_WORLD_APP_ID`: the Portal app ID.
+- `VITE_WORLD_ID_PROOF_CONTEXT_URL`: `POST` endpoint that accepts the fixed action and returns only `{ rp_id, nonce, created_at, expires_at, signature }`. It must generate the RP signature server-side with the protected signing key.
+- `VITE_WORLD_ID_VERIFY_URL`: `POST` endpoint that receives `{ action, rp_id, idkitResponse }` and returns `{ verified: true }` only after successful server verification.
+- `VITE_WORLD_ID_ENVIRONMENT=production`: this must match the Portal app and relying-party registration.
+
+The verify endpoint must ignore client-selected app/action/RP values in favor of its own expected production configuration; forward the untouched IDKit response to `POST https://developer.world.org/api/v4/verify/{rp_id}`; validate its successful response; and atomically store every verified nullifier as a canonical numeric value with `UNIQUE (nullifier, action)`. A uniqueness conflict is a replay/already-used proof and must not grant access. It must issue and enforce its own authenticated server-side game session for any non-local game state. Neither MiniKit/IDKit client output nor the static UI is an authorization boundary.
+
 The Developer Portal team API key must remain local to the trusted Developer Portal MCP client. Do not add it to GitHub Actions: the current static demo has no server-side payment or proof verification path that needs it. When a backend is added, store any verification or transaction credentials server-side only.
 
 Before using MiniKit `sendTransaction`, World App requires contract and Permit2-token allowlisting in the portal; verify every submitted user operation on a backend before crediting a game balance. `contracts/src/IdleCoin.sol` is a legacy undeployed ERC-20 draft; new resource work uses `GameResourceToken.sol` instead.

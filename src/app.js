@@ -1,5 +1,5 @@
 import "./styles.css";
-import { installWorldAppBridge } from "./world.js";
+import { getWorldIdConfig, installWorldAppBridge, requestWorldIdGameAccess } from "./world.js";
 import {
   BUILDINGS,
   RESOURCE_DEFS,
@@ -30,10 +30,12 @@ const BUILDING_ASSETS = {
 };
 const RESOURCE_ASSETS = { wood: asset("village-v2/resources/wood.png"), clay: asset("village-v2/resources/clay.png"), stone: asset("village-v2/resources/stone.png"), gold: asset("village-v2/resources/gold.png") };
 const TROOP_ASSETS = { spear: asset("units/spearman.png"), archer: asset("units/archer.png"), rider: asset("units/knight.png") };
-const CITY_MAPS = { desktop: asset("maps/mintia-village-map-v1.png"), mobile: asset("maps/mintia-village-map-mobile-v1.png") };
+const CITY_MAP = asset("maps/mintia-village-map-mobile-v2.png");
 const BUILDING_IDS = ["townhall", "timber", "claypit", "quarry", "warehouse", "workshop", "goldmine", "barracks"];
 const worldApp = installWorldAppBridge();
+const worldIdConfig = getWorldIdConfig();
 const worldBadge = worldApp.installed ? `WORLD APP${worldApp.walletAddress ? ` · ${worldApp.walletAddress.slice(0, 6)}…${worldApp.walletAddress.slice(-4)}` : " · VERBUNDEN"}` : "DEMO · LOKAL";
+let worldIdStatus = worldApp.installed ? (worldIdConfig.configured ? "not_verified" : "configuration_required") : "local_demo";
 let feedback = "Wähle ein Gebäude auf dem Dorfplan.";
 let selectedBuilding = "townhall";
 let activePanel = "build";
@@ -57,9 +59,30 @@ function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
 
 function remainingTime(until) { return Math.max(0, Math.ceil((until - Date.now()) / 1000)); }
 function clock(seconds) { return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`; }
+function escapeHtml(value) { return String(value ?? "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" })[character]); }
 function collectionStatus() {
   const seconds = remainingTime(state.gatherAvailableAt || 0);
   return seconds ? { locked: true, label: `Sammeln in ${clock(seconds)}`, detail: `SAMMLER KEHREN IN ${clock(seconds)} ZURÜCK` } : { locked: false, detail: "FELDLAGER · RAIDBAR" };
+}
+
+function hasGameAccess() { return !worldApp.installed || worldIdStatus === "verified"; }
+function worldIdStatusView() {
+  if (!worldApp.installed) return "";
+  const content = {
+    not_verified: ["WORLD ID · NICHT VERIFIZIERT", "Bestätige den Spielzugang mit World ID."],
+    checking: ["WORLD ID · PRÜFUNG LÄUFT", "Die Anfrage wird in World App und auf dem Server geprüft."],
+    verified: ["WORLD ID · VERIFIZIERT", "Spielzugang wurde vom Verify-Endpunkt bestätigt."],
+    configuration_required: ["WORLD ID · SERVER NICHT KONFIGURIERT", "Ohne HTTPS-Proof- und Verify-Endpunkt wird kein verifizierter Spielzugang erteilt."],
+    error: ["WORLD ID · FEHLER", "Die Verifizierung wurde nicht bestätigt. Bitte erneut versuchen."],
+  }[worldIdStatus];
+  const canStart = worldIdStatus === "not_verified" || worldIdStatus === "error";
+  return `<div class="world-id-status" role="status"><b>${content[0]}</b><span>${content[1]}</span>${canStart ? "<button id=\"world-id-verify\">Mit World ID verifizieren</button>" : ""}</div>`;
+}
+function requireWorldIdAccess() {
+  if (hasGameAccess()) return true;
+  feedback = "World-ID-Verifizierung ist für den Spielzugang in World App erforderlich.";
+  render();
+  return false;
 }
 
 function costLine(value) {
@@ -106,7 +129,7 @@ function raidResult() {
   const result = state.lastRaid;
   const stolen = costLine(result.stolen) || "Keine Beute";
   const losses = Object.entries(result.casualties).filter(([, amount]) => amount).map(([id, amount]) => `${amount} ${TROOPS[id].label}`).join(", ") || "Keine Verluste";
-  return `<div class="raid-result ${result.ok ? "success" : "failure"}"><span>LETZTER BERICHT · ${result.ok ? "SIEG" : "RÜCKZUG"}</span><b>${result.target}: Angriff ${result.attack} gegen ${result.defense}</b><small>Feldlager-Beute: ${stolen} · Verluste: ${losses}</small></div>`;
+  return `<div class="raid-result ${result.ok ? "success" : "failure"}"><span>LETZTER BERICHT · ${result.ok ? "SIEG" : "RÜCKZUG"}</span><b>${escapeHtml(result.target)}: Angriff ${result.attack} gegen ${result.defense}</b><small>Feldlager-Beute: ${stolen} · Verluste: ${losses}</small></div>`;
 }
 
 function raidPanel() {
@@ -115,7 +138,7 @@ function raidPanel() {
     const target = state.targets.find((item) => item.id === pending.targetId);
     return `<div class="inspector raid-inspector"><div class="inspector-title"><p>ÜBERFALL</p><h2>Marsch unterwegs</h2><span>Kein weiterer Marsch, bis die Truppe zurück ist.</span></div><div class="march-status"><span>MARSCH NACH ${target?.name?.toUpperCase() || "ZIELORT"}</span><b data-raid-countdown>${clock(remainingTime(pending.arrivesAt))}</b><small>Die Schlacht wird bei Ankunft ausgewertet.</small></div><button class="primary-action" disabled>Marsch läuft</button>${raidResult()}</div>`;
   }
-  return `<div class="inspector raid-inspector"><div class="inspector-title"><p>ÜBERFALL</p><h2>Marsch planen</h2><span>Lokale Demo-Gegner · nur Feldlager raidbar</span></div><label class="target-select">Zielort <select id="raid-target">${state.targets.map((target) => `<option value="${target.id}">${target.name} · Verteidigung ${target.defense} · Feldlager ${format(Object.values(target.unclaimed).reduce((sum, amount) => sum + amount, 0))}</option>`).join("")}</select></label><div class="army-inputs">${Object.entries(TROOPS).map(([id, troop]) => `<label><span>${troop.label}<b>${state.troops[id]} bereit</b></span><input type="number" min="0" max="${state.troops[id]}" value="0" id="raid-${id}" inputmode="numeric"></label>`).join("")}</div><button class="primary-action" id="send-raid">Marsch starten · 01:00</button>${raidResult()}</div>`;
+  return `<div class="inspector raid-inspector"><div class="inspector-title"><p>ÜBERFALL</p><h2>Marsch planen</h2><span>Lokale Demo-Gegner · nur Feldlager raidbar</span></div><label class="target-select">Zielort <select id="raid-target">${state.targets.map((target) => `<option value="${target.id}">${escapeHtml(target.name)} · Verteidigung ${target.defense} · Feldlager ${format(Object.values(target.unclaimed).reduce((sum, amount) => sum + amount, 0))}</option>`).join("")}</select></label><div class="army-inputs">${Object.entries(TROOPS).map(([id, troop]) => `<label><span>${troop.label}<b>${state.troops[id]} bereit</b></span><input type="number" min="0" max="${state.troops[id]}" value="0" id="raid-${id}" inputmode="numeric"></label>`).join("")}</div><button class="primary-action" id="send-raid">Marsch starten · 01:00</button>${raidResult()}</div>`;
 }
 
 function panelContents() { return { build: buildInspector, army: armyPanel, market: marketPanel, raid: raidPanel }[activePanel](); }
@@ -153,15 +176,24 @@ function render() {
   const capacity = getCapacity(state);
   const readyToClaim = Object.values(state.unclaimed).reduce((sum, amount) => sum + amount, 0);
   const collection = collectionStatus();
-  document.querySelector("#app").innerHTML = `<section class="game-shell village-shell" style="--city-map-desktop:url('${CITY_MAPS.desktop}');--city-map-mobile:url('${CITY_MAPS.mobile}')"><header class="hud village-hud"><div class="game-mark"><span>IM</span><div><b>IDLE MINT</b><small>DORF VON MINTIA</small></div></div><div class="resource-hud">${Object.entries(RESOURCE_DEFS).map(([id, definition]) => resourceHudItem(id, definition, production, capacity)).join("")}</div><span class="demo-badge ${worldApp.installed ? "is-world" : ""}">${worldBadge}</span></header><main class="command-layout"><section class="village-map" id="dorf" aria-label="Interaktive Stadtkarte von Mintia. Wähle ein Gebäude, um seinen Ausbau zu planen."><div class="map-head"><p>DORF VON MINTIA</p><h1>Dein Dorf.</h1><span>Rathaus ${state.buildings.townhall} · Speicher ${format(capacity)}</span></div><button class="collect-button" id="gather" ${collection.locked ? "disabled" : ""}><span data-collection-status>${collection.detail}</span><b data-ready-to-claim>${collection.locked ? collection.label : `${format(readyToClaim)} sammeln`}</b></button><div class="map-buildings">${BUILDING_IDS.map(buildingSpot).join("")}<button class="map-building map-market ${activePanel === "market" ? "is-selected" : ""}" data-panel="market" aria-label="Tauschhalle öffnen"><img src="${BUILDING_ASSETS.market}" alt=""><span><b>Tauschhalle</b><small>ERC-20 Markt</small></span></button></div><p class="map-feedback" aria-live="polite">${feedback}</p></section><aside class="command-rail"><nav class="command-tabs" aria-label="Dorfaktionen">${[["build", "Bauplan"], ["army", "Kaserne"], ["market", "Markt"], ["raid", "Überfall"]].map(([id, label]) => `<button data-panel="${id}" class="${activePanel === id ? "is-active" : ""}">${label}</button>`).join("")}</nav><section class="command-panel">${panelContents()}</section></aside></main><footer class="game-footer"><span><i></i> Speicher geschützt · Feldlager raidbar</span><span>${state.raids} Demo-Überfälle · ${worldApp.installed ? "World App erkannt" : "Kein Wallet verbunden"}</span><button id="reset">Demo zurücksetzen</button></footer><nav class="mobile-hud" aria-label="Schnellzugriff">${[["build", "Bau"], ["army", "Armee"], ["market", "Markt"], ["raid", "Raid"]].map(([id, label]) => `<button data-panel="${id}" class="${activePanel === id ? "is-active" : ""}">${label}</button>`).join("")}</nav></section>`;
+  document.querySelector("#app").innerHTML = `<section class="game-shell village-shell" style="--city-map:url('${CITY_MAP}')"><header class="hud village-hud"><div class="game-mark"><span>IM</span><div><b>IDLE MINT</b><small>DORF VON MINTIA</small></div></div><div class="resource-hud">${Object.entries(RESOURCE_DEFS).map(([id, definition]) => resourceHudItem(id, definition, production, capacity)).join("")}</div><span class="demo-badge ${worldApp.installed ? "is-world" : ""}">${worldBadge}</span></header><main class="command-layout"><section class="village-map" id="dorf" aria-label="Interaktive Stadtkarte von Mintia. Wähle ein Gebäude, um seinen Ausbau zu planen."><div class="map-head"><p>DORF VON MINTIA</p><h1>Dein Dorf.</h1><span>Rathaus ${state.buildings.townhall} · Speicher ${format(capacity)}</span></div><button class="collect-button" id="gather" ${collection.locked ? "disabled" : ""}><span data-collection-status>${collection.detail}</span><b data-ready-to-claim>${collection.locked ? collection.label : `${format(readyToClaim)} sammeln`}</b></button><div class="map-buildings">${BUILDING_IDS.map(buildingSpot).join("")}<button class="map-building map-market ${activePanel === "market" ? "is-selected" : ""}" data-panel="market" aria-label="Tauschhalle öffnen"><img src="${BUILDING_ASSETS.market}" alt=""><span><b>Tauschhalle</b><small>ERC-20 Markt</small></span></button></div><p class="map-feedback" aria-live="polite">${feedback}</p></section><aside class="command-rail"><nav class="command-tabs" aria-label="Dorfaktionen">${[["build", "Bauplan"], ["army", "Kaserne"], ["market", "Markt"], ["raid", "Überfall"]].map(([id, label]) => `<button data-panel="${id}" class="${activePanel === id ? "is-active" : ""}">${label}</button>`).join("")}</nav><section class="command-panel">${panelContents()}</section></aside></main><footer class="game-footer"><span><i></i> Speicher geschützt · Feldlager raidbar</span><span>${state.raids} Demo-Überfälle · ${worldApp.installed ? "World App erkannt" : "Kein Wallet verbunden"}</span><button id="reset">Demo zurücksetzen</button></footer><nav class="mobile-hud" aria-label="Schnellzugriff">${[["build", "Bau"], ["army", "Armee"], ["market", "Markt"], ["raid", "Raid"]].map(([id, label]) => `<button data-panel="${id}" class="${activePanel === id ? "is-active" : ""}">${label}</button>`).join("")}</nav></section>`;
 
-  document.querySelector("#gather").addEventListener("click", () => { const result = startGathering(state); const collected = result.ok ? costLine(result.collected) : ""; feedback = !result.ok ? "Sammler sind noch unterwegs." : collected ? `Im Speicher gesichert: ${collected}. Nächste Sammlung in 01:00.` : "Feldlager leer oder Speicher voll. Nächste Sammlung in 01:00."; save(); render(); });
+  document.querySelector("#app").insertAdjacentHTML("afterbegin", worldIdStatusView());
+  document.querySelector("#world-id-verify")?.addEventListener("click", async () => {
+    worldIdStatus = "checking";
+    render();
+    const result = await requestWorldIdGameAccess({ config: worldIdConfig });
+    worldIdStatus = result.ok ? "verified" : "error";
+    feedback = result.ok ? "World-ID-Spielzugang wurde serverseitig bestätigt." : "World-ID-Verifizierung wurde nicht bestätigt.";
+    render();
+  });
+  document.querySelector("#gather").addEventListener("click", () => { if (!requireWorldIdAccess()) return; const result = startGathering(state); const collected = result.ok ? costLine(result.collected) : ""; feedback = !result.ok ? "Sammler sind noch unterwegs." : collected ? `Im Speicher gesichert: ${collected}. Nächste Sammlung in 01:00.` : "Feldlager leer oder Speicher voll. Nächste Sammlung in 01:00."; save(); render(); });
   document.querySelectorAll("[data-map-building]").forEach((button) => button.addEventListener("click", () => { selectedBuilding = button.dataset.mapBuilding; activePanel = "build"; feedback = `${BUILDINGS[selectedBuilding].label} ausgewählt.`; render(); }));
   document.querySelectorAll("[data-panel]").forEach((button) => button.addEventListener("click", () => { activePanel = button.dataset.panel; feedback = { build: "Wähle ein Gebäude auf dem Dorfplan.", army: "Bilde Truppen aus, sobald die Kaserne bereit ist.", market: "Nur Holz, Lehm und Stein sind im Spielmarkt tauschbar.", raid: "Stelle eine Marschgruppe zusammen." }[activePanel]; render(); }));
-  document.querySelectorAll("[data-building]").forEach((button) => button.addEventListener("click", () => { const id = button.dataset.building; const result = upgradeBuilding(state, id); feedback = result.ok ? `${BUILDINGS[id].label} auf Stufe ${state.buildings[id]} ausgebaut.` : "Ausbau noch gesperrt oder Rohstoffe fehlen."; save(); render(); }));
-  document.querySelectorAll("[data-train]").forEach((button) => button.addEventListener("click", () => { const id = button.dataset.train; const result = trainTroop(state, id); feedback = result.ok ? `${TROOPS[id].label} ausgebildet.` : "Ausbildung noch gesperrt oder Rohstoffe fehlen."; save(); render(); }));
-  document.querySelector("#market-swap")?.addEventListener("click", () => { const from = document.querySelector("#market-from").value; const to = document.querySelector("#market-to").value; const result = swapInternal(state, from, to, document.querySelector("#market-amount").value); feedback = result.ok ? `${format(result.output)} ${RESOURCE_DEFS[to].label} im Spielmarkt erhalten.` : "Tausch nicht möglich: Quelle, Ziel, Menge oder Speicher prüfen."; save(); render(); });
-  document.querySelector("#send-raid")?.addEventListener("click", () => { const selected = Object.fromEntries(Object.keys(TROOPS).map((id) => [id, document.querySelector(`#raid-${id}`).value])); const result = startRaidMarch(state, document.querySelector("#raid-target").value, selected); feedback = result.ok ? "Marsch gestartet. Ankunft in 01:00." : "Wähle verfügbare Truppen für den Überfall."; save(); render(); });
+  document.querySelectorAll("[data-building]").forEach((button) => button.addEventListener("click", () => { if (!requireWorldIdAccess()) return; const id = button.dataset.building; const result = upgradeBuilding(state, id); feedback = result.ok ? `${BUILDINGS[id].label} auf Stufe ${state.buildings[id]} ausgebaut.` : "Ausbau noch gesperrt oder Rohstoffe fehlen."; save(); render(); }));
+  document.querySelectorAll("[data-train]").forEach((button) => button.addEventListener("click", () => { if (!requireWorldIdAccess()) return; const id = button.dataset.train; const result = trainTroop(state, id); feedback = result.ok ? `${TROOPS[id].label} ausgebildet.` : "Ausbildung noch gesperrt oder Rohstoffe fehlen."; save(); render(); }));
+  document.querySelector("#market-swap")?.addEventListener("click", () => { if (!requireWorldIdAccess()) return; const from = document.querySelector("#market-from").value; const to = document.querySelector("#market-to").value; const result = swapInternal(state, from, to, document.querySelector("#market-amount").value); feedback = result.ok ? `${format(result.output)} ${RESOURCE_DEFS[to].label} im Spielmarkt erhalten.` : "Tausch nicht möglich: Quelle, Ziel, Menge oder Speicher prüfen."; save(); render(); });
+  document.querySelector("#send-raid")?.addEventListener("click", () => { if (!requireWorldIdAccess()) return; const selected = Object.fromEntries(Object.keys(TROOPS).map((id) => [id, document.querySelector(`#raid-${id}`).value])); const result = startRaidMarch(state, document.querySelector("#raid-target").value, selected); feedback = result.ok ? "Marsch gestartet. Ankunft in 01:00." : "Wähle verfügbare Truppen für den Überfall."; save(); render(); });
   document.querySelector("#reset").addEventListener("click", () => { state = createInitialState(); selectedBuilding = "townhall"; activePanel = "build"; feedback = "Demo-Dorf zurückgesetzt."; localStorage.removeItem(STORAGE_KEY); render(); });
 }
 
