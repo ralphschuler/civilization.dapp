@@ -24,11 +24,11 @@ import {
 const STORAGE_KEY = "idlemint-village-demo-v1";
 const asset = (path) => `${import.meta.env.BASE_URL}assets/${path}`;
 const BUILDING_ASSETS = {
-  townhall: asset("buildings/town-hall.png"), timber: asset("buildings/wood-cutter.png"), claypit: asset("buildings/clay-pit.png"),
-  quarry: asset("buildings/iron-mine.png"), warehouse: asset("buildings/storage.png"), workshop: asset("buildings/house.png"),
-  goldmine: asset("buildings/iron-mine.png"), barracks: asset("buildings/barracks.png"), market: asset("buildings/market.png"),
+  townhall: asset("village-v2/buildings/townhall.png"), timber: asset("village-v2/buildings/timber.png"), claypit: asset("village-v2/buildings/claypit.png"),
+  quarry: asset("village-v2/buildings/quarry.png"), warehouse: asset("village-v2/buildings/warehouse.png"), workshop: asset("village-v2/buildings/workshop.png"),
+  goldmine: asset("village-v2/buildings/goldmine.png"), barracks: asset("village-v2/buildings/barracks.png"), market: asset("village-v2/buildings/market.png"),
 };
-const RESOURCE_ASSETS = { wood: asset("resources/wood.png"), clay: asset("resources/clay.png"), stone: asset("resources/iron.png"), gold: asset("resources/gold.png") };
+const RESOURCE_ASSETS = { wood: asset("village-v2/resources/wood.png"), clay: asset("village-v2/resources/clay.png"), stone: asset("village-v2/resources/stone.png"), gold: asset("village-v2/resources/gold.png") };
 const TROOP_ASSETS = { spear: asset("units/spearman.png"), archer: asset("units/archer.png"), rider: asset("units/knight.png") };
 const CITY_MAPS = { desktop: asset("maps/mintia-village-map-v1.png"), mobile: asset("maps/mintia-village-map-mobile-v1.png") };
 const BUILDING_IDS = ["townhall", "timber", "claypit", "quarry", "warehouse", "workshop", "goldmine", "barracks"];
