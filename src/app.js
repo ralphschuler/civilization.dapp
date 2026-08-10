@@ -22,6 +22,7 @@ import {
 } from "./game.js";
 
 const STORAGE_KEY = "idlemint-village-demo-v1";
+const ANONYMOUS_ID_KEY = "idlemint-anonymous-browser-id-v1";
 const asset = (path) => `${import.meta.env.BASE_URL}assets/${path}`;
 const BUILDING_ASSETS = {
   townhall: asset("village-v2/buildings/townhall.png"), timber: asset("village-v2/buildings/timber.png"), claypit: asset("village-v2/buildings/claypit.png"),
@@ -43,6 +44,69 @@ let feedback = "Wähle ein Gebäude auf dem Dorfplan.";
 let selectedBuilding = "townhall";
 let activePanel = "build";
 let state = load();
+let serverAuthoritative = false;
+let onlineTargets = [];
+
+function anonymousBrowserId() {
+  let id = localStorage.getItem(ANONYMOUS_ID_KEY);
+  if (!/^[A-Za-z0-9_-]{32,128}$/.test(id || "")) {
+    const bytes = crypto.getRandomValues(new Uint8Array(24));
+    id = Array.from(bytes, (value) => value.toString(16).padStart(2, "0")).join("");
+    localStorage.setItem(ANONYMOUS_ID_KEY, id);
+  }
+  return id;
+}
+
+async function gameApi(method, body) {
+  const response = await fetch("/api/game/state", {
+    method,
+    headers: { "x-idlemint-anonymous-id": anonymousBrowserId(), ...(body ? { "content-type": "application/json" } : {}) },
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  });
+  if (!response.ok) throw new Error(`game_api_${response.status}`);
+  return response.json();
+}
+
+async function loadOnlineTargets() {
+  const response = await fetch("/api/game/targets", { headers: { "x-idlemint-anonymous-id": anonymousBrowserId() } });
+  if (!response.ok) throw new Error(`game_targets_${response.status}`);
+  const body = await response.json();
+  onlineTargets = Array.isArray(body.targets) ? body.targets : [];
+}
+
+function actionId() {
+  return crypto.randomUUID().replaceAll("-", "");
+}
+
+async function performServerAction(type, payload, message) {
+  if (!serverAuthoritative) return null;
+  try {
+    const response = await gameApi("POST", { id: actionId(), action: { type, payload } });
+    state = response.state;
+    if (type === "start_raid" || type === "resolve_raid") await loadOnlineTargets();
+    feedback = message(response.result);
+    render();
+    return response.result;
+  } catch {
+    feedback = "Der Spielserver ist derzeit nicht erreichbar. Dein lokaler Browserstand wird nicht als Ersatz fortgeschrieben.";
+    render();
+    return null;
+  }
+}
+
+async function initializeServerState() {
+  try {
+    const response = await gameApi("GET");
+    state = response.state;
+    serverAuthoritative = true;
+    await loadOnlineTargets();
+    feedback = "Online-Spielstand geladen. Aktionen werden serverseitig geprüft und gespeichert.";
+    render();
+  } catch {
+    feedback = "Lokaler Demo-Modus: Der Spielserver ist nicht verfügbar.";
+    render();
+  }
+}
 
 function load() {
   const initial = createInitialState();
@@ -58,7 +122,7 @@ function load() {
   } catch { return initial; }
 }
 
-function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+function save() { if (!serverAuthoritative) localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
 
 function remainingTime(until) { return Math.max(0, Math.ceil((until - Date.now()) / 1000)); }
 function clock(seconds) { return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`; }
@@ -128,7 +192,7 @@ function marketPanel() {
 }
 
 function raidResult() {
-  if (!state.lastRaid) return `<div class="raid-result"><span>LETZTER BERICHT</span><b>Noch keine Truppen entsandt.</b><small>Wähle ein Demo-Dorf und deine Marschgruppe.</small></div>`;
+  if (!state.lastRaid) return `<div class="raid-result"><span>LETZTER BERICHT</span><b>Noch keine Truppen entsandt.</b><small>Wähle ein ${serverAuthoritative ? "Online-Dorf" : "Demo-Dorf"} und deine Marschgruppe.</small></div>`;
   const result = state.lastRaid;
   const stolen = costLine(result.stolen) || "Keine Beute";
   const losses = Object.entries(result.casualties).filter(([, amount]) => amount).map(([id, amount]) => `${amount} ${TROOPS[id].label}`).join(", ") || "Keine Verluste";
@@ -138,10 +202,13 @@ function raidResult() {
 function raidPanel() {
   const pending = state.pendingRaid;
   if (pending) {
-    const target = state.targets.find((item) => item.id === pending.targetId);
+    const target = (serverAuthoritative ? onlineTargets : state.targets).find((item) => item.id === pending.targetId);
     return `<div class="inspector raid-inspector"><div class="inspector-title"><p>ÜBERFALL</p><h2>Marsch unterwegs</h2><span>Kein weiterer Marsch, bis die Truppe zurück ist.</span></div><div class="march-status"><span>MARSCH NACH ${target?.name?.toUpperCase() || "ZIELORT"}</span><b data-raid-countdown>${clock(remainingTime(pending.arrivesAt))}</b><small>Die Schlacht wird bei Ankunft ausgewertet.</small></div><button class="primary-action" disabled>Marsch läuft</button>${raidResult()}</div>`;
   }
-  return `<div class="inspector raid-inspector"><div class="inspector-title"><p>ÜBERFALL</p><h2>Marsch planen</h2><span>Lokale Demo-Gegner · nur Feldlager raidbar</span></div><label class="target-select">Zielort <select id="raid-target">${state.targets.map((target) => `<option value="${target.id}">${escapeHtml(target.name)} · Verteidigung ${target.defense} · Feldlager ${format(Object.values(target.unclaimed).reduce((sum, amount) => sum + amount, 0))}</option>`).join("")}</select></label><div class="army-inputs">${Object.entries(TROOPS).map(([id, troop]) => `<label><span>${troop.label}<b>${state.troops[id]} bereit</b></span><input type="number" min="0" max="${state.troops[id]}" value="0" id="raid-${id}" inputmode="numeric"></label>`).join("")}</div><button class="primary-action" id="send-raid">Marsch starten · 01:00</button>${raidResult()}</div>`;
+  const targets = serverAuthoritative ? onlineTargets : state.targets;
+  const targetOptions = targets.map((target) => `<option value="${target.id}">${escapeHtml(target.name)} · Verteidigung ${target.defense} · Feldlager ${format(Object.values(target.unclaimed).reduce((sum, amount) => sum + amount, 0))}</option>`).join("");
+  const empty = !targets.length;
+  return `<div class="inspector raid-inspector"><div class="inspector-title"><p>ÜBERFALL</p><h2>Marsch planen</h2><span>${serverAuthoritative ? "Online-Dörfer · nur Feldlager raidbar" : "Lokale Demo-Gegner · nur Feldlager raidbar"}</span></div><label class="target-select">Zielort <select id="raid-target" ${empty ? "disabled" : ""}>${targetOptions || "<option>Keine Online-Dörfer verfügbar</option>"}</select></label><div class="army-inputs">${Object.entries(TROOPS).map(([id, troop]) => `<label><span>${troop.label}<b>${state.troops[id]} bereit</b></span><input type="number" min="0" max="${state.troops[id]}" value="0" id="raid-${id}" inputmode="numeric"></label>`).join("")}</div><button class="primary-action" id="send-raid" ${empty ? "disabled" : ""}>Marsch starten · 01:00</button>${raidResult()}</div>`;
 }
 
 function panelContents() { return { build: buildInspector, army: armyPanel, market: marketPanel, raid: raidPanel }[activePanel](); }
@@ -174,7 +241,7 @@ function refreshTickValues() {
 }
 
 function render() {
-  settle(state);
+  if (!serverAuthoritative) settle(state);
   const production = getProduction(state);
   const capacity = getCapacity(state);
   const readyToClaim = Object.values(state.unclaimed).reduce((sum, amount) => sum + amount, 0);
@@ -190,18 +257,24 @@ function render() {
     feedback = result.ok ? "World-ID-Spielzugang wurde serverseitig bestätigt." : "World-ID-Verifizierung wurde nicht bestätigt.";
     render();
   });
-  document.querySelector("#gather").addEventListener("click", () => { if (!requireWorldIdAccess()) return; const result = startGathering(state); const collected = result.ok ? costLine(result.collected) : ""; feedback = !result.ok ? "Sammler sind noch unterwegs." : collected ? `Im Speicher gesichert: ${collected}. Nächste Sammlung in 01:00.` : "Feldlager leer oder Speicher voll. Nächste Sammlung in 01:00."; save(); render(); });
+  document.querySelector("#gather").addEventListener("click", async () => { if (!requireWorldIdAccess()) return; if (serverAuthoritative) return performServerAction("gather", {}, (result) => !result.ok ? "Sammler sind noch unterwegs." : Object.values(result.collected).some(Boolean) ? "Im Speicher gesichert. Nächste Sammlung in 01:00." : "Feldlager leer oder Speicher voll."); const result = startGathering(state); const collected = result.ok ? costLine(result.collected) : ""; feedback = !result.ok ? "Sammler sind noch unterwegs." : collected ? `Im Speicher gesichert: ${collected}. Nächste Sammlung in 01:00.` : "Feldlager leer oder Speicher voll. Nächste Sammlung in 01:00."; save(); render(); });
   document.querySelectorAll("[data-map-building]").forEach((button) => button.addEventListener("click", () => { selectedBuilding = button.dataset.mapBuilding; activePanel = "build"; feedback = `${BUILDINGS[selectedBuilding].label} ausgewählt.`; render(); }));
   document.querySelectorAll("[data-panel]").forEach((button) => button.addEventListener("click", () => { activePanel = button.dataset.panel; feedback = { build: "Wähle ein Gebäude auf dem Dorfplan.", army: "Bilde Truppen aus, sobald die Kaserne bereit ist.", market: "Nur Holz, Lehm und Stein sind im Spielmarkt tauschbar.", raid: "Stelle eine Marschgruppe zusammen." }[activePanel]; render(); }));
-  document.querySelectorAll("[data-building]").forEach((button) => button.addEventListener("click", () => { if (!requireWorldIdAccess()) return; const id = button.dataset.building; const result = upgradeBuilding(state, id); feedback = result.ok ? `${BUILDINGS[id].label} auf Stufe ${state.buildings[id]} ausgebaut.` : "Ausbau noch gesperrt oder Rohstoffe fehlen."; save(); render(); }));
-  document.querySelectorAll("[data-train]").forEach((button) => button.addEventListener("click", () => { if (!requireWorldIdAccess()) return; const id = button.dataset.train; const result = trainTroop(state, id); feedback = result.ok ? `${TROOPS[id].label} ausgebildet.` : "Ausbildung noch gesperrt oder Rohstoffe fehlen."; save(); render(); }));
-  document.querySelector("#market-swap")?.addEventListener("click", () => { if (!requireWorldIdAccess()) return; const from = document.querySelector("#market-from").value; const to = document.querySelector("#market-to").value; const result = swapInternal(state, from, to, document.querySelector("#market-amount").value); feedback = result.ok ? `${format(result.output)} ${RESOURCE_DEFS[to].label} im Spielmarkt erhalten.` : "Tausch nicht möglich: Quelle, Ziel, Menge oder Speicher prüfen."; save(); render(); });
-  document.querySelector("#send-raid")?.addEventListener("click", () => { if (!requireWorldIdAccess()) return; const selected = Object.fromEntries(Object.keys(TROOPS).map((id) => [id, document.querySelector(`#raid-${id}`).value])); const result = startRaidMarch(state, document.querySelector("#raid-target").value, selected); feedback = result.ok ? "Marsch gestartet. Ankunft in 01:00." : "Wähle verfügbare Truppen für den Überfall."; save(); render(); });
-  document.querySelector("#reset").addEventListener("click", () => { state = createInitialState(); selectedBuilding = "townhall"; activePanel = "build"; feedback = "Demo-Dorf zurückgesetzt."; localStorage.removeItem(STORAGE_KEY); render(); });
+  document.querySelectorAll("[data-building]").forEach((button) => button.addEventListener("click", async () => { if (!requireWorldIdAccess()) return; const id = button.dataset.building; if (serverAuthoritative) return performServerAction("upgrade", { building: id }, (result) => result.ok ? `${BUILDINGS[id].label} ausgebaut.` : "Ausbau noch gesperrt oder Rohstoffe fehlen."); const result = upgradeBuilding(state, id); feedback = result.ok ? `${BUILDINGS[id].label} auf Stufe ${state.buildings[id]} ausgebaut.` : "Ausbau noch gesperrt oder Rohstoffe fehlen."; save(); render(); }));
+  document.querySelectorAll("[data-train]").forEach((button) => button.addEventListener("click", async () => { if (!requireWorldIdAccess()) return; const id = button.dataset.train; if (serverAuthoritative) return performServerAction("train", { troop: id, amount: 1 }, (result) => result.ok ? `${TROOPS[id].label} ausgebildet.` : "Ausbildung noch gesperrt oder Rohstoffe fehlen."); const result = trainTroop(state, id); feedback = result.ok ? `${TROOPS[id].label} ausgebildet.` : "Ausbildung noch gesperrt oder Rohstoffe fehlen."; save(); render(); }));
+  document.querySelector("#market-swap")?.addEventListener("click", async () => { if (!requireWorldIdAccess()) return; const from = document.querySelector("#market-from").value; const to = document.querySelector("#market-to").value; const amount = Number(document.querySelector("#market-amount").value); if (serverAuthoritative) return performServerAction("swap", { from, to, amount }, (result) => result.ok ? `${format(result.output)} ${RESOURCE_DEFS[to].label} im Spielmarkt erhalten.` : "Tausch nicht möglich: Quelle, Ziel, Menge oder Speicher prüfen."); const result = swapInternal(state, from, to, amount); feedback = result.ok ? `${format(result.output)} ${RESOURCE_DEFS[to].label} im Spielmarkt erhalten.` : "Tausch nicht möglich: Quelle, Ziel, Menge oder Speicher prüfen."; save(); render(); });
+  document.querySelector("#send-raid")?.addEventListener("click", async () => { if (!requireWorldIdAccess()) return; const targetId = document.querySelector("#raid-target").value; const selected = Object.fromEntries(Object.keys(TROOPS).map((id) => [id, Number(document.querySelector(`#raid-${id}`).value)])); if (serverAuthoritative) return performServerAction("start_raid", { targetId, army: Object.entries(selected).map(([troop, amount]) => ({ troop, amount })) }, (result) => result.ok ? "Marsch gestartet. Ankunft in 01:00." : "Wähle verfügbare Truppen für den Überfall."); const result = startRaidMarch(state, targetId, selected); feedback = result.ok ? "Marsch gestartet. Ankunft in 01:00." : "Wähle verfügbare Truppen für den Überfall."; save(); render(); });
+  document.querySelector("#reset").addEventListener("click", async () => { selectedBuilding = "townhall"; activePanel = "build"; if (serverAuthoritative) return performServerAction("reset", {}, () => "Online-Dorf zurückgesetzt."); state = createInitialState(); feedback = "Demo-Dorf zurückgesetzt."; localStorage.removeItem(STORAGE_KEY); render(); });
 }
 
 render();
+initializeServerState();
 setInterval(() => {
+  if (serverAuthoritative) {
+    if (state.pendingRaid && Date.now() >= state.pendingRaid.arrivesAt) performServerAction("resolve_raid", {}, (result) => result.ok ? "Marsch beendet." : "Marsch wird noch ausgewertet.");
+    else refreshTickValues();
+    return;
+  }
   settle(state);
   if (state.pendingRaid && Date.now() >= state.pendingRaid.arrivesAt) {
     const result = resolveRaidMarch(state);

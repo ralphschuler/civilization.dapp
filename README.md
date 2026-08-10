@@ -1,6 +1,6 @@
 # IdleMint
 
-Browser-first idle clicker for **Idle Coin (IDC)**. The local demo keeps its balance in browser storage and deliberately mounts neither MiniKit nor wagmi, asks for no wallet and broadcasts no transaction.
+Browser-first idle clicker for **Idle Coin (IDC)**. The first TrueNAS release serves this game and a private API from one container. When the same-origin game API and PostgreSQL are available, game progress is stored and calculated server-side. The browser supplies only an opaque anonymous browser ID for this nonfinancial milestone; it is not World ID, wallet authentication, or a financial account. If the API is unavailable, the regular browser demo explicitly remains local-only in `localStorage`.
 
 ## Demo
 
@@ -12,12 +12,36 @@ Use the existing Vite binary from the Civilisation workspace or install the decl
 
 Every push to `master` runs tests, builds the Vite app, and deploys `dist/` to GitHub Pages through `.github/workflows/deploy-pages.yml`. The Vite base path adapts automatically inside GitHub Actions, while local development continues at `/`.
 
+## Private TrueNAS service
+
+`Dockerfile`, `compose.yaml`, and `deploy/truenas.yaml` package IdleMint as a standalone service on port `31057`, with its own private PostgreSQL database. The intended public route is `idlemint.nyphon.de` through NPMplus on the TrueNAS host; the proxy target is `10.42.54.153:31057`.
+
+`GET /api/healthz` reports process health and database status; `GET /api/readyz` returns success only when PostgreSQL accepts queries and is appropriate for deployment readiness checks. `GET /api/market/quote?side=buy|sell&amount=<base-unit-integer>` exposes only settlement quotes: it cannot accept WLD, transfer IMG, mint, burn, or pay out assets. The container workflow publishes `ghcr.io/ralphschuler/idlemint` after tests pass on `master`.
+
+### Authoritative game-state API
+
+The SPA probes its same-origin `GET /api/game/state` endpoint at startup. It sends a generated opaque browser ID (32–128 URL-safe characters) only in `X-IdleMint-Anonymous-Id`; this ID is deliberately anonymous and can be lost when browser storage is cleared. A successful probe activates online mode and no browser game-state values are posted or trusted. If the endpoint is unavailable, the UI labels and uses its local demo fallback instead.
+
+`POST /api/game/state` accepts `{ "id": "<unique action id>", "action": { "type": "...", "payload": { ... } } }` with the same header. The server accepts only gather, upgrade, train, in-game non-gold swap, raid start/resolution, and reset actions. It locks the player row, recalculates elapsed production from server time, validates the action, and stores the resulting state in the same PostgreSQL transaction. `(anonymous_id, action_id)` is unique, so a retry is idempotent and returns the original action result. Client resources, buildings, troops, timestamps, and raid outcomes are never accepted.
+
+`GET /api/game/targets` exposes up to 50 eligible online villages through generated public village IDs only; it never exposes the private browser identifier or protected storage. PvP raids lock attacker and defender in a canonical database order, settle their state on the server, and write an auditable battle record. The server commits to a random battle seed when a march starts and reveals it in the final report, so the outcome seed was fixed before the battle. Loot is restricted to the defender's unclaimed field stock and the attacker's *total* free capacity; stored resources are never taken. This is a nonfinancial beta identity model: a random browser ID prevents accidental cross-player access but does not provide Sybil resistance. World ID plus a server session are required before making PvP rewards or IMG financially meaningful.
+
+Required runtime environment variables:
+
+- `DATABASE_URL` *or* the discrete `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, and `PGPASSWORD` values (required for online play and readiness). The TrueNAS Compose template uses the discrete values so a strong password needs no URL encoding.
+- `PORT` (optional, default `31057`): HTTP listening port.
+- `HOST` (optional, default `0.0.0.0`): HTTP bind address.
+- `NODE_ENV` (recommended `production` in deployment).
+
+There are no World Portal, World ID, wallet, WLD, IMG, contract, payment, custody, or blockchain environment variables for this milestone. Those integrations remain disabled and the API has no endpoint for them.
+
 ## Token model
 
-Every resource has a planned ERC-20 identity, with 18 decimals: `IMW` (Mint Wood), `IMC` (Mint Clay), `IMS` (Mint Stone), and `IMG` (Mint Gold). Browser mode simulates these balances in local storage only; it deploys no contract, requests no wallet, and cannot move assets.
+The game resources `IMW` (Mint Wood), `IMC` (Mint Clay), and `IMS` (Mint Stone) stay internal. `IMG` (Mint Gold) is the only resource intended to become an external ERC-20, with 18 decimals. The current release deploys no contract, requests no wallet, and cannot move assets.
 
-- `IMW`, `IMC`, and `IMS` are game-only tokens. Their Solidity transfer rules permit movement through registered game venues only, so they can be exchanged in the in-game market but cannot be settled against external assets.
+- `IMW`, `IMC`, and `IMS` are internal game resources. They can be exchanged only through the in-game market and cannot be settled externally.
 - `IMG` is the sole settlement-capable token. It is the only token intended to pair with approved external assets such as WLD and WBTC on World Chain.
+- Initial settlement direction is **WLD / IMG**. Every buy receives 98.5% of the quoted IMG and routes 1.5% to the IMG sink; every sell pays 98.5% of quoted WLD and routes 1.5% to the WLD sink. These quote calculations are tested in the private service, but execution remains disabled until an audited liquidity/settlement adapter exists.
 - `contracts/src/GoldSettlementRegistry.sol` is intentionally only an allowlist registry. It cannot hold funds or execute a swap. An audited settlement adapter, independent pricing/slippage limits, liquidity, transaction monitoring, and product/legal review are required before any deployment.
 
 `contracts/worldchain.tokens.example.json` is an example reference for WLD and WBTC on World Chain Mainnet. Re-verify every address against the current [World Chain useful-contract registry](https://docs.world.org/world-chain/reference/useful-contracts) before allowlisting.
@@ -26,9 +50,9 @@ Every resource has a planned ERC-20 identity, with 18 decimals: `IMW` (Mint Wood
 
 The game board uses project-owned Civilisation DApp building, resource and unit art. See [asset provenance](./ASSET_ATTRIBUTION.md) for the copied files and the temporary Stone visual stand-in.
 
-## Raid demo boundary
+## Raid boundary
 
-Raid targets are deterministic local demo villages. Raids take only their unclaimed field stock; stored resources are not part of raid loot. No real player identity, request, matchmaking, server, wallet, or Worldchain state exists yet. Real player-vs-player raids need an authoritative multiplayer backend with authentication, durable village state, server-side battle resolution, anti-cheat/rate limiting and an explicit consent/product policy before they can be connected to this interface.
+Without the API, raid targets are deterministic local demo villages. With the PostgreSQL API available, the game instead lists online public village IDs and resolves PvP server-side. The current anonymous browser identity is suitable only for a nonfinancial beta. Before connecting PvP rewards to IMG or WLD, add World-ID/SIWE-backed sessions, anti-bot/rate-limit controls, matchmaking and player-safety policy.
 
 ## World App / Worldchain handoff
 
