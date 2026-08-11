@@ -1,12 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+interface IWorldToken {
+    function transferFrom(address from, address to, uint256 value) external returns (bool);
+}
+
 /// @title CivilizationGame
 /// @notice Source-only World Chain game-state draft. The backend may attest a
 /// World ID registration, but has no method that can change a village.
 /// @dev Wood, clay and stone are internal game units. Gold is an in-game ERC-20
-/// minted only by deterministic claim and raid rules. There is no native-token,
-/// WLD payment, withdrawal, redemption, or custody functionality.
+/// minted only by deterministic claim and raid rules. WLD can pay only to reduce
+/// construction time and is transferred directly to the immutable treasury.
+/// There is no native-token, withdrawal, redemption, or contract custody.
 contract CivilizationGame {
     uint256 public constant MAX_OFFLINE_SECONDS = 24 hours;
     uint256 public constant CLAIM_COOLDOWN = 2 hours;
@@ -14,6 +19,8 @@ contract CivilizationGame {
     uint256 public constant MAX_ATTESTATION_TTL = 15 minutes;
     uint256 public constant MAX_BUILDING_LEVEL = 30;
     uint256 public constant GOLD_UNIT = 1e18;
+    uint256 public constant WORLD_TOKEN_UNIT = 1e18;
+    uint256 public constant BOOST_DURATION = 1 hours;
 
     uint256 private constant BASIS_POINTS = 10_000;
     uint256 private constant PRESTIGE_BONUS_BPS = 1_000;
@@ -68,6 +75,8 @@ contract CivilizationGame {
     }
 
     address public immutable backendAttestationSigner;
+    address public immutable worldToken;
+    address public immutable boostTreasury;
     mapping(address => Player) private players;
     mapping(bytes32 => address) public nullifierOwner;
     mapping(bytes32 => bool) public usedAttestationNonce;
@@ -80,6 +89,7 @@ contract CivilizationGame {
     event RaidStarted(address indexed attacker, address indexed defender, uint64 arrivesAt, uint256 spear, uint256 archer, uint256 rider);
     event RaidResolved(address indexed attacker, address indexed defender, bool attackerWon, uint256 attack, uint256 defense, uint256 wood, uint256 clay, uint256 stone, uint256 gold);
     event Prestiged(address indexed player, uint256 prestigeCount, uint256 productionMultiplierBps);
+    event ConstructionBoosted(address indexed player, uint256 hoursBoosted, uint256 wldPaid, uint64 completesAt);
     event Transfer(address indexed from, address indexed to, uint256 value);
     event Approval(address indexed owner, address indexed spender, uint256 value);
 
@@ -107,10 +117,15 @@ contract CivilizationGame {
     error InsufficientTroops();
     error InsufficientGoldBalance();
     error InsufficientAllowance();
+    error NoBoostableConstruction();
+    error BoostExceedsRemainingTime();
+    error WorldTokenTransferFailed();
 
-    constructor(address signer) {
-        if (signer == address(0)) revert ZeroAddress();
+    constructor(address signer, address worldTokenAddress, address boostTreasuryAddress) {
+        if (signer == address(0) || worldTokenAddress == address(0) || boostTreasuryAddress == address(0)) revert ZeroAddress();
         backendAttestationSigner = signer;
+        worldToken = worldTokenAddress;
+        boostTreasury = boostTreasuryAddress;
     }
 
     /// @notice Registers msg.sender once from an EIP-712 backend attestation.
@@ -174,6 +189,21 @@ contract CivilizationGame {
         delete player.construction;
         _accrueUntil(player, block.timestamp);
         emit BuildingUpgraded(msg.sender, construction.building, newLevel);
+    }
+
+    /// @notice Pays exactly one WLD per requested full hour to reduce pending construction time.
+    /// @dev WLD is sent directly to the immutable treasury; this contract never holds it.
+    function boostConstruction(uint256 hoursToBoost) external onlyRegistered {
+        if (hoursToBoost == 0) revert InvalidAmount();
+        Player storage player = players[msg.sender];
+        Construction storage construction = player.construction;
+        if (!construction.pending || block.timestamp >= construction.completesAt) revert NoBoostableConstruction();
+        uint256 duration = hoursToBoost * BOOST_DURATION;
+        if (duration > uint256(construction.completesAt) - block.timestamp) revert BoostExceedsRemainingTime();
+        uint256 wldPaid = hoursToBoost * WORLD_TOKEN_UNIT;
+        construction.completesAt = uint64(uint256(construction.completesAt) - duration);
+        if (!IWorldToken(worldToken).transferFrom(msg.sender, boostTreasury, wldPaid)) revert WorldTokenTransferFailed();
+        emit ConstructionBoosted(msg.sender, hoursToBoost, wldPaid, construction.completesAt);
     }
 
     function train(Troop troop, uint256 amount) external onlyRegistered {

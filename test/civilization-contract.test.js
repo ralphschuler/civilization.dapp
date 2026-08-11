@@ -24,6 +24,9 @@ async function compileContracts() {
     `contracts/src/${file}`,
     { content: await readFile(new URL(`../contracts/src/${file}`, import.meta.url), "utf8") },
   ])));
+  sources["test/fixtures/MockWorldToken.sol"] = {
+    content: await readFile(new URL("./fixtures/MockWorldToken.sol", import.meta.url), "utf8"),
+  };
   return JSON.parse(solc.compile(JSON.stringify({
     language: "Solidity",
     sources,
@@ -41,6 +44,7 @@ const deployer = createAddressFromString(`0x${"44".repeat(20)}`);
 const EVM_GAS_LIMIT = 30_000_000n;
 const DAY = 86_400n;
 const GOLD_UNIT = 10n ** 18n;
+const WLD_UNIT = 10n ** 18n;
 const PLAYER_MAPPING_SLOT = 3n;
 const attestationTypes = {
   WorldIdAttestation: [
@@ -59,11 +63,11 @@ function assertEvmSuccess(result) {
   assert.equal(result.execResult.exceptionError, undefined, bytesToHex(result.execResult.returnValue));
 }
 
-async function deployGame(abi, bytecode, timestamp = 1_000n) {
-  const vm = await createVM();
+async function deployContract(vm, abi, bytecode, args = [], timestamp = 1_000n) {
+  const constructor = abi.find((item) => item.type === "constructor");
   const initCode = concatHex([
     `0x${bytecode}`,
-    encodeAbiParameters([{ type: "address" }], [signer.address]),
+    constructor ? encodeAbiParameters(constructor.inputs, args) : "0x",
   ]);
   const result = await vm.evm.runCall({
     caller: deployer,
@@ -73,7 +77,7 @@ async function deployGame(abi, bytecode, timestamp = 1_000n) {
     skipBalance: true,
   });
   assertEvmSuccess(result);
-  assert.ok(result.createdAddress, "constructor execution must create the game contract");
+  assert.ok(result.createdAddress, "constructor execution must create the contract");
   return { vm, address: result.createdAddress, abi };
 }
 
@@ -147,11 +151,11 @@ test("CivilizationGame exposes only player-driven game transitions and a signed 
   const output = await compileContracts();
   const abi = output.contracts["contracts/src/CivilizationGame.sol"].CivilizationGame.abi;
   const functions = new Map(abi.filter((item) => item.type === "function").map((item) => [item.name, item]));
-  for (const name of ["registerWorldId", "claim", "upgrade", "completeUpgrade", "train", "startRaid", "resolveRaid", "prestige", "playerState", "name", "symbol", "decimals", "totalSupply", "balanceOf", "allowance", "approve", "transfer", "transferFrom"]) {
+  for (const name of ["registerWorldId", "claim", "upgrade", "completeUpgrade", "boostConstruction", "train", "startRaid", "resolveRaid", "prestige", "playerState", "worldToken", "boostTreasury", "name", "symbol", "decimals", "totalSupply", "balanceOf", "allowance", "approve", "transfer", "transferFrom"]) {
     assert.ok(functions.has(name), `${name} must be part of the auditable contract interface`);
   }
   assert.equal(functions.get("registerWorldId").stateMutability, "nonpayable");
-  for (const name of ["claim", "upgrade", "train", "startRaid", "resolveRaid", "approve", "transfer", "transferFrom"]) {
+  for (const name of ["claim", "upgrade", "boostConstruction", "train", "startRaid", "resolveRaid", "approve", "transfer", "transferFrom"]) {
     assert.equal(functions.get(name).stateMutability, "nonpayable", `${name} must not accept funds`);
   }
   const events = new Set(abi.filter((item) => item.type === "event").map((item) => item.name));
@@ -176,6 +180,9 @@ test("contract source keeps backend authority limited to EIP-712 registration an
   assert.match(source, /function prestige\(\) external onlyRegistered/);
   assert.match(source, /return nextLevel \* 1 days/);
   assert.match(source, /PRESTIGE_BONUS_BPS = 1_000/);
+  assert.match(source, /WORLD_TOKEN_UNIT = 1e18/);
+  assert.match(source, /function boostConstruction\(uint256 hoursToBoost\) external onlyRegistered/);
+  assert.match(source, /transferFrom\(msg.sender, boostTreasury, wldPaid\)/);
   assert.match(source, /string public constant symbol = "CGOLD"/);
   assert.match(source, /function _mintGold\(address account, uint256 value\) private/);
   assert.match(source, /function _burnGold\(address account, uint256 value\) private/);
@@ -186,7 +193,10 @@ test("contract source keeps backend authority limited to EIP-712 registration an
 test("CivilizationGame executes World registration, contract-derived production, claims, and replay protection on a local EVM", async () => {
   const output = await compileContracts();
   const artifact = output.contracts["contracts/src/CivilizationGame.sol"].CivilizationGame;
-  const game = await deployGame(artifact.abi, artifact.evm.bytecode.object);
+  const worldTokenArtifact = output.contracts["test/fixtures/MockWorldToken.sol"].MockWorldToken;
+  const vm = await createVM();
+  const worldToken = await deployContract(vm, worldTokenArtifact.abi, worldTokenArtifact.evm.bytecode.object);
+  const game = await deployContract(vm, artifact.abi, artifact.evm.bytecode.object, [signer.address, worldToken.address.toString(), playerB.address]);
   const nullifier = `0x${"aa".repeat(32)}`;
   const nonce = `0x${"bb".repeat(32)}`;
   const registration = await signedRegistration(game, playerA, nullifier, nonce, 1_900n);
@@ -231,28 +241,42 @@ test("CivilizationGame executes World registration, contract-derived production,
   assert.equal(queued[5].townhall, 0n, "townhall level changes only after the construction timer");
   assert.equal(queued[8].pending, true);
   assert.equal(queued[8].completesAt, goldClaimAt + DAY);
-  const earlyCompletion = await evmCall(game, playerA.address, "completeUpgrade", [], goldClaimAt + DAY - 1n);
+
+  const mintWld = await evmCall(worldToken, deployer.toString(), "mint", [playerA.address, WLD_UNIT], goldClaimAt + 1n);
+  assertEvmSuccess(mintWld);
+  const approveWld = await evmCall(worldToken, playerA.address, "approve", [game.address.toString(), WLD_UNIT], goldClaimAt + 1n);
+  assertEvmSuccess(approveWld);
+  const boost = await evmCall(game, playerA.address, "boostConstruction", [1n], goldClaimAt + 1n);
+  assertEvmSuccess(boost);
+  const boosted = await readGame(game, "playerState", [playerA.address], goldClaimAt + 1n);
+  assert.equal(boosted[8].completesAt, goldClaimAt + DAY - 1n * 60n * 60n, "one WLD must remove exactly one construction hour");
+  assert.equal(await readGame(worldToken, "balanceOf", [playerA.address], goldClaimAt + 1n), 0n);
+  assert.equal(await readGame(worldToken, "balanceOf", [playerB.address], goldClaimAt + 1n), WLD_UNIT, "WLD goes directly to the treasury, never to game custody");
+  const excessiveBoost = await evmCall(game, playerA.address, "boostConstruction", [24n], goldClaimAt + 1n);
+  assert.ok(excessiveBoost.execResult.exceptionError, "a boost cannot overpay past completion");
+
+  const earlyCompletion = await evmCall(game, playerA.address, "completeUpgrade", [], goldClaimAt + DAY - 1n * 60n * 60n - 1n);
   assert.ok(earlyCompletion.execResult.exceptionError, "townhall I cannot complete before its one-day timer");
-  const completeTownhall = await evmCall(game, playerA.address, "completeUpgrade", [], goldClaimAt + DAY);
+  const completeTownhall = await evmCall(game, playerA.address, "completeUpgrade", [], goldClaimAt + DAY - 1n * 60n * 60n);
   assertEvmSuccess(completeTownhall);
-  const afterTownhall = await readGame(game, "playerState", [playerA.address], goldClaimAt + DAY);
+  const afterTownhall = await readGame(game, "playerState", [playerA.address], goldClaimAt + DAY - 1n * 60n * 60n);
   assert.equal(afterTownhall[5].townhall, 1n);
   assert.equal(afterTownhall[8].pending, false);
 
-  const prestigeMultiplier = await readGame(game, "prestigeMultiplierBps", [1n], goldClaimAt + DAY);
+  const prestigeMultiplier = await readGame(game, "prestigeMultiplierBps", [1n], goldClaimAt + DAY - 1n * 60n * 60n);
   assert.equal(prestigeMultiplier, 11_000n, "each prestige grants a permanent ten-percent production bonus");
 
   // Fixture-only storage setup reaches the explicit late-game prestige gate without
   // turning production tests into a multi-year sequence of timed upgrades.
   await setPlayerStorage(game, playerA.address, 13, 30n);
-  const prestige = await evmCall(game, playerA.address, "prestige", [], goldClaimAt + DAY + 1n);
+  const prestige = await evmCall(game, playerA.address, "prestige", [], goldClaimAt + DAY - 1n * 60n * 60n + 1n);
   assertEvmSuccess(prestige);
-  const afterPrestige = await readGame(game, "playerState", [playerA.address], goldClaimAt + DAY + 1n);
+  const afterPrestige = await readGame(game, "playerState", [playerA.address], goldClaimAt + DAY - 1n * 60n * 60n + 1n);
   assert.equal(afterPrestige[3].wood, 80n, "prestige resets protected resources to the fresh-village state");
   assert.equal(afterPrestige[4].wood, 0n, "prestige clears raidable field resources");
   assert.equal(afterPrestige[5].townhall, 0n, "prestige resets village construction progress");
   assert.equal(afterPrestige[9], 1n, "prestige progress survives the village reset");
-  const earnedMultiplier = await readGame(game, "productionMultiplierBps", [playerA.address], goldClaimAt + DAY + 1n);
+  const earnedMultiplier = await readGame(game, "productionMultiplierBps", [playerA.address], goldClaimAt + DAY - 1n * 60n * 60n + 1n);
   assert.equal(earnedMultiplier, 11_000n);
 
   const replayNonce = `0x${"cc".repeat(32)}`;

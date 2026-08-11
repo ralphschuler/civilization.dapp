@@ -39,7 +39,8 @@ There are no World Portal, World ID, wallet, WLD, IMG, contract, payment, custod
 
 Wood, clay and stone are internal game resources. `CGOLD` (Civilization Gold) is the sole ERC-20, with 18 decimals, implemented directly by `CivilizationGame.sol`. It is minted only when the on-chain game rules settle a claim or a successful raid, and burned only when on-chain game rules spend gold. Prestige resets the village but does not burn the player's CGOLD.
 
-- No WLD payment, redemption, withdrawal, liquidity, fee routing, or custody code is present in `CivilizationGame`.
+- `boostConstruction(hoursToBoost)` accepts exactly 1 WLD per full construction hour and transfers it directly from the player to the immutable deployment treasury. The game contract never holds WLD; a boost cannot pass the completion time.
+- No WLD redemption, withdrawal, liquidity, fee routing, or custody code is present in `CivilizationGame`.
 - The proposed later settlement model is **WLD / CGOLD**: 1.5% per buy/sell, split as 1.0% retained by game liquidity and 0.5% operator revenue. It needs a separately audited settlement adapter, independent pricing/slippage limits, liquidity, monitoring, product/legal review, and explicit deployment approval. It is not implemented or deployable from this release.
 - `contracts/src/GoldSettlementRegistry.sol` is intentionally only an allowlist registry. It cannot hold funds or execute a swap. An audited settlement adapter, independent pricing/slippage limits, liquidity, transaction monitoring, and product/legal review are required before any deployment.
 

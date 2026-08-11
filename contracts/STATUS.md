@@ -6,7 +6,7 @@
 
 | Source | Status | Release boundary |
 | --- | --- | --- |
-| `src/CivilizationGame.sol` | Draft, not deployed, source-only | World-ID-attested registration plus player-signed on-chain game state, construction timers, prestige, and CGOLD ERC-20 mint/burn through game rules; no backend game-mutation entrypoint. |
+| `src/CivilizationGame.sol` | Draft, not deployed, source-only | World-ID-attested registration plus player-signed on-chain game state, construction timers, prestige, CGOLD mint/burn through game rules, and a direct 1 WLD/hour construction boost to immutable treasury; no backend game-mutation entrypoint or WLD custody. |
 | `src/GameResourceToken.sol` | Draft, not deployed, superseded | Older standalone token draft; not used by CivilizationGame. |
 | `src/GoldSettlementRegistry.sol` | Draft, not deployed, allowlist only | Cannot custody assets or execute a swap. |
 | `src/IdleCoin.sol` | Legacy draft, not deployed | Not part of the current resource path. |
@@ -17,9 +17,10 @@ The `worldchain.tokens.example.json` addresses are reference data only, not an a
 
 1. Independent security review of final sources and deployment configuration.
 2. World Chain testnet deployment plus full MiniKit/World-ID integration testing before mainnet.
-3. Separate audited settlement adapter with independent pricing/slippage controls before any WLD purchase, redemption, fee, liquidity, or custody function.
-4. Monitoring, incident handling, and product/legal approval.
+3. Review World MiniKit approval/payment UX, WLD token address and immutable boost treasury before enabling the direct WLD construction boost.
+4. Separate audited settlement adapter with independent pricing/slippage controls before any WLD purchase, redemption, fee, liquidity, or custody function.
+5. Monitoring, incident handling, and product/legal approval.
 
 ## Local Solidity verification
 
-`npm test` compiles every `contracts/src/*.sol` source deterministically with the pinned official `solc` npm package (`0.8.30`) and executes CivilizationGame registration, production, claim, CGOLD transfer, construction-timer, prestige, and replay checks on a local EVM. This is not a deployment or substitute for an independent audit.
+`npm test` compiles every `contracts/src/*.sol` source deterministically with the pinned official `solc` npm package (`0.8.30`) and executes CivilizationGame registration, production, claim, CGOLD transfer, WLD-to-treasury boost, construction-timer, prestige, and replay checks on a local EVM. This is not a deployment or substitute for an independent audit.
