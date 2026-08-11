@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { COLLECTION_COOLDOWN_MS, MARCH_DURATION_MS, createInitialState, gather, getRequirements, resolveRaidMarch, sendRaid, settle, startGathering, startRaidMarch, swapInternal, trainTroop, upgradeBuilding } from "../src/game.js";
-import { buildTestnetRegistration, buildWorldIdRegistration, getWorldIdConfig, installWorldAppBridge, requestWorldIdGameAccess, WORLD_CHAIN_SEPOLIA_ID } from "../src/world.js";
+import { buildTestnetRegistration, buildWorldIdRegistration, confirmWorldIdRegistration, getWorldIdConfig, installWorldAppBridge, requestWorldIdGameAccess, WORLD_CHAIN_SEPOLIA_ID } from "../src/world.js";
 
 test("World bridge remains inactive in the regular browser demo", () => {
   assert.deepEqual(installWorldAppBridge(), { installed: false });
@@ -70,6 +70,36 @@ test("World ID client does not create registration calldata from a non-v4 or inc
   const config = getWorldIdConfig(worldConfigEnv);
   assert.throws(() => buildWorldIdRegistration({ config, walletAddress, result: { protocol_version: "3.0" } }), /world_id_v4_proof_required/);
   assert.throws(() => buildWorldIdRegistration({ config, walletAddress, result: { protocol_version: "4.0", responses: [] } }), /incomplete_world_id_proof/);
+});
+
+test("World ID gate waits for World Chain playerState registration after MiniKit submission", async () => {
+  const calls = [];
+  const waits = [];
+  const confirmation = await confirmWorldIdRegistration({
+    config: getWorldIdConfig(worldConfigEnv),
+    walletAddress,
+    attempts: 2,
+    retryDelayMs: 25,
+    readPlayerState: async (request) => {
+      calls.push(request);
+      return calls.length === 2;
+    },
+    sleep: async (milliseconds) => { waits.push(milliseconds); },
+  });
+  assert.deepEqual(confirmation, { ok: true, attempts: 2 });
+  assert.deepEqual(calls, [
+    { contractAddress: worldConfigEnv.VITE_CIVILIZATION_CONTRACT_ADDRESS, walletAddress },
+    { contractAddress: worldConfigEnv.VITE_CIVILIZATION_CONTRACT_ADDRESS, walletAddress },
+  ]);
+  assert.deepEqual(waits, [25]);
+});
+
+test("World ID gate remains retryable when World Chain never confirms registration", async () => {
+  const confirmation = await confirmWorldIdRegistration({
+    config: getWorldIdConfig(worldConfigEnv), walletAddress, attempts: 2, retryDelayMs: 0,
+    readPlayerState: async () => ({ registered: false }), sleep: async () => {},
+  });
+  assert.deepEqual(confirmation, { ok: false, reason: "registration_not_confirmed", attempts: 2 });
 });
 
 test("resource buildings fill raidable field stock before collection", () => {
