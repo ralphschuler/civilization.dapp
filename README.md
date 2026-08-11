@@ -85,16 +85,17 @@ Civilization DApp includes `@worldcoin/minikit-js` and only initializes MiniKit 
 
 Inside World App only, Civilization DApp uses IDKit v4 Proof of Human for a short, Portal-configured production action (for example `play`). The UI has explicit states for not verified, checking, registered, and error/configuration failure. The browser demo remains fully local and does not request World ID.
 
-Production builds set these public build-time variables (only `VITE_WORLD_APP_ID` comes from the public GitHub repository variable):
+Production builds set these public build-time variables (Portal IDs are public GitHub repository variables, not secrets):
 
-- `VITE_WORLD_APP_ID`: the Portal app ID.
+- `VITE_WORLD_APP_ID`: the Mini App Portal ID used by MiniKit.
+- `VITE_WORLD_ID_APP_ID`: optional distinct World ID Portal ID; production falls back to `VITE_WORLD_APP_ID` when unset.
 - `VITE_WORLD_ID_ACTION`: exact Portal action ID.
 - `VITE_CIVILIZATION_CONTRACT_ADDRESS=0x29147c7bead901e8019d7911a7dc404447877c62`: the World Chain mainnet deployment address.
 - `VITE_WORLD_ID_PROOF_CONTEXT_URL=https://civilization.nyphon.de/api/world-id/proof-context`: `POST` endpoint that accepts the configured action and returns only `{ rp_id, nonce, created_at, expires_at, signature }`. It must generate the RP signature server-side with the protected signing key.
 - Wallet Auth endpoints are derived from that trusted API origin as `/api/wallet-auth/nonce` and `/api/wallet-auth/verify`; they are not configurable to an unrelated origin.
 - `VITE_WORLD_ID_ENVIRONMENT=production`: this must match the Portal app and relying-party registration.
 
-The RP endpoint must ignore a client-selected action and sign only its configured production action. The app then encodes the v4 proof and submits it to `CivilizationGame.registerWorldId`; World Chain verifies the proof and the contract stores the nullifier. A reused nullifier reverts on-chain. Neither a client result nor the static UI grants access without that transaction.
+The pre-screen first performs backend-verified MiniKit Wallet Auth and only then requests the separate World ID proof. The RP endpoint must ignore a client-selected action and sign only its configured production action. The app then encodes the v4 proof and submits it to `CivilizationGame.registerWorldId`; World Chain verifies the proof and the contract stores the nullifier. A reused nullifier reverts on-chain. Neither a client result nor the static UI grants access without that transaction and a confirming `playerState` read.
 
 The Developer Portal team API key and RP signing key must remain outside the repository and GitHub Actions. The backend needs only the RP signing key; no verification or transaction credential belongs in the static app.
 

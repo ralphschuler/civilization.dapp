@@ -31,6 +31,7 @@ jobs:
           push: true
           build-args: |
             VITE_WORLD_APP_ID=${{ vars.WORLD_APP_ID }}
+            VITE_WORLD_ID_APP_ID=${{ vars.WORLD_ID_APP_ID || vars.WORLD_APP_ID }}
             VITE_WORLD_ID_ACTION=play
             VITE_CIVILIZATION_CONTRACT_ADDRESS=0x29147c7bead901e8019d7911a7dc404447877c62
             VITE_WORLD_ID_PROOF_CONTEXT_URL=https://civilization.nyphon.de/api/world-id/proof-context
