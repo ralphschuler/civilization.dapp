@@ -4,15 +4,20 @@ pragma solidity ^0.8.24;
 /// @title CivilizationGame
 /// @notice Source-only World Chain game-state draft. The backend may attest a
 /// World ID registration, but has no method that can change a village.
-/// @dev All resource amounts are integral game units; this contract deliberately
-/// has no ERC-20, native-token, payment, withdrawal, or custody functionality.
+/// @dev Wood, clay and stone are internal game units. Gold is an in-game ERC-20
+/// minted only by deterministic claim and raid rules. There is no native-token,
+/// WLD payment, withdrawal, redemption, or custody functionality.
 contract CivilizationGame {
-    uint256 public constant MAX_OFFLINE_SECONDS = 8 hours;
-    uint256 public constant CLAIM_COOLDOWN = 1 minutes;
+    uint256 public constant MAX_OFFLINE_SECONDS = 24 hours;
+    uint256 public constant CLAIM_COOLDOWN = 2 hours;
     uint256 public constant RAID_MARCH_DURATION = 1 minutes;
     uint256 public constant MAX_ATTESTATION_TTL = 15 minutes;
+    uint256 public constant MAX_BUILDING_LEVEL = 30;
+    uint256 public constant GOLD_UNIT = 1e18;
 
-    uint256 private constant FRACTION_SCALE = 100;
+    uint256 private constant BASIS_POINTS = 10_000;
+    uint256 private constant PRESTIGE_BONUS_BPS = 1_000;
+    uint256 private constant FRACTION_SCALE = 1 days * BASIS_POINTS;
     uint256 private constant SECP256K1N_HALF =
         57896044618658097711785492504343953926418782139537452191302581570759080747168;
     bytes32 private constant EIP712_DOMAIN_TYPEHASH =
@@ -26,9 +31,21 @@ contract CivilizationGame {
     enum Troop { Spear, Archer, Rider }
     enum Resource { Wood, Clay, Stone, Gold }
 
+    string public constant name = "Civilization Gold";
+    string public constant symbol = "CGOLD";
+    uint8 public constant decimals = 18;
+    uint256 public totalSupply;
+    mapping(address => uint256) public balanceOf;
+    mapping(address => mapping(address => uint256)) public allowance;
+
     struct Resources { uint256 wood; uint256 clay; uint256 stone; uint256 gold; }
     struct Buildings { uint256 townhall; uint256 timber; uint256 claypit; uint256 quarry; uint256 warehouse; uint256 workshop; uint256 goldmine; uint256 barracks; }
     struct Troops { uint256 spear; uint256 archer; uint256 rider; }
+    struct Construction {
+        bool pending;
+        Building building;
+        uint64 completesAt;
+    }
     struct Raid {
         address defender;
         uint64 arrivesAt;
@@ -46,6 +63,8 @@ contract CivilizationGame {
         Buildings buildings;
         Troops troops;
         Raid pendingRaid;
+        Construction construction;
+        uint256 prestigeCount;
     }
 
     address public immutable backendAttestationSigner;
@@ -55,10 +74,14 @@ contract CivilizationGame {
 
     event WorldIdRegistered(address indexed player, bytes32 indexed nullifierHash, bytes32 indexed nonce, uint64 expiresAt);
     event ResourcesClaimed(address indexed player, uint256 wood, uint256 clay, uint256 stone, uint256 gold);
+    event UpgradeStarted(address indexed player, Building indexed building, uint64 completesAt);
     event BuildingUpgraded(address indexed player, Building indexed building, uint256 newLevel);
     event TroopsTrained(address indexed player, Troop indexed troop, uint256 amount);
     event RaidStarted(address indexed attacker, address indexed defender, uint64 arrivesAt, uint256 spear, uint256 archer, uint256 rider);
     event RaidResolved(address indexed attacker, address indexed defender, bool attackerWon, uint256 attack, uint256 defense, uint256 wood, uint256 clay, uint256 stone, uint256 gold);
+    event Prestiged(address indexed player, uint256 prestigeCount, uint256 productionMultiplierBps);
+    event Transfer(address indexed from, address indexed to, uint256 value);
+    event Approval(address indexed owner, address indexed spender, uint256 value);
 
     error ZeroAddress();
     error AlreadyRegistered();
@@ -69,6 +92,11 @@ contract CivilizationGame {
     error InvalidAttestation();
     error Unregistered();
     error ClaimOnCooldown(uint64 availableAt);
+    error BuildingMaxLevel();
+    error ConstructionAlreadyPending(uint64 completesAt);
+    error NoConstructionPending();
+    error ConstructionNotReady(uint64 completesAt);
+    error PrestigeRequirementNotMet();
     error MissingBuildingRequirement();
     error InsufficientResources();
     error InvalidAmount();
@@ -77,6 +105,8 @@ contract CivilizationGame {
     error NoRaidPending();
     error RaidNotArrived(uint64 arrivesAt);
     error InsufficientTroops();
+    error InsufficientGoldBalance();
+    error InsufficientAllowance();
 
     constructor(address signer) {
         if (signer == address(0)) revert ZeroAddress();
@@ -100,8 +130,8 @@ contract CivilizationGame {
         Player storage player = players[msg.sender];
         player.registered = true;
         player.lastAccruedAt = uint64(block.timestamp);
-        player.buildings = Buildings(1, 1, 1, 1, 1, 0, 0, 0);
-        player.stored = Resources(240, 220, 210, 45);
+        player.buildings = Buildings(0, 1, 1, 1, 1, 0, 0, 0);
+        player.stored = Resources(80, 80, 80, 0);
         emit WorldIdRegistered(msg.sender, nullifierHash, nonce, expiresAt);
     }
 
@@ -114,19 +144,36 @@ contract CivilizationGame {
         (claimed.wood, player.stored.wood, player.field.wood) = _claimOne(player.stored.wood, player.field.wood, capacity);
         (claimed.clay, player.stored.clay, player.field.clay) = _claimOne(player.stored.clay, player.field.clay, capacity);
         (claimed.stone, player.stored.stone, player.field.stone) = _claimOne(player.stored.stone, player.field.stone, capacity);
-        (claimed.gold, player.stored.gold, player.field.gold) = _claimOne(player.stored.gold, player.field.gold, capacity);
+        claimed.gold = player.field.gold;
+        player.field.gold = 0;
+        if (claimed.gold != 0) _mintGold(msg.sender, claimed.gold * GOLD_UNIT);
         player.claimAvailableAt = uint64(block.timestamp + CLAIM_COOLDOWN);
         emit ResourcesClaimed(msg.sender, claimed.wood, claimed.clay, claimed.stone, claimed.gold);
     }
 
     function upgrade(Building building) external onlyRegistered {
         Player storage player = players[msg.sender];
+        if (player.construction.pending) revert ConstructionAlreadyPending(player.construction.completesAt);
         _accrue(player);
+        if (_buildingLevel(player.buildings, building) >= MAX_BUILDING_LEVEL) revert BuildingMaxLevel();
         _requireBuildingRequirements(player.buildings, building);
         Resources memory price = _buildingCost(player.buildings, building);
-        _spend(player.stored, price);
-        uint256 newLevel = _incrementBuilding(player.buildings, building);
-        emit BuildingUpgraded(msg.sender, building, newLevel);
+        _spend(player, msg.sender, price);
+        uint64 completesAt = uint64(block.timestamp + _buildDuration(building, _buildingLevel(player.buildings, building) + 1));
+        player.construction = Construction(true, building, completesAt);
+        emit UpgradeStarted(msg.sender, building, completesAt);
+    }
+
+    function completeUpgrade() external onlyRegistered {
+        Player storage player = players[msg.sender];
+        Construction memory construction = player.construction;
+        if (!construction.pending) revert NoConstructionPending();
+        if (block.timestamp < construction.completesAt) revert ConstructionNotReady(construction.completesAt);
+        _accrueUntil(player, construction.completesAt);
+        uint256 newLevel = _incrementBuilding(player.buildings, construction.building);
+        delete player.construction;
+        _accrueUntil(player, block.timestamp);
+        emit BuildingUpgraded(msg.sender, construction.building, newLevel);
     }
 
     function train(Troop troop, uint256 amount) external onlyRegistered {
@@ -135,7 +182,7 @@ contract CivilizationGame {
         _accrue(player);
         _requireTroopRequirements(player.buildings, troop);
         Resources memory price = _troopCost(troop, amount);
-        _spend(player.stored, price);
+        _spend(player, msg.sender, price);
         if (troop == Troop.Spear) player.troops.spear += amount;
         else if (troop == Troop.Archer) player.troops.archer += amount;
         else player.troops.rider += amount;
@@ -179,27 +226,109 @@ contract CivilizationGame {
             defender.troops.rider -= (defender.troops.rider * 6) / 100;
         }
         delete attacker.pendingRaid;
-        Resources memory stolen = won ? _loot(attacker, defender, (raid.spear + raid.archer + raid.rider) * 18) : Resources(0, 0, 0, 0);
+        Resources memory stolen = won ? _loot(msg.sender, attacker, defender, (raid.spear + raid.archer + raid.rider) * 18) : Resources(0, 0, 0, 0);
         emit RaidResolved(msg.sender, raid.defender, won, attack, defense, stolen.wood, stolen.clay, stolen.stone, stolen.gold);
     }
 
-    function playerState(address account) external view returns (bool registered, uint64 lastAccruedAt, uint64 claimAvailableAt, Resources memory stored, Resources memory field, Buildings memory buildings, Troops memory troops, Raid memory pendingRaid) {
+    /// @notice Resets the village after full townhall completion and adds a permanent production bonus.
+    /// @dev Prestige never bypasses the World-ID registration gate and does not move an external asset.
+    function prestige() external onlyRegistered {
+        Player storage player = players[msg.sender];
+        if (player.buildings.townhall != MAX_BUILDING_LEVEL || player.construction.pending) revert PrestigeRequirementNotMet();
+        player.prestigeCount += 1;
+        player.lastAccruedAt = uint64(block.timestamp);
+        player.claimAvailableAt = 0;
+        player.stored = Resources(80, 80, 80, 0);
+        player.field = Resources(0, 0, 0, 0);
+        player.accrualRemainder = Resources(0, 0, 0, 0);
+        player.buildings = Buildings(0, 1, 1, 1, 1, 0, 0, 0);
+        player.troops = Troops(0, 0, 0);
+        delete player.pendingRaid;
+        delete player.construction;
+        emit Prestiged(msg.sender, player.prestigeCount, _productionMultiplier(player.prestigeCount));
+    }
+
+    function playerState(address account) external view returns (bool registered, uint64 lastAccruedAt, uint64 claimAvailableAt, Resources memory stored, Resources memory field, Buildings memory buildings, Troops memory troops, Raid memory pendingRaid, Construction memory construction, uint256 prestigeCount) {
         Player storage player = players[account];
-        return (player.registered, player.lastAccruedAt, player.claimAvailableAt, player.stored, player.field, player.buildings, player.troops, player.pendingRaid);
+        return (player.registered, player.lastAccruedAt, player.claimAvailableAt, player.stored, player.field, player.buildings, player.troops, player.pendingRaid, player.construction, player.prestigeCount);
+    }
+
+    /// @notice Returns the state as if production were settled at the current block.
+    /// @dev Read-only UI helper; a transaction still settles and stores the same rule.
+    function previewPlayerState(address account) external view returns (bool registered, uint64 lastAccruedAt, uint64 claimAvailableAt, Resources memory stored, Resources memory field, Buildings memory buildings, Troops memory troops, Raid memory pendingRaid, Construction memory construction, uint256 prestigeCount) {
+        Player storage player = players[account];
+        stored = player.stored;
+        field = player.field;
+        buildings = player.buildings;
+        troops = player.troops;
+        pendingRaid = player.pendingRaid;
+        construction = player.construction;
+        prestigeCount = player.prestigeCount;
+        registered = player.registered;
+        lastAccruedAt = player.lastAccruedAt;
+        claimAvailableAt = player.claimAvailableAt;
+        if (!registered) return (registered, lastAccruedAt, claimAvailableAt, stored, field, buildings, troops, pendingRaid, construction, prestigeCount);
+        (field, ) = _accruedField(field, player.accrualRemainder, buildings, prestigeCount, lastAccruedAt, block.timestamp);
+        lastAccruedAt = uint64(block.timestamp);
+    }
+
+    function productionMultiplierBps(address account) external view returns (uint256) {
+        return _productionMultiplier(players[account].prestigeCount);
+    }
+
+    function prestigeMultiplierBps(uint256 prestigeCount) external pure returns (uint256) {
+        return _productionMultiplier(prestigeCount);
+    }
+
+    function approve(address spender, uint256 value) external returns (bool) {
+        allowance[msg.sender][spender] = value;
+        emit Approval(msg.sender, spender, value);
+        return true;
+    }
+
+    function transfer(address to, uint256 value) external returns (bool) {
+        _transferGold(msg.sender, to, value);
+        return true;
+    }
+
+    function transferFrom(address from, address to, uint256 value) external returns (bool) {
+        uint256 permitted = allowance[from][msg.sender];
+        if (permitted < value) revert InsufficientAllowance();
+        if (permitted != type(uint256).max) {
+            allowance[from][msg.sender] = permitted - value;
+            emit Approval(from, msg.sender, allowance[from][msg.sender]);
+        }
+        _transferGold(from, to, value);
+        return true;
     }
 
     modifier onlyRegistered() { if (!players[msg.sender].registered) revert Unregistered(); _; }
 
     function _accrue(Player storage player) private {
-        uint256 elapsed = block.timestamp - player.lastAccruedAt;
+        _accrueUntil(player, block.timestamp);
+    }
+
+    function _accrueUntil(Player storage player, uint256 to) private {
+        if (to <= player.lastAccruedAt) return;
+        (player.field, player.accrualRemainder) = _accruedField(player.field, player.accrualRemainder, player.buildings, player.prestigeCount, player.lastAccruedAt, to);
+        player.lastAccruedAt = uint64(to);
+    }
+
+    function _accruedField(Resources memory field, Resources memory remainder, Buildings memory buildings, uint256 prestigeCount, uint64 from, uint256 to) private pure returns (Resources memory, Resources memory) {
+        uint256 elapsed = _cappedElapsed(from, to);
+        if (elapsed == 0) return (field, remainder);
+        uint256 capacity = _capacity(buildings.warehouse);
+        uint256 multiplier = BASIS_POINTS + prestigeCount * PRESTIGE_BONUS_BPS;
+        (field.wood, remainder.wood) = _accrueOne(field.wood, remainder.wood, elapsed, 300 * buildings.timber * multiplier, capacity);
+        (field.clay, remainder.clay) = _accrueOne(field.clay, remainder.clay, elapsed, 270 * buildings.claypit * multiplier, capacity);
+        (field.stone, remainder.stone) = _accrueOne(field.stone, remainder.stone, elapsed, 240 * buildings.quarry * multiplier, capacity);
+        (field.gold, remainder.gold) = _accrueOne(field.gold, remainder.gold, elapsed, 12 * buildings.goldmine * multiplier, capacity);
+        return (field, remainder);
+    }
+
+    function _cappedElapsed(uint64 from, uint256 to) private pure returns (uint256 elapsed) {
+        elapsed = to - from;
         if (elapsed > MAX_OFFLINE_SECONDS) elapsed = MAX_OFFLINE_SECONDS;
-        if (elapsed == 0) return;
-        uint256 capacity = _capacity(player.buildings.warehouse);
-        (player.field.wood, player.accrualRemainder.wood) = _accrueOne(player.field.wood, player.accrualRemainder.wood, elapsed, 55 * player.buildings.timber, capacity);
-        (player.field.clay, player.accrualRemainder.clay) = _accrueOne(player.field.clay, player.accrualRemainder.clay, elapsed, 50 * player.buildings.claypit, capacity);
-        (player.field.stone, player.accrualRemainder.stone) = _accrueOne(player.field.stone, player.accrualRemainder.stone, elapsed, 46 * player.buildings.quarry, capacity);
-        (player.field.gold, player.accrualRemainder.gold) = _accrueOne(player.field.gold, player.accrualRemainder.gold, elapsed, 13 * player.buildings.goldmine, capacity);
-        player.lastAccruedAt = uint64(block.timestamp);
     }
 
     function _accrueOne(uint256 field, uint256 remainder, uint256 elapsed, uint256 rate, uint256 capacity) private pure returns (uint256, uint256) {
@@ -211,21 +340,22 @@ contract CivilizationGame {
         return (nextField, units % FRACTION_SCALE);
     }
 
-    function _loot(Player storage attacker, Player storage defender, uint256 transportCapacity) private returns (Resources memory stolen) {
-        uint256 storedTotal = attacker.stored.wood + attacker.stored.clay + attacker.stored.stone + attacker.stored.gold;
-        uint256 freeCapacity = _capacity(attacker.buildings.warehouse) * 4;
+    function _loot(address attackerAccount, Player storage attacker, Player storage defender, uint256 transportCapacity) private returns (Resources memory stolen) {
+        uint256 storedTotal = attacker.stored.wood + attacker.stored.clay + attacker.stored.stone;
+        uint256 freeCapacity = _capacity(attacker.buildings.warehouse) * 3;
         if (storedTotal >= freeCapacity) return stolen;
         uint256 remaining = _min(transportCapacity, freeCapacity - storedTotal);
         (stolen.wood, remaining) = _take(defender.field.wood, remaining); defender.field.wood -= stolen.wood; attacker.stored.wood += stolen.wood;
         (stolen.clay, remaining) = _take(defender.field.clay, remaining); defender.field.clay -= stolen.clay; attacker.stored.clay += stolen.clay;
         (stolen.stone, remaining) = _take(defender.field.stone, remaining); defender.field.stone -= stolen.stone; attacker.stored.stone += stolen.stone;
-        (stolen.gold,) = _take(defender.field.gold, remaining); defender.field.gold -= stolen.gold; attacker.stored.gold += stolen.gold;
+        (stolen.gold,) = _take(defender.field.gold, remaining); defender.field.gold -= stolen.gold;
+        if (stolen.gold != 0) _mintGold(attackerAccount, stolen.gold * GOLD_UNIT);
     }
 
     function _buildingCost(Buildings storage b, Building building) private view returns (Resources memory price) {
         uint256 level = _buildingLevel(b, building);
         uint256 factor; Resources memory base;
-        if (building == Building.Townhall) { base = Resources(55,65,75,0); factor = 158; }
+        if (building == Building.Townhall) { base = Resources(280,260,240,0); factor = 160; }
         else if (building == Building.Timber) { base = Resources(35,20,15,0); factor = 146; }
         else if (building == Building.Claypit) { base = Resources(25,40,20,0); factor = 147; }
         else if (building == Building.Quarry) { base = Resources(30,25,45,0); factor = 148; }
@@ -255,7 +385,20 @@ contract CivilizationGame {
     function _requireTroopRequirements(Buildings storage b, Troop troop) private view {
         if (b.barracks < 1 || (troop == Troop.Archer && b.barracks < 2) || (troop == Troop.Rider && (b.barracks < 3 || b.workshop < 2))) revert MissingBuildingRequirement();
     }
-    function _spend(Resources storage have, Resources memory price) private { if (have.wood < price.wood || have.clay < price.clay || have.stone < price.stone || have.gold < price.gold) revert InsufficientResources(); have.wood -= price.wood; have.clay -= price.clay; have.stone -= price.stone; have.gold -= price.gold; }
+    function _buildDuration(Building building, uint256 nextLevel) private pure returns (uint256) { if (building == Building.Townhall) return nextLevel * 1 days; return _max(1 hours, nextLevel * 6 hours); }
+    function _productionMultiplier(uint256 prestigeCount) private pure returns (uint256) { return BASIS_POINTS + prestigeCount * PRESTIGE_BONUS_BPS; }
+    function _spend(Player storage player, address account, Resources memory price) private {
+        if (player.stored.wood < price.wood || player.stored.clay < price.clay || player.stored.stone < price.stone) revert InsufficientResources();
+        uint256 goldCost = price.gold * GOLD_UNIT;
+        if (balanceOf[account] < goldCost) revert InsufficientGoldBalance();
+        player.stored.wood -= price.wood;
+        player.stored.clay -= price.clay;
+        player.stored.stone -= price.stone;
+        if (goldCost != 0) _burnGold(account, goldCost);
+    }
+    function _mintGold(address account, uint256 value) private { totalSupply += value; balanceOf[account] += value; emit Transfer(address(0), account, value); }
+    function _burnGold(address account, uint256 value) private { if (balanceOf[account] < value) revert InsufficientGoldBalance(); balanceOf[account] -= value; totalSupply -= value; emit Transfer(account, address(0), value); }
+    function _transferGold(address from, address to, uint256 value) private { if (to == address(0)) revert ZeroAddress(); if (balanceOf[from] < value) revert InsufficientGoldBalance(); balanceOf[from] -= value; balanceOf[to] += value; emit Transfer(from, to, value); }
     function _defense(Player storage p) private view returns (uint256) { uint256 troopPower = p.troops.spear * 10 + p.troops.archer * 17 + p.troops.rider * 31; return _max(1, (troopPower * 65) / 100 + p.buildings.townhall * 20); }
     function _casualties(uint256 spear, uint256 archer, uint256 rider, uint256 rate) private pure returns (uint256, uint256, uint256) { return (_ceilPercent(spear, rate), _ceilPercent(archer, rate), _ceilPercent(rider, rate)); }
     function _capacity(uint256 warehouse) private pure returns (uint256 result) { result = 500; for (uint256 i = 1; i < warehouse; ++i) result = (result * 17 + 5) / 10; }

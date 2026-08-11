@@ -14,7 +14,7 @@ Every push to `master` runs tests, builds the Vite app, and deploys `dist/` to G
 
 ## Private TrueNAS service
 
-`Dockerfile`, `compose.yaml`, and `deploy/truenas.yaml` package Civilization DApp as a standalone service on port `31057`, with its own private PostgreSQL database. The current public route remains `idlemint.nyphon.de` through NPMplus on the TrueNAS host; the proxy target is `10.42.54.153:31057`.
+`Dockerfile`, `compose.yaml`, and `deploy/truenas.yaml` package the legacy compatibility service on port `31057`, with its own private PostgreSQL database. The on-chain game does not use that database for game state. The public route is `civilization.nyphon.de` through NPMplus on the TrueNAS host; the proxy target is `10.42.54.153:31057`.
 
 `GET /api/healthz` reports process health and database status; `GET /api/readyz` returns success only when PostgreSQL accepts queries and is appropriate for deployment readiness checks. `GET /api/contracts/status` makes the current `beta_quote_only` / `not_deployed` contract boundary machine-verifiable and has no transaction capability. `GET /api/market/quote?side=buy|sell&amount=<base-unit-integer>` exposes only settlement quotes: it cannot accept WLD, transfer IMG, mint, burn, or pay out assets. The container workflow publishes `ghcr.io/ralphschuler/civilization.dapp` after tests pass on `master`.
 
@@ -37,11 +37,10 @@ There are no World Portal, World ID, wallet, WLD, IMG, contract, payment, custod
 
 ## Token model
 
-The game resources `IMW` (Mint Wood), `IMC` (Mint Clay), and `IMS` (Mint Stone) stay internal. `IMG` (Mint Gold) is the only resource intended to become an external ERC-20, with 18 decimals. The current release deploys no contract, requests no wallet, and cannot move assets.
+Wood, clay and stone are internal game resources. `CGOLD` (Civilization Gold) is the sole ERC-20, with 18 decimals, implemented directly by `CivilizationGame.sol`. It is minted only when the on-chain game rules settle a claim or a successful raid, and burned only when on-chain game rules spend gold. Prestige resets the village but does not burn the player's CGOLD.
 
-- `IMW`, `IMC`, and `IMS` are internal game resources. They can be exchanged only through the in-game market and cannot be settled externally.
-- `IMG` is the sole settlement-capable token. It is the only token intended to pair with approved external assets such as WLD and WBTC on World Chain.
-- Initial settlement direction is **WLD / IMG**. Every buy receives 98.5% of the quoted IMG and routes 1.5% to the IMG sink; every sell pays 98.5% of quoted WLD and routes 1.5% to the WLD sink. These quote calculations are tested in the private service, but execution remains disabled until an audited liquidity/settlement adapter exists.
+- No WLD payment, redemption, withdrawal, liquidity, fee routing, or custody code is present in `CivilizationGame`.
+- The proposed later settlement model is **WLD / CGOLD**: 1.5% per buy/sell, split as 1.0% retained by game liquidity and 0.5% operator revenue. It needs a separately audited settlement adapter, independent pricing/slippage limits, liquidity, monitoring, product/legal review, and explicit deployment approval. It is not implemented or deployable from this release.
 - `contracts/src/GoldSettlementRegistry.sol` is intentionally only an allowlist registry. It cannot hold funds or execute a swap. An audited settlement adapter, independent pricing/slippage limits, liquidity, transaction monitoring, and product/legal review are required before any deployment.
 
 `contracts/worldchain.tokens.example.json` is an example reference for WLD and WBTC on World Chain Mainnet. Re-verify every address against the current [World Chain useful-contract registry](https://docs.world.org/world-chain/reference/useful-contracts) before allowlisting.
@@ -50,7 +49,7 @@ The machine-readable in-app release boundary is defined in `server/contract-stat
 
 ## On-chain game-state draft
 
-`contracts/src/CivilizationGame.sol` is a source-only, undeployed migration target that makes the contract—not the beta backend—authoritative for resource accrual/claiming, upgrades, training, and PvP. The backend's future role is restricted to verifying a World ID proof and signing a short-lived registration attestation. See [the on-chain architecture](./docs/ONCHAIN_ARCHITECTURE.md) for the authority boundary, MiniKit call flow, and deployment/audit prerequisites. The existing beta API/database remains unchanged and is not an authority in this draft.
+`contracts/src/CivilizationGame.sol` is a source-only, undeployed migration target that makes the contract—not the beta backend or database—authoritative for resource accrual/claiming, upgrades, construction timers, prestige, training, PvP, and CGOLD. The backend's future role is restricted to verifying a World ID proof and signing a short-lived registration attestation. See [the on-chain architecture](./docs/ONCHAIN_ARCHITECTURE.md) for the authority boundary, MiniKit call flow, and deployment/audit prerequisites. Existing beta API/database code remains a non-authoritative compatibility path only.
 
 ## Visual assets
 
