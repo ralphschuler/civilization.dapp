@@ -16,7 +16,7 @@ Every push to `master` runs tests, builds the Vite app, and deploys `dist/` to G
 
 `Dockerfile`, `compose.yaml`, and `deploy/truenas.yaml` package IdleMint as a standalone service on port `31057`, with its own private PostgreSQL database. The intended public route is `idlemint.nyphon.de` through NPMplus on the TrueNAS host; the proxy target is `10.42.54.153:31057`.
 
-`GET /api/healthz` reports process health and database status; `GET /api/readyz` returns success only when PostgreSQL accepts queries and is appropriate for deployment readiness checks. `GET /api/market/quote?side=buy|sell&amount=<base-unit-integer>` exposes only settlement quotes: it cannot accept WLD, transfer IMG, mint, burn, or pay out assets. The container workflow publishes `ghcr.io/ralphschuler/idlemint` after tests pass on `master`.
+`GET /api/healthz` reports process health and database status; `GET /api/readyz` returns success only when PostgreSQL accepts queries and is appropriate for deployment readiness checks. `GET /api/contracts/status` makes the current `beta_quote_only` / `not_deployed` contract boundary machine-verifiable and has no transaction capability. `GET /api/market/quote?side=buy|sell&amount=<base-unit-integer>` exposes only settlement quotes: it cannot accept WLD, transfer IMG, mint, burn, or pay out assets. The container workflow publishes `ghcr.io/ralphschuler/idlemint` after tests pass on `master`.
 
 ### Authoritative game-state API
 
@@ -45,6 +45,8 @@ The game resources `IMW` (Mint Wood), `IMC` (Mint Clay), and `IMS` (Mint Stone) 
 - `contracts/src/GoldSettlementRegistry.sol` is intentionally only an allowlist registry. It cannot hold funds or execute a swap. An audited settlement adapter, independent pricing/slippage limits, liquidity, transaction monitoring, and product/legal review are required before any deployment.
 
 `contracts/worldchain.tokens.example.json` is an example reference for WLD and WBTC on World Chain Mainnet. Re-verify every address against the current [World Chain useful-contract registry](https://docs.world.org/world-chain/reference/useful-contracts) before allowlisting.
+
+The machine-readable in-app release boundary is defined in `server/contract-status.js`; see [the contract status](./contracts/STATUS.md) for the source inventory, no-deployment assertion, and prerequisites. No Solidity compiler is declared or bundled for this beta, so no contract compile/test command is part of `npm test`.
 
 ## Visual assets
 

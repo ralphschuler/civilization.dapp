@@ -67,7 +67,9 @@ export const DEMO_TARGETS = [
 
 export function createInitialState(now = Date.now()) {
   return {
-    resources: cost(240, 220, 210, 40),
+    // Leaves one IMG available for the first spear after the required workshop
+    // and barracks are paid for. IMG still has no external transfer path.
+    resources: cost(240, 220, 210, 45),
     // Produced resources stay exposed in the field until the player collects them.
     // Only `resources` is spendable; `unclaimed` is the raidable field stock.
     unclaimed: cost(),

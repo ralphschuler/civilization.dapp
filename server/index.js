@@ -9,6 +9,7 @@ import { applyGameAction, validateAction, validateActionId, validateAnonymousId 
 import { createInitialState, settle } from "../src/game.js";
 import { GAME_STATE_SCHEMA } from "./schema.js";
 import { publicTarget, resolvePvpRaid, startPvpRaid } from "./pvp.js";
+import { CONTRACT_STATUS } from "./contract-status.js";
 
 const port = Number(process.env.PORT || 31057);
 const host = process.env.HOST || "0.0.0.0";
@@ -216,7 +217,7 @@ const server = createServer(async (request, response) => {
   try {
     if (request.method === "GET" && url.pathname === "/api/healthz") {
       const database = await databaseHealthy().catch(() => false);
-      return json(response, 200, { status: "ok", database: database ? "ok" : "unavailable", ready: database, tradingEnabled: false });
+      return json(response, 200, { status: "ok", database: database ? "ok" : "unavailable", ready: database, tradingEnabled: false, contractRelease: CONTRACT_STATUS.release, contractDeployment: CONTRACT_STATUS.deployment });
     }
     if (request.method === "GET" && url.pathname === "/api/readyz") {
       const database = await ensureSchema().then(() => databaseHealthy()).catch(() => false);
@@ -240,6 +241,7 @@ const server = createServer(async (request, response) => {
       if (!id) return json(response, 400, { error: "invalid_anonymous_id" });
       return json(response, 200, { targets: await listPvpTargets(id) });
     }
+    if (request.method === "GET" && url.pathname === "/api/contracts/status") return json(response, 200, CONTRACT_STATUS);
     if (request.method === "GET" && url.pathname === "/api/market/quote") {
       const quote = quoteImgWldTrade({ side: url.searchParams.get("side"), amount: url.searchParams.get("amount") });
       return json(response, 200, { ...quote, feeBps: TRADE_FEE_BPS, assetPair: "IMG/WLD", decimals: { img: IMG_DECIMALS, wld: WLD_DECIMALS }, executable: false });
