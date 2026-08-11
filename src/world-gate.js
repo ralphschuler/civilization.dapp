@@ -7,5 +7,5 @@ export function canRenderGameWorld({ worldAppInstalled, worldIdStatus }) {
 }
 
 export function canRetryWorldIdVerification(worldIdStatus) {
-  return worldIdStatus === "not_verified" || worldIdStatus === "error";
+  return worldIdStatus === "not_verified" || worldIdStatus === "error" || worldIdStatus === "wallet_unavailable";
 }

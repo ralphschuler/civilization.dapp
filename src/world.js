@@ -82,6 +82,30 @@ export function installWorldAppBridge() {
 }
 
 /**
+ * Reads the wallet when an action is actually started, rather than retaining
+ * MiniKit's install-time snapshot. `window.WorldApp.wallet_address` is the
+ * documented raw World App payload fallback while MiniKit is still populating
+ * its normalized user state.
+ */
+export function resolveWorldWalletAddress({ miniKit = MiniKit, worldApp = globalThis.window?.WorldApp } = {}) {
+  const address = miniKit?.user?.walletAddress || worldApp?.wallet_address;
+  return isAddress(address) ? getAddress(address) : null;
+}
+
+/** Opens the connector URL returned by IDKit and reports popup failures. */
+export function openWorldIdConnectorURI(connectorURI, openWindow = globalThis.window?.open) {
+  if (!connectorURI) return { ok: true, opened: false };
+  if (typeof openWindow !== "function") return { ok: false, reason: "connector_open_unavailable" };
+  try {
+    return openWindow(connectorURI, "_blank")
+      ? { ok: true, opened: true }
+      : { ok: false, reason: "connector_open_blocked" };
+  } catch (error) {
+    return { ok: false, reason: error instanceof Error ? error.message : "connector_open_failed" };
+  }
+}
+
+/**
  * Builds a deterministic MockWorldIdVerifier registration for World Chain
  * Sepolia. This is intentionally unavailable for mainnet and must never be
  * mistaken for a real World ID proof.
@@ -201,8 +225,10 @@ function nonceToUint256(value) {
 /** Requests a World ID 4 Proof of Human whose signal is the player's World wallet. */
 export async function requestWorldIdGameAccess({
   config = getWorldIdConfig(), walletAddress, fetchImpl = globalThis.fetch, idkit = IDKit, humanPreset = proofOfHuman,
+  openConnector = openWorldIdConnectorURI,
 } = {}) {
-  if (!config.configured || !isAddress(walletAddress) || typeof fetchImpl !== "function") return { ok: false, reason: "configuration_required" };
+  if (!config.configured || typeof fetchImpl !== "function") return { ok: false, reason: "configuration_required" };
+  if (!isAddress(walletAddress)) return { ok: false, reason: "world_wallet_unavailable" };
   try {
     const rpContext = await fetchImpl(config.proofContextEndpoint, {
       method: "POST", headers: { "content-type": "application/json" },
@@ -213,6 +239,8 @@ export async function requestWorldIdGameAccess({
       app_id: config.appId, action: config.action, rp_context: rpContext,
       allow_legacy_proofs: false, environment: config.environment,
     }).preset(humanPreset({ signal: getAddress(walletAddress) }));
+    const opened = await openConnector(request.connectorURI);
+    if (!opened?.ok) return { ok: false, reason: opened?.reason || "connector_open_failed" };
     const completion = await request.pollUntilCompletion();
     if (!completion.success) return { ok: false, reason: completion.error || "proof_failed" };
     return { ok: true, registration: buildWorldIdRegistration({ config, walletAddress, result: completion.result }) };

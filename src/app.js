@@ -1,5 +1,5 @@
 import "./styles.css";
-import { buildTestnetRegistration, confirmWorldIdRegistration, getWorldIdConfig, installWorldAppBridge, requestWorldIdGameAccess, submitTestnetRegistration, submitWorldIdRegistration } from "./world.js";
+import { buildTestnetRegistration, confirmWorldIdRegistration, getWorldIdConfig, installWorldAppBridge, requestWorldIdGameAccess, resolveWorldWalletAddress, submitTestnetRegistration, submitWorldIdRegistration } from "./world.js";
 import { canRenderGameWorld, canRetryWorldIdVerification } from "./world-gate.js";
 import {
   BUILDINGS,
@@ -41,6 +41,7 @@ const worldApp = installWorldAppBridge();
 const worldIdConfig = getWorldIdConfig();
 const worldBadge = worldApp.installed ? `WORLD APP${worldApp.walletAddress ? ` · ${worldApp.walletAddress.slice(0, 6)}…${worldApp.walletAddress.slice(-4)}` : " · VERBUNDEN"}` : "DEMO · LOKAL";
 let worldIdStatus = worldIdConfig.testnetConfigured ? "testnet_ready" : (worldApp.installed ? (worldIdConfig.configured ? "not_verified" : "configuration_required") : "local_demo");
+let worldIdError = "";
 let feedback = "Wähle ein Gebäude auf dem Dorfplan.";
 let selectedBuilding = "townhall";
 let activePanel = "build";
@@ -137,6 +138,27 @@ function collectionStatus() {
 }
 
 function hasGameAccess() { return canRenderGameWorld({ worldAppInstalled: worldApp.installed, worldIdStatus }); }
+// Reserve a popup synchronously in the click handler. IDKit creates its
+// connector URI after the RP-context request, when a new popup would no longer
+// reliably be considered user initiated by browser webviews.
+function reserveWorldIdConnectorWindow() {
+  const connectorWindow = globalThis.open?.("", "_blank");
+  const openConnector = (connectorURI) => {
+    if (!connectorURI) {
+      connectorWindow?.close?.(); // World App native transport has no URL.
+      return { ok: true, opened: false };
+    }
+    if (!connectorWindow) return { ok: false, reason: "connector_open_blocked" };
+    try {
+      connectorWindow.location.href = connectorURI;
+      return { ok: true, opened: true };
+    } catch (error) {
+      return { ok: false, reason: error instanceof Error ? error.message : "connector_open_failed" };
+    }
+  };
+  openConnector.close = () => connectorWindow?.close?.();
+  return openConnector;
+}
 async function injectedWalletAddress() {
   try {
     const wallet = globalThis.ethereum;
@@ -155,7 +177,8 @@ function worldIdStatusView() {
     checking: ["WORLD ID · PRÜFUNG LÄUFT", "World App erzeugt den Nachweis; die Registrierung wird auf World Chain geprüft."],
     verified: ["WORLD ID · REGISTRIERT", "Der Spielzugang wurde mit einer World-Chain-Transaktion registriert."],
     configuration_required: ["WORLD ID · NOCH NICHT BEREIT", "App-ID, Aktion, RP-Endpunkt und Vertragsadresse müssen gesetzt sein."],
-    error: ["WORLD ID · FEHLER", "Nachweis oder World-Chain-Transaktion wurde nicht bestätigt. Bitte erneut versuchen."],
+    wallet_unavailable: ["WORLD ID · WALLET NOCH NICHT BEREIT", "Die World-Wallet konnte noch nicht geladen werden. Bitte kurz warten und erneut versuchen."],
+    error: ["WORLD ID · FEHLER", worldIdError ? `World-ID-Verifizierung konnte nicht gestartet werden (${escapeHtml(worldIdError)}). Bitte erneut versuchen.` : "Nachweis oder World-Chain-Transaktion wurde nicht bestätigt. Bitte erneut versuchen."],
   }[worldIdStatus];
   const canStart = canRetryWorldIdVerification(worldIdStatus);
   return `<div class="world-id-status" role="status"><b>${content[0]}</b><span>${content[1]}</span>${canStart ? "<button id=\"world-id-verify\">Mit World ID verifizieren</button>" : ""}</div>`;
@@ -173,11 +196,28 @@ function bindWorldIdActions() {
     render();
   });
   document.querySelector("#world-id-verify")?.addEventListener("click", async () => {
+    const walletAddress = resolveWorldWalletAddress();
+    if (!walletAddress) {
+      worldIdStatus = "wallet_unavailable";
+      feedback = "World-Wallet ist noch nicht verfügbar. Bitte kurz warten und die Verifizierung erneut starten.";
+      render();
+      return;
+    }
+    const openConnector = reserveWorldIdConnectorWindow();
+    worldIdError = "";
     worldIdStatus = "checking";
     render();
-    const result = await requestWorldIdGameAccess({ config: worldIdConfig, walletAddress: worldApp.walletAddress });
+    const result = await requestWorldIdGameAccess({ config: worldIdConfig, walletAddress, openConnector });
+    if (!result.ok) {
+      openConnector.close();
+      worldIdStatus = "error";
+      worldIdError = result.reason;
+      feedback = `World-ID-Verifizierung konnte nicht gestartet werden (${result.reason}). Bitte erneut versuchen.`;
+      render();
+      return;
+    }
     const submission = result.ok ? await submitWorldIdRegistration(result.registration) : { ok: false };
-    const confirmation = submission.ok ? await confirmWorldIdRegistration({ config: worldIdConfig, walletAddress: worldApp.walletAddress }) : { ok: false };
+    const confirmation = submission.ok ? await confirmWorldIdRegistration({ config: worldIdConfig, walletAddress }) : { ok: false };
     worldIdStatus = confirmation.ok ? "verified" : "error";
     feedback = confirmation.ok ? "World-ID-Spielzugang wurde auf World Chain registriert." : "World-ID-Nachweis oder Registrierung wurde nicht auf World Chain bestätigt.";
     render();

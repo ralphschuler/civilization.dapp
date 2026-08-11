@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { COLLECTION_COOLDOWN_MS, MARCH_DURATION_MS, createInitialState, gather, getRequirements, resolveRaidMarch, sendRaid, settle, startGathering, startRaidMarch, swapInternal, trainTroop, upgradeBuilding } from "../src/game.js";
-import { buildTestnetRegistration, buildWorldIdRegistration, confirmWorldIdRegistration, getWorldIdConfig, installWorldAppBridge, requestWorldIdGameAccess, WORLD_CHAIN_SEPOLIA_ID } from "../src/world.js";
+import { buildTestnetRegistration, buildWorldIdRegistration, confirmWorldIdRegistration, getWorldIdConfig, installWorldAppBridge, requestWorldIdGameAccess, resolveWorldWalletAddress, WORLD_CHAIN_SEPOLIA_ID } from "../src/world.js";
 
 test("World bridge remains inactive in the regular browser demo", () => {
   assert.deepEqual(installWorldAppBridge(), { installed: false });
@@ -16,10 +16,23 @@ const worldConfigEnv = {
 };
 const walletAddress = "0x2222222222222222222222222222222222222222";
 
+test("World wallet resolution reads current MiniKit state and the documented raw WorldApp fallback", () => {
+  assert.equal(resolveWorldWalletAddress({ miniKit: { user: { walletAddress } } }), walletAddress);
+  assert.equal(resolveWorldWalletAddress({ miniKit: { user: {} }, worldApp: { wallet_address: walletAddress } }), walletAddress);
+  assert.equal(resolveWorldWalletAddress({ miniKit: { user: {} }, worldApp: { wallet_address: "not-an-address" } }), null);
+});
+
 test("World ID stays unavailable until its on-chain contract and trusted RP endpoint are configured", () => {
   assert.equal(getWorldIdConfig({ VITE_WORLD_APP_ID: "app_example" }).configured, false);
   assert.equal(getWorldIdConfig(worldConfigEnv).configured, true);
   assert.equal(getWorldIdConfig({ ...worldConfigEnv, VITE_CIVILIZATION_CONTRACT_ADDRESS: "0x0000000000000000000000000000000000000000" }).configured, false);
+});
+
+test("World ID reports a retryable wallet error before requesting proof context", async () => {
+  const result = await requestWorldIdGameAccess({ config: getWorldIdConfig(worldConfigEnv), walletAddress: null, fetchImpl: async () => {
+    throw new Error("must_not_fetch");
+  } });
+  assert.deepEqual(result, { ok: false, reason: "world_wallet_unavailable" });
 });
 
 test("Sepolia test mode targets the deployed mock contract but never enables real World ID", () => {
@@ -46,15 +59,19 @@ test("World ID 4 proof becomes World Chain registration calldata without backend
     return { ok: true, json: async () => ({ rp_id: "rp_example", nonce: "0x1234", created_at: 1, expires_at: 2, signature: "0xsignature" }) };
   };
   let requestOptions;
+  const openedConnectors = [];
   const idkit = { request: (request) => ({ preset: async (preset) => {
     requestOptions = { request, preset };
-    return { pollUntilCompletion: async () => ({ success: true, result: {
+    return { connectorURI: "https://id.world.org/connect", pollUntilCompletion: async () => ({ success: true, result: {
       protocol_version: "4.0", nonce: "0x1234", action: request.action,
       responses: [{ identifier: "proof_of_human", signal_hash: "0x123", nullifier: "0x456", expires_at_min: 3, issuer_schema_id: 1, proof: ["0x1", "0x2", "0x3", "0x4", "0x5"] }],
     } }) };
   } }) };
   const humanPreset = (input) => ({ type: "ProofOfHuman", ...input });
-  const result = await requestWorldIdGameAccess({ config, walletAddress, fetchImpl, idkit, humanPreset });
+  const result = await requestWorldIdGameAccess({ config, walletAddress, fetchImpl, idkit, humanPreset, openConnector: (uri) => {
+    openedConnectors.push(uri);
+    return { ok: true };
+  } });
   assert.equal(result.ok, true);
   assert.equal(result.registration.chainId, 480);
   assert.equal(result.registration.to, worldConfigEnv.VITE_CIVILIZATION_CONTRACT_ADDRESS);
@@ -64,6 +81,22 @@ test("World ID 4 proof becomes World Chain registration calldata without backend
   assert.equal(calls[0].body.signal, walletAddress);
   assert.equal(requestOptions.request.allow_legacy_proofs, false);
   assert.deepEqual(requestOptions.preset, { type: "ProofOfHuman", signal: walletAddress });
+  assert.deepEqual(openedConnectors, ["https://id.world.org/connect"]);
+});
+
+test("World ID surfaces connector-opening failures instead of polling blindly", async () => {
+  const config = getWorldIdConfig(worldConfigEnv);
+  let polled = false;
+  const result = await requestWorldIdGameAccess({
+    config,
+    walletAddress,
+    fetchImpl: async () => ({ ok: true, json: async () => ({ rp_id: "rp_example", nonce: "0x1234", created_at: 1, expires_at: 2, signature: "0xsignature" }) }),
+    humanPreset: (input) => input,
+    idkit: { request: () => ({ preset: async () => ({ connectorURI: "https://id.world.org/connect", pollUntilCompletion: async () => { polled = true; return { success: true }; } }) }) },
+    openConnector: () => ({ ok: false, reason: "connector_open_blocked" }),
+  });
+  assert.deepEqual(result, { ok: false, reason: "connector_open_blocked" });
+  assert.equal(polled, false);
 });
 
 test("World ID client does not create registration calldata from a non-v4 or incomplete proof", () => {
