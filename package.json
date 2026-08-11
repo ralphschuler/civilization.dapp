@@ -9,7 +9,9 @@
     "preview": "vite preview --host 127.0.0.1",
     "start": "node server/index.js",
     "test": "node --test",
-    "check": "node --check src/*.js server/*.js"
+    "check": "node --check src/*.js server/*.js scripts/deploy-worldchain-mainnet.mjs",
+    "preflight:worldchain:mainnet": "node scripts/deploy-worldchain-mainnet.mjs",
+    "deploy:worldchain:mainnet": "CONFIRM_MAINNET_DEPLOY=yes node scripts/deploy-worldchain-mainnet.mjs --send"
   },
   "devDependencies": {
     "@ethereumjs/block": "10.1.2",

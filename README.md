@@ -52,6 +52,10 @@ The machine-readable in-app release boundary is defined in `server/contract-stat
 
 `contracts/src/CivilizationGame.sol` is a source-only, undeployed migration target that makes the contract—not the beta backend or database—authoritative for resource accrual/claiming, upgrades, construction timers, prestige, training, PvP, and CGOLD. The backend's future role is restricted to verifying a World ID proof and signing a short-lived registration attestation. See [the on-chain architecture](./docs/ONCHAIN_ARCHITECTURE.md) for the authority boundary, MiniKit call flow, and deployment/audit prerequisites. Existing beta API/database code remains a non-authoritative compatibility path only.
 
+### World Chain mainnet deployment
+
+`npm run preflight:worldchain:mainnet` recompiles the exact contract, verifies World Chain mainnet, estimates gas, and prints the immutable deployment arguments without sending a transaction. It uses a protected local key file outside the repository. `npm run deploy:worldchain:mainnet` sends only after the deployer holds native World Chain ETH; it sets the official WLD address, the configured EIP-712 attestation signer, and the immutable WLD-boost treasury. Run no deployment command until those public arguments and the final source have been independently reviewed.
+
 ## Visual assets
 
 The game board uses project-owned Civilization DApp building, resource and unit art. See [asset provenance](./ASSET_ATTRIBUTION.md) for the copied files and the temporary Stone visual stand-in.
