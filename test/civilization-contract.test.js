@@ -14,11 +14,17 @@ import {
   padHex,
   toHex,
 } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
 
 const contractsDirectory = new URL("../contracts/src/", import.meta.url);
+let compiledContracts;
 
 async function compileContracts() {
+  if (compiledContracts) return compiledContracts;
+  compiledContracts = compileContractsOnce();
+  return compiledContracts;
+}
+
+async function compileContractsOnce() {
   const files = (await readdir(contractsDirectory)).filter((file) => file.endsWith(".sol")).sort();
   const sources = Object.fromEntries(await Promise.all(files.map(async (file) => [
     `contracts/src/${file}`,
@@ -26,6 +32,9 @@ async function compileContracts() {
   ])));
   sources["test/fixtures/MockWorldToken.sol"] = {
     content: await readFile(new URL("./fixtures/MockWorldToken.sol", import.meta.url), "utf8"),
+  };
+  sources["test/fixtures/MockWorldIdVerifier.sol"] = {
+    content: await readFile(new URL("./fixtures/MockWorldIdVerifier.sol", import.meta.url), "utf8"),
   };
   return JSON.parse(solc.compile(JSON.stringify({
     language: "Solidity",
@@ -37,23 +46,14 @@ async function compileContracts() {
   })));
 }
 
-const signer = privateKeyToAccount(`0x${"11".repeat(32)}`);
-const playerA = privateKeyToAccount(`0x${"22".repeat(32)}`);
-const playerB = privateKeyToAccount(`0x${"33".repeat(32)}`);
+const playerA = { address: `0x${"22".repeat(20)}` };
+const playerB = { address: `0x${"33".repeat(20)}` };
 const deployer = createAddressFromString(`0x${"44".repeat(20)}`);
 const EVM_GAS_LIMIT = 30_000_000n;
 const DAY = 86_400n;
 const GOLD_UNIT = 10n ** 18n;
 const WLD_UNIT = 10n ** 18n;
 const PLAYER_MAPPING_SLOT = 3n;
-const attestationTypes = {
-  WorldIdAttestation: [
-    { name: "player", type: "address" },
-    { name: "nullifierHash", type: "bytes32" },
-    { name: "nonce", type: "bytes32" },
-    { name: "expiresAt", type: "uint64" },
-  ],
-};
 
 function blockAt(timestamp) {
   return createBlock({ header: { timestamp } });
@@ -105,19 +105,15 @@ async function readGame(game, functionName, args, timestamp) {
   });
 }
 
-async function signedRegistration(game, player, nullifierHash, nonce, expiresAt) {
-  const signature = await signer.signTypedData({
-    domain: {
-      name: "CivilizationGame",
-      version: "1",
-      chainId: 1,
-      verifyingContract: game.address.toString(),
-    },
-    types: attestationTypes,
-    primaryType: "WorldIdAttestation",
-    message: { player: player.address, nullifierHash, nonce, expiresAt },
-  });
-  return evmCall(game, player.address, "registerWorldId", [nullifierHash, nonce, expiresAt, signature], expiresAt - 60n);
+function worldIdRegistration(game, player, nullifierHash = 1001n, timestamp = 1_840n, signalHash = BigInt(keccak256(player.address)) >> 8n) {
+  return evmCall(game, player.address, "registerWorldId", [
+    nullifierHash,
+    2002n,
+    signalHash,
+    3_000n,
+    1n,
+    [11n, 12n, 13n, 14n, 15n],
+  ], timestamp);
 }
 
 function playerStorageSlot(player, offset) {
@@ -147,11 +143,11 @@ test("all Solidity drafts compile deterministically with the pinned official sol
   assert.ok(game.evm.deployedBytecode.object.length / 2 <= 24_576, "runtime bytecode must fit the EIP-170 limit");
 });
 
-test("CivilizationGame exposes only player-driven game transitions and a signed registration gate", async () => {
+test("CivilizationGame exposes only player-driven game transitions and a World ID 4 registration gate", async () => {
   const output = await compileContracts();
   const abi = output.contracts["contracts/src/CivilizationGame.sol"].CivilizationGame.abi;
   const functions = new Map(abi.filter((item) => item.type === "function").map((item) => [item.name, item]));
-  for (const name of ["registerWorldId", "claim", "upgrade", "completeUpgrade", "boostConstruction", "train", "startRaid", "resolveRaid", "prestige", "playerState", "worldToken", "boostTreasury", "name", "symbol", "decimals", "totalSupply", "balanceOf", "allowance", "approve", "transfer", "transferFrom"]) {
+  for (const name of ["registerWorldId", "claim", "upgrade", "completeUpgrade", "boostConstruction", "train", "startRaid", "resolveRaid", "prestige", "playerState", "worldIdVerifier", "worldIdAction", "worldIdRpId", "worldToken", "boostTreasury", "name", "symbol", "decimals", "totalSupply", "balanceOf", "allowance", "approve", "transfer", "transferFrom"]) {
     assert.ok(functions.has(name), `${name} must be part of the auditable contract interface`);
   }
   assert.equal(functions.get("registerWorldId").stateMutability, "nonpayable");
@@ -165,12 +161,14 @@ test("CivilizationGame exposes only player-driven game transitions and a signed 
   assert.equal(functions.get("prestigeMultiplierBps").stateMutability, "pure");
 });
 
-test("contract source keeps backend authority limited to EIP-712 registration and protects replay paths", async () => {
+test("contract source verifies World ID 4 on-chain and protects replay paths", async () => {
   const source = await readFile(new URL("../contracts/src/CivilizationGame.sol", import.meta.url), "utf8");
-  assert.match(source, /mapping\(bytes32 => address\) public nullifierOwner/);
-  assert.match(source, /mapping\(bytes32 => bool\) public usedAttestationNonce/);
-  assert.match(source, /MAX_ATTESTATION_TTL = 15 minutes/);
-  assert.match(source, /_recover\(_hashTypedData\(structHash\), signature\) != backendAttestationSigner/);
+  assert.match(source, /mapping\(uint256 => address\) public nullifierOwner/);
+  assert.match(source, /IWorldIDVerifier public immutable worldIdVerifier/);
+  assert.match(source, /worldIdVerifier\.verify\(/);
+  assert.match(source, /signalHash != _hashToField\(abi\.encodePacked\(msg\.sender\)\)/);
+  assert.match(source, /issuerSchemaId != worldIdIssuerSchemaId/);
+  assert.match(source, /worldIdAction = uint256\(keccak256\(bytes\(worldActionId\)\)\)/);
   assert.match(source, /function _accrue\(Player storage player\) private/);
   assert.match(source, /function claim\(\) external onlyRegistered/);
   assert.match(source, /function resolveRaid\(\) external onlyRegistered/);
@@ -187,6 +185,7 @@ test("contract source keeps backend authority limited to EIP-712 registration an
   assert.match(source, /function _mintGold\(address account, uint256 value\) private/);
   assert.match(source, /function _burnGold\(address account, uint256 value\) private/);
   assert.doesNotMatch(source, /function .*onlyBackend/i);
+  assert.doesNotMatch(source, /EIP712|backendAttestationSigner|attestation/i);
   assert.doesNotMatch(source, /\bpayable\b/);
 });
 
@@ -194,12 +193,13 @@ test("CivilizationGame executes World registration, contract-derived production,
   const output = await compileContracts();
   const artifact = output.contracts["contracts/src/CivilizationGame.sol"].CivilizationGame;
   const worldTokenArtifact = output.contracts["test/fixtures/MockWorldToken.sol"].MockWorldToken;
+  const verifierArtifact = output.contracts["test/fixtures/MockWorldIdVerifier.sol"].MockWorldIdVerifier;
   const vm = await createVM();
+  const verifier = await deployContract(vm, verifierArtifact.abi, verifierArtifact.evm.bytecode.object);
   const worldToken = await deployContract(vm, worldTokenArtifact.abi, worldTokenArtifact.evm.bytecode.object);
-  const game = await deployContract(vm, artifact.abi, artifact.evm.bytecode.object, [signer.address, worldToken.address.toString(), playerB.address]);
-  const nullifier = `0x${"aa".repeat(32)}`;
-  const nonce = `0x${"bb".repeat(32)}`;
-  const registration = await signedRegistration(game, playerA, nullifier, nonce, 1_900n);
+  const game = await deployContract(vm, artifact.abi, artifact.evm.bytecode.object, [verifier.address.toString(), "play", 123n, 1n, 0n, worldToken.address.toString(), playerB.address]);
+  const nullifier = 1001n;
+  const registration = await worldIdRegistration(game, playerA, nullifier);
   assertEvmSuccess(registration);
 
   const registeredAt = 1_840n;
@@ -279,9 +279,16 @@ test("CivilizationGame executes World registration, contract-derived production,
   const earnedMultiplier = await readGame(game, "productionMultiplierBps", [playerA.address], goldClaimAt + DAY - 1n * 60n * 60n + 1n);
   assert.equal(earnedMultiplier, 11_000n);
 
-  const replayNonce = `0x${"cc".repeat(32)}`;
-  const replay = await signedRegistration(game, playerB, nullifier, replayNonce, 1_900n);
+  const replay = await worldIdRegistration(game, playerB, nullifier, 1_900n);
   assert.ok(replay.execResult.exceptionError, "a World nullifier can register only one wallet");
+
+  const wrongSignal = await worldIdRegistration(game, playerB, 1002n, 1_901n, 0n);
+  assert.ok(wrongSignal.execResult.exceptionError, "a World proof signal must be bound to the registering wallet");
+
+  const rejectProof = await evmCall(verifier, deployer.toString(), "setRejectProof", [true], 1_902n);
+  assertEvmSuccess(rejectProof);
+  const rejected = await worldIdRegistration(game, playerB, 1003n, 1_903n);
+  assert.ok(rejected.execResult.exceptionError, "registration must revert when the World ID verifier rejects a proof");
 
   const unregisteredClaim = await evmCall(game, playerB.address, "claim", [], firstCollectionAt);
   assert.ok(unregisteredClaim.execResult.exceptionError, "game actions require World registration");

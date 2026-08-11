@@ -5,9 +5,25 @@ interface IWorldToken {
     function transferFrom(address from, address to, uint256 value) external returns (bool);
 }
 
+/// @dev Official World ID 4 verifier interface deployed on World Chain mainnet.
+interface IWorldIDVerifier {
+    function verify(
+        uint256 nullifier,
+        uint256 action,
+        uint64 rpId,
+        uint256 nonce,
+        uint256 signalHash,
+        uint64 expiresAtMin,
+        uint64 issuerSchemaId,
+        uint256 credentialGenesisIssuedAtMin,
+        uint256[5] calldata zeroKnowledgeProof
+    ) external view;
+}
+
 /// @title CivilizationGame
-/// @notice Source-only World Chain game-state draft. The backend may attest a
-/// World ID registration, but has no method that can change a village.
+/// @notice Source-only World Chain game-state draft with direct World ID 4.0
+/// verification. The backend can provide a World RP context, but cannot attest
+/// registrations or change a village.
 /// @dev Wood, clay and stone are internal game units. Gold is an in-game ERC-20
 /// minted only by deterministic claim and raid rules. WLD can pay only to reduce
 /// construction time and is transferred directly to the immutable treasury.
@@ -16,7 +32,6 @@ contract CivilizationGame {
     uint256 public constant MAX_OFFLINE_SECONDS = 24 hours;
     uint256 public constant CLAIM_COOLDOWN = 2 hours;
     uint256 public constant RAID_MARCH_DURATION = 1 minutes;
-    uint256 public constant MAX_ATTESTATION_TTL = 15 minutes;
     uint256 public constant MAX_BUILDING_LEVEL = 30;
     uint256 public constant GOLD_UNIT = 1e18;
     uint256 public constant WORLD_TOKEN_UNIT = 1e18;
@@ -25,14 +40,6 @@ contract CivilizationGame {
     uint256 private constant BASIS_POINTS = 10_000;
     uint256 private constant PRESTIGE_BONUS_BPS = 1_000;
     uint256 private constant FRACTION_SCALE = 1 days * BASIS_POINTS;
-    uint256 private constant SECP256K1N_HALF =
-        57896044618658097711785492504343953926418782139537452191302581570759080747168;
-    bytes32 private constant EIP712_DOMAIN_TYPEHASH =
-        keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
-    bytes32 private constant ATTESTATION_TYPEHASH =
-        keccak256("WorldIdAttestation(address player,bytes32 nullifierHash,bytes32 nonce,uint64 expiresAt)");
-    bytes32 private constant NAME_HASH = keccak256("CivilizationGame");
-    bytes32 private constant VERSION_HASH = keccak256("1");
 
     enum Building { Townhall, Timber, Claypit, Quarry, Warehouse, Workshop, Goldmine, Barracks }
     enum Troop { Spear, Archer, Rider }
@@ -74,14 +81,17 @@ contract CivilizationGame {
         uint256 prestigeCount;
     }
 
-    address public immutable backendAttestationSigner;
+    IWorldIDVerifier public immutable worldIdVerifier;
+    uint256 public immutable worldIdAction;
+    uint64 public immutable worldIdRpId;
+    uint64 public immutable worldIdIssuerSchemaId;
+    uint256 public immutable worldIdCredentialGenesisIssuedAtMin;
     address public immutable worldToken;
     address public immutable boostTreasury;
     mapping(address => Player) private players;
-    mapping(bytes32 => address) public nullifierOwner;
-    mapping(bytes32 => bool) public usedAttestationNonce;
+    mapping(uint256 => address) public nullifierOwner;
 
-    event WorldIdRegistered(address indexed player, bytes32 indexed nullifierHash, bytes32 indexed nonce, uint64 expiresAt);
+    event WorldIdRegistered(address indexed player, uint256 indexed nullifierHash);
     event ResourcesClaimed(address indexed player, uint256 wood, uint256 clay, uint256 stone, uint256 gold);
     event UpgradeStarted(address indexed player, Building indexed building, uint64 completesAt);
     event BuildingUpgraded(address indexed player, Building indexed building, uint256 newLevel);
@@ -96,10 +106,8 @@ contract CivilizationGame {
     error ZeroAddress();
     error AlreadyRegistered();
     error NullifierAlreadyUsed();
-    error AttestationNonceAlreadyUsed();
-    error AttestationExpired();
-    error AttestationTooFarInFuture();
-    error InvalidAttestation();
+    error InvalidWorldIdConfiguration();
+    error UnexpectedWorldIdCredential();
     error Unregistered();
     error ClaimOnCooldown(uint64 availableAt);
     error BuildingMaxLevel();
@@ -121,33 +129,60 @@ contract CivilizationGame {
     error BoostExceedsRemainingTime();
     error WorldTokenTransferFailed();
 
-    constructor(address signer, address worldTokenAddress, address boostTreasuryAddress) {
-        if (signer == address(0) || worldTokenAddress == address(0) || boostTreasuryAddress == address(0)) revert ZeroAddress();
-        backendAttestationSigner = signer;
+    constructor(
+        address worldIdVerifierAddress,
+        string memory worldActionId,
+        uint64 worldRpId,
+        uint64 worldIssuerSchemaId,
+        uint256 credentialGenesisIssuedAtMin,
+        address worldTokenAddress,
+        address boostTreasuryAddress
+    ) {
+        if (worldIdVerifierAddress == address(0) || worldTokenAddress == address(0) || boostTreasuryAddress == address(0)) revert ZeroAddress();
+        if (bytes(worldActionId).length == 0 || worldRpId == 0 || worldIssuerSchemaId == 0) revert InvalidWorldIdConfiguration();
+        worldIdVerifier = IWorldIDVerifier(worldIdVerifierAddress);
+        worldIdAction = uint256(keccak256(bytes(worldActionId)));
+        worldIdRpId = worldRpId;
+        worldIdIssuerSchemaId = worldIssuerSchemaId;
+        worldIdCredentialGenesisIssuedAtMin = credentialGenesisIssuedAtMin;
         worldToken = worldTokenAddress;
         boostTreasury = boostTreasuryAddress;
     }
 
-    /// @notice Registers msg.sender once from an EIP-712 backend attestation.
-    /// @dev `nullifierHash` must be a canonical one-way hash produced only after
-    /// backend World ID verification; raw World ID nullifiers never enter storage.
-    function registerWorldId(bytes32 nullifierHash, bytes32 nonce, uint64 expiresAt, bytes calldata signature) external {
+    /// @notice Verifies a World ID 4 proof on World Chain and registers msg.sender once.
+    /// @dev The wallet address is the proof signal, binding an otherwise valid
+    /// proof to this account. The verifier enforces ZK proof validity and the
+    /// configured RP, action, credential schema, and freshness constraints.
+    function registerWorldId(
+        uint256 nullifierHash,
+        uint256 nonce,
+        uint256 signalHash,
+        uint64 expiresAtMin,
+        uint64 issuerSchemaId,
+        uint256[5] calldata proof
+    ) external {
         if (players[msg.sender].registered) revert AlreadyRegistered();
         if (nullifierOwner[nullifierHash] != address(0)) revert NullifierAlreadyUsed();
-        if (usedAttestationNonce[nonce]) revert AttestationNonceAlreadyUsed();
-        if (expiresAt <= block.timestamp) revert AttestationExpired();
-        if (uint256(expiresAt) - block.timestamp > MAX_ATTESTATION_TTL) revert AttestationTooFarInFuture();
-        bytes32 structHash = keccak256(abi.encode(ATTESTATION_TYPEHASH, msg.sender, nullifierHash, nonce, expiresAt));
-        if (_recover(_hashTypedData(structHash), signature) != backendAttestationSigner) revert InvalidAttestation();
-
-        usedAttestationNonce[nonce] = true;
+        if (signalHash != _hashToField(abi.encodePacked(msg.sender))) revert InvalidWorldIdConfiguration();
+        if (issuerSchemaId != worldIdIssuerSchemaId) revert UnexpectedWorldIdCredential();
+        worldIdVerifier.verify(
+            nullifierHash,
+            worldIdAction,
+            worldIdRpId,
+            nonce,
+            signalHash,
+            expiresAtMin,
+            issuerSchemaId,
+            worldIdCredentialGenesisIssuedAtMin,
+            proof
+        );
         nullifierOwner[nullifierHash] = msg.sender;
         Player storage player = players[msg.sender];
         player.registered = true;
         player.lastAccruedAt = uint64(block.timestamp);
         player.buildings = Buildings(0, 1, 1, 1, 1, 0, 0, 0);
         player.stored = Resources(80, 80, 80, 0);
-        emit WorldIdRegistered(msg.sender, nullifierHash, nonce, expiresAt);
+        emit WorldIdRegistered(msg.sender, nullifierHash);
     }
 
     function claim() external onlyRegistered {
@@ -436,8 +471,8 @@ contract CivilizationGame {
     function _take(uint256 available, uint256 wanted) private pure returns (uint256 amount, uint256 remaining) { amount = _min(available, wanted); return (amount, wanted - amount); }
     function _incrementBuilding(Buildings storage b, Building building) private returns (uint256) { if (building == Building.Townhall) return ++b.townhall; if (building == Building.Timber) return ++b.timber; if (building == Building.Claypit) return ++b.claypit; if (building == Building.Quarry) return ++b.quarry; if (building == Building.Warehouse) return ++b.warehouse; if (building == Building.Workshop) return ++b.workshop; if (building == Building.Goldmine) return ++b.goldmine; return ++b.barracks; }
     function _buildingLevel(Buildings storage b, Building building) private view returns (uint256) { if (building == Building.Townhall) return b.townhall; if (building == Building.Timber) return b.timber; if (building == Building.Claypit) return b.claypit; if (building == Building.Quarry) return b.quarry; if (building == Building.Warehouse) return b.warehouse; if (building == Building.Workshop) return b.workshop; if (building == Building.Goldmine) return b.goldmine; return b.barracks; }
-    function _hashTypedData(bytes32 structHash) private view returns (bytes32) { return keccak256(abi.encodePacked("\x19\x01", keccak256(abi.encode(EIP712_DOMAIN_TYPEHASH, NAME_HASH, VERSION_HASH, block.chainid, address(this))), structHash)); }
-    function _recover(bytes32 digest, bytes calldata signature) private pure returns (address) { if (signature.length != 65) return address(0); bytes32 r; bytes32 s; uint8 v; assembly { r := calldataload(signature.offset) s := calldataload(add(signature.offset, 32)) v := byte(0, calldataload(add(signature.offset, 64))) } if (uint256(s) > SECP256K1N_HALF || (v != 27 && v != 28)) return address(0); return ecrecover(digest, v, r, s); }
+    /// @dev Matches World ID's ByteHasher: Keccak output reduced to the SNARK field.
+    function _hashToField(bytes memory value) private pure returns (uint256) { return uint256(keccak256(value)) >> 8; }
     function _ceilMul(uint256 value, uint256 factor) private pure returns (uint256) { return (value * factor + 99) / 100; }
     function _ceilPercent(uint256 value, uint256 percent) private pure returns (uint256) { return value == 0 ? 0 : (value * percent + 99) / 100; }
     function _min(uint256 a, uint256 b) private pure returns (uint256) { return a < b ? a : b; }

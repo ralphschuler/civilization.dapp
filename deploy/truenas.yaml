@@ -1,6 +1,7 @@
 # TrueNAS Apps → Discover → ⋮ → Install via YAML.
-# Replace only POSTGRES_PASSWORD in the TrueNAS secret editor. The service has
-# no active custody, purchase, sale, or mint endpoint; IMG/WLD is quote-only.
+# Replace secret placeholders only in TrueNAS secret editor. `WORLD_ID_RP_SIGNING_KEY`
+# must never enter Git, browser builds, logs, or GitHub Actions. The service has
+# no custody, purchase, sale, or mint endpoint; IMG/WLD is quote-only.
 services:
   idlemint:
     image: ghcr.io/ralphschuler/civilization.dapp:latest
@@ -13,6 +14,10 @@ services:
       PGDATABASE: idlemint
       PGUSER: idlemint
       PGPASSWORD: REPLACE_POSTGRES_PASSWORD
+      WORLD_ID_RP_ID: rp_replace_after_portal_setup
+      WORLD_ID_ACTION: play
+      WORLD_ID_RP_SIGNING_KEY: REPLACE_WORLD_ID_RP_SIGNING_KEY
+      WORLD_ID_RP_CONTEXT_TTL_SECONDS: "300"
     ports:
       - "31057:31057"
     depends_on:

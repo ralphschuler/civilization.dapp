@@ -8,9 +8,13 @@
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1",
     "start": "node server/index.js",
-    "test": "node --test",
-    "check": "node --check src/*.js server/*.js scripts/deploy-worldchain-mainnet.mjs",
+    "test": "node --test test/*.test.js",
+    "check": "node --check src/*.js server/*.js scripts/deploy-worldchain-mainnet.mjs scripts/deploy-worldchain-testnet.mjs scripts/test-worldchain-sepolia-e2e.mjs",
     "preflight:worldchain:mainnet": "node scripts/deploy-worldchain-mainnet.mjs",
+    "preflight:worldchain:testnet": "node scripts/deploy-worldchain-testnet.mjs",
+    "deploy:worldchain:testnet": "CONFIRM_TESTNET_DEPLOY=yes node scripts/deploy-worldchain-testnet.mjs --send",
+    "test:worldchain:testnet": "node scripts/test-worldchain-sepolia-e2e.mjs",
+    "run:worldchain:testnet": "CONFIRM_TESTNET_E2E=yes node scripts/test-worldchain-sepolia-e2e.mjs --send",
     "deploy:worldchain:mainnet": "CONFIRM_MAINNET_DEPLOY=yes node scripts/deploy-worldchain-mainnet.mjs --send"
   },
   "devDependencies": {

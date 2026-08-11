@@ -26,14 +26,21 @@ The SPA probes its same-origin `GET /api/game/state` endpoint at startup. It sen
 
 `GET /api/game/targets` exposes up to 50 eligible online villages through generated public village IDs only; it never exposes the private browser identifier or protected storage. PvP raids lock attacker and defender in a canonical database order, settle their state on the server, and write an auditable battle record. The server commits to a random battle seed when a march starts and reveals it in the final report, so the outcome seed was fixed before the battle. Loot is restricted to the defender's unclaimed field stock and the attacker's *total* free capacity; stored resources are never taken. This is a nonfinancial beta identity model: a random browser ID prevents accidental cross-player access but does not provide Sybil resistance. World ID plus a server session are required before making PvP rewards or IMG financially meaningful.
 
-Required runtime environment variables:
+Required runtime environment variables for the legacy private beta API:
 
 - `DATABASE_URL` *or* the discrete `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, and `PGPASSWORD` values (required for online play and readiness). The TrueNAS Compose template uses the discrete values so a strong password needs no URL encoding.
 - `PORT` (optional, default `31057`): HTTP listening port.
 - `HOST` (optional, default `0.0.0.0`): HTTP bind address.
 - `NODE_ENV` (recommended `production` in deployment).
 
-There are no World Portal, World ID, wallet, WLD, IMG, contract, payment, custody, or blockchain environment variables for this milestone. Those integrations remain disabled and the API has no endpoint for them.
+For the World ID v4 proof-context endpoint, configure these server-only values in the TrueNAS App secret editor after its RP signing key has been placed in protected server configuration:
+
+- `WORLD_ID_RP_ID`: Portal RP identifier, for example `rp_a84548cb908798cf`.
+- `WORLD_ID_ACTION=play`: fixed production action. The endpoint ignores any client-selected action.
+- `WORLD_ID_RP_SIGNING_KEY`: RP private key. Never use a `VITE_` prefix, GitHub Actions variable, or repository file.
+- `WORLD_ID_RP_CONTEXT_TTL_SECONDS=300` (optional): bounded to 60–600 seconds.
+
+`POST /api/world-id/proof-context` consumes JSON but returns only `{ rp_id, nonce, created_at, expires_at, signature }`. It makes no game decision, keeps no wallet credentials, and the World Chain contract remains the proof verifier and nullifier replay guard.
 
 ## Token model
 
@@ -50,11 +57,15 @@ The machine-readable in-app release boundary is defined in `server/contract-stat
 
 ## On-chain game-state draft
 
-`contracts/src/CivilizationGame.sol` is a source-only, undeployed migration target that makes the contract—not the beta backend or database—authoritative for resource accrual/claiming, upgrades, construction timers, prestige, training, PvP, and CGOLD. The backend's future role is restricted to verifying a World ID proof and signing a short-lived registration attestation. See [the on-chain architecture](./docs/ONCHAIN_ARCHITECTURE.md) for the authority boundary, MiniKit call flow, and deployment/audit prerequisites. Existing beta API/database code remains a non-authoritative compatibility path only.
+`contracts/src/CivilizationGame.sol` is a source-only, undeployed migration target that makes the contract—not the beta backend or database—authoritative for resource accrual/claiming, upgrades, construction timers, prestige, training, PvP, and CGOLD. It verifies World ID 4 proofs directly through World Chain's official verifier. The backend only signs short-lived RP proof context and has no game or access-decision authority. See [the on-chain architecture](./docs/ONCHAIN_ARCHITECTURE.md) for the authority boundary, MiniKit call flow, and deployment/audit prerequisites. Existing beta API/database code remains a non-authoritative compatibility path only.
 
 ### World Chain mainnet deployment
 
-`npm run preflight:worldchain:mainnet` recompiles the exact contract, verifies World Chain mainnet, estimates gas, and prints the immutable deployment arguments without sending a transaction. It uses a protected local key file outside the repository. `npm run deploy:worldchain:mainnet` sends only after the deployer holds native World Chain ETH; it sets the official WLD address, the configured EIP-712 attestation signer, and the immutable WLD-boost treasury. Run no deployment command until those public arguments and the final source have been independently reviewed.
+`npm run preflight:worldchain:mainnet` recompiles exact contract, verifies World Chain mainnet, estimates gas, and prints immutable deployment arguments without sending a transaction. It reads the deployer key from protected `worldchain-mainnet.json` and public Portal settings from protected `worldchain-mainnet-world-id.json`, both outside repository. Current Portal config: action `play`, RP `rp_a84548cb908798cf` and Proof-of-Human schema `1`; RP numeric conversion preserves all `uint64` bits. No backend signing key is used by deployment. `npm run deploy:worldchain:mainnet` sends only after deployer holds native World Chain ETH; it sets World ID's official v4 verifier, configured Portal action/RP/schema constraints, official WLD address, immutable WLD-boost treasury. Run no deployment command until public arguments and final source have independent review.
+
+### World Chain Sepolia integration run
+
+The test-only deployment is live on World Chain Sepolia: `CivilizationGame` `0xfCdB50926c3c6b2CDF3ACE76B13c9383A2DC3199`, `MockWorldToken` `0x29147C7BEAd901E8019d7911A7DC404447877C62`, and `MockWorldIdVerifier` `0x1A64F89881FD2E38255E62c6D62b68076052DF4b`. `npm run test:worldchain:testnet` verifies chain, deployed code, immutable constructor values, and current player state without sending a transaction. `npm run run:worldchain:testnet` performs the explicit test-only registration/build/Mock-WLD-boost smoke run. The browser test profile is documented in `.env.example`; it requires an external EVM wallet on chain `4801`. World App/MiniKit does not support testnet transactions, so it must not be used for this profile.
 
 ## Visual assets
 
@@ -70,17 +81,18 @@ Civilization DApp includes `@worldcoin/minikit-js` and only initializes MiniKit 
 
 ### World ID game access
 
-Inside World App only, Civilization DApp uses IDKit v4 for the production action `idlemint-game-access-v1`. The UI has explicit states for not verified, checking, verified, and error/configuration failure. The browser demo remains fully local and does not request World ID. This action ID remains unchanged during the transition; see [transition exceptions](./TRANSITION_COMPATIBILITY.md).
+Inside World App only, Civilization DApp uses IDKit v4 Proof of Human for a short, Portal-configured production action (for example `play`). The UI has explicit states for not verified, checking, registered, and error/configuration failure. The browser demo remains fully local and does not request World ID.
 
 Set these public build-time variables to the HTTPS endpoints of the trusted backend (the example values are placeholders):
 
 - `VITE_WORLD_APP_ID`: the Portal app ID.
-- `VITE_WORLD_ID_PROOF_CONTEXT_URL`: `POST` endpoint that accepts the fixed action and returns only `{ rp_id, nonce, created_at, expires_at, signature }`. It must generate the RP signature server-side with the protected signing key.
-- `VITE_WORLD_ID_VERIFY_URL`: `POST` endpoint that receives `{ action, rp_id, idkitResponse }` and returns `{ verified: true }` only after successful server verification.
+- `VITE_WORLD_ID_ACTION`: exact Portal action ID.
+- `VITE_CIVILIZATION_CONTRACT_ADDRESS`: the reviewed World Chain deployment address; until this is set, World ID registration stays disabled.
+- `VITE_WORLD_ID_PROOF_CONTEXT_URL`: `POST` endpoint that accepts the configured action and returns only `{ rp_id, nonce, created_at, expires_at, signature }`. It must generate the RP signature server-side with the protected signing key.
 - `VITE_WORLD_ID_ENVIRONMENT=production`: this must match the Portal app and relying-party registration.
 
-The verify endpoint must ignore client-selected app/action/RP values in favor of its own expected production configuration; forward the untouched IDKit response to `POST https://developer.world.org/api/v4/verify/{rp_id}`; validate its successful response; and atomically store every verified nullifier as a canonical numeric value with `UNIQUE (nullifier, action)`. A uniqueness conflict is a replay/already-used proof and must not grant access. It must issue and enforce its own authenticated server-side game session for any non-local game state. Neither MiniKit/IDKit client output nor the static UI is an authorization boundary.
+The RP endpoint must ignore a client-selected action and sign only its configured production action. The app then encodes the v4 proof and submits it to `CivilizationGame.registerWorldId`; World Chain verifies the proof and the contract stores the nullifier. A reused nullifier reverts on-chain. Neither a client result nor the static UI grants access without that transaction.
 
-The Developer Portal team API key must remain local to the trusted Developer Portal MCP client. Do not add it to GitHub Actions: the current static demo has no server-side payment or proof verification path that needs it. When a backend is added, store any verification or transaction credentials server-side only.
+The Developer Portal team API key and RP signing key must remain outside the repository and GitHub Actions. The backend needs only the RP signing key; no verification or transaction credential belongs in the static app.
 
 Before using MiniKit `sendTransaction`, World App requires contract and Permit2-token allowlisting in the portal; verify every submitted user operation on a backend before crediting a game balance. `contracts/src/IdleCoin.sol` is a legacy undeployed ERC-20 draft; new resource work uses `GameResourceToken.sol` instead.

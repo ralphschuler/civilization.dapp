@@ -1,26 +1,67 @@
 import { IDKit, proofOfHuman } from "@worldcoin/idkit-core";
 import { MiniKit } from "@worldcoin/minikit-js";
+import { encodeFunctionData, getAddress, isAddress, keccak256, stringToHex } from "viem";
 
-// This is deliberately stable: the Portal action and the server must use it too.
-export const WORLD_ID_GAME_ACCESS_ACTION = "idlemint-game-access-v1";
+// World App transacts only on World Chain mainnet. Sepolia is available for
+// direct EVM-wallet contract tests, never through MiniKit / World App.
+export const WORLD_CHAIN_ID = 480;
+export const WORLD_CHAIN_SEPOLIA_ID = 4801;
+export const WORLD_ID_VERIFIER_ADDRESS = "0x00000000009E00F9FE82CfeeBB4556686da094d7";
+export const CIVILIZATION_SEPOLIA_DEPLOYMENT = Object.freeze({
+  game: "0xfCdB50926c3c6b2CDF3ACE76B13c9383A2DC3199",
+  worldToken: "0x29147C7BEAd901E8019d7911A7DC404447877C62",
+  worldIdVerifier: "0x1A64F89881FD2E38255E62c6D62b68076052DF4b",
+  rpcUrl: "https://worldchain-sepolia.g.alchemy.com/public",
+});
 
 const isHttpsUrl = (value) => {
   try { return new URL(value).protocol === "https:"; } catch { return false; }
 };
 
+const isActionId = (value) => /^[a-z0-9][a-z0-9_-]{0,63}$/.test(value);
+const isDeployedAddress = (value) => isAddress(value) && getAddress(value) !== "0x0000000000000000000000000000000000000000";
+const testnetTransactionAbi = [{
+  type: "function", name: "registerWorldId", stateMutability: "nonpayable",
+  inputs: [
+    { name: "nullifierHash", type: "uint256" },
+    { name: "nonce", type: "uint256" },
+    { name: "signalHash", type: "uint256" },
+    { name: "expiresAtMin", type: "uint64" },
+    { name: "issuerSchemaId", type: "uint64" },
+    { name: "proof", type: "uint256[5]" },
+  ], outputs: [],
+}];
+
+function isSepoliaMode(env) {
+  return env?.VITE_CIVILIZATION_NETWORK === "worldchain-sepolia";
+}
+
 export function getWorldIdConfig(env = import.meta.env) {
+  const testnet = isSepoliaMode(env);
   const config = {
     appId: env?.VITE_WORLD_APP_ID || "",
+    action: env?.VITE_WORLD_ID_ACTION || "",
+    contractAddress: env?.VITE_CIVILIZATION_CONTRACT_ADDRESS || "",
     proofContextEndpoint: env?.VITE_WORLD_ID_PROOF_CONTEXT_URL || "",
-    verifyEndpoint: env?.VITE_WORLD_ID_VERIFY_URL || "",
     environment: env?.VITE_WORLD_ID_ENVIRONMENT || "production",
+    testnet,
+    chainId: testnet ? WORLD_CHAIN_SEPOLIA_ID : WORLD_CHAIN_ID,
+    testnetWorldToken: env?.VITE_CIVILIZATION_TESTNET_WORLD_TOKEN || "",
+    testnetWorldIdVerifier: env?.VITE_CIVILIZATION_TESTNET_WORLD_ID_VERIFIER || "",
   };
   return {
     ...config,
-    configured: /^app_[a-zA-Z0-9]+$/.test(config.appId)
+    // A real World ID proof is only meaningful on production World Chain.
+    configured: !testnet
+      && /^app_[a-zA-Z0-9]+$/.test(config.appId)
+      && isActionId(config.action)
+      && isDeployedAddress(config.contractAddress)
       && isHttpsUrl(config.proofContextEndpoint)
-      && isHttpsUrl(config.verifyEndpoint)
       && config.environment === "production",
+    testnetConfigured: testnet
+      && isDeployedAddress(config.contractAddress)
+      && isDeployedAddress(config.testnetWorldToken)
+      && isDeployedAddress(config.testnetWorldIdVerifier),
   };
 }
 
@@ -31,6 +72,61 @@ export function installWorldAppBridge() {
   const result = MiniKit.install(import.meta.env.VITE_WORLD_APP_ID);
   if (!result.success || !MiniKit.isInstalled()) return { installed: false };
   return { installed: true, walletAddress: MiniKit.user.walletAddress || null };
+}
+
+/**
+ * Builds a deterministic MockWorldIdVerifier registration for World Chain
+ * Sepolia. This is intentionally unavailable for mainnet and must never be
+ * mistaken for a real World ID proof.
+ */
+export function buildTestnetRegistration({ config = getWorldIdConfig(), walletAddress } = {}) {
+  if (!config.testnetConfigured || !isAddress(walletAddress)) throw new Error("testnet_configuration_required");
+  const wallet = getAddress(walletAddress);
+  const signalHash = BigInt(keccak256(wallet)) >> 8n;
+  const nullifierHash = BigInt(keccak256(stringToHex(`civilization-testnet:${wallet.toLowerCase()}`)));
+  return {
+    chainId: WORLD_CHAIN_SEPOLIA_ID,
+    to: getAddress(config.contractAddress),
+    value: "0x0",
+    data: encodeFunctionData({
+      abi: testnetTransactionAbi,
+      functionName: "registerWorldId",
+      args: [nullifierHash, 2002n, signalHash, 3000n, 1n, [11n, 12n, 13n, 14n, 15n]],
+    }),
+  };
+}
+
+/** Sends one explicit Sepolia test transaction through an injected EVM wallet. */
+export async function submitTestnetRegistration(registration, ethereum = globalThis.ethereum) {
+  if (!registration || registration.chainId !== WORLD_CHAIN_SEPOLIA_ID || !ethereum?.request) {
+    return { ok: false, reason: "testnet_wallet_unavailable" };
+  }
+  try {
+    const [from] = await ethereum.request({ method: "eth_requestAccounts" });
+    if (!isAddress(from)) return { ok: false, reason: "testnet_wallet_unavailable" };
+    try {
+      await ethereum.request({ method: "wallet_switchEthereumChain", params: [{ chainId: "0x12c1" }] });
+    } catch (error) {
+      if (error?.code !== 4902) throw error;
+      await ethereum.request({
+        method: "wallet_addEthereumChain",
+        params: [{
+          chainId: "0x12c1",
+          chainName: "World Chain Sepolia",
+          nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+          rpcUrls: [CIVILIZATION_SEPOLIA_DEPLOYMENT.rpcUrl],
+          blockExplorerUrls: ["https://worldchain-sepolia.explorer.alchemy.com"],
+        }],
+      });
+    }
+    const transaction = await ethereum.request({
+      method: "eth_sendTransaction",
+      params: [{ from: getAddress(from), to: registration.to, data: registration.data, value: registration.value }],
+    });
+    return typeof transaction === "string" ? { ok: true, transaction } : { ok: false, reason: "transaction_rejected" };
+  } catch (error) {
+    return { ok: false, reason: error instanceof Error ? error.message : "transaction_rejected" };
+  }
 }
 
 function validRpContext(value) {
@@ -45,31 +141,87 @@ async function jsonResponse(response) {
 }
 
 /**
- * The client merely transports the proof. Its return value controls only local
- * UI; the backend must verify it and atomically record the action/nullifier.
+ * Converts a World ID 4.0 response to the exact CivilizationGame calldata.
+ * The RP server signs context only; it never decides whether a player is human
+ * and never authorizes game state. `registerWorldId` verifies the ZK proof on
+ * the World Chain router.
  */
+export function buildWorldIdRegistration({ config = getWorldIdConfig(), walletAddress, result } = {}) {
+  if (!config.configured || !isAddress(walletAddress)) throw new Error("configuration_required");
+  if (result?.protocol_version !== "4.0") throw new Error("world_id_v4_proof_required");
+  if (result.action && result.action !== config.action) throw new Error("unexpected_world_id_action");
+  const response = result.responses?.find((item) => item.identifier === "proof_of_human");
+  if (!response?.nullifier || !response.signal_hash || !response.proof || !response.expires_at_min || !response.issuer_schema_id) throw new Error("incomplete_world_id_proof");
+  const proof = response.proof.map((value) => BigInt(value));
+  if (proof.length !== 5) throw new Error("invalid_world_id_proof");
+  return {
+    chainId: WORLD_CHAIN_ID,
+    to: getAddress(config.contractAddress),
+    value: "0x0",
+    data: encodeFunctionData({
+      abi: [{
+        type: "function", name: "registerWorldId", stateMutability: "nonpayable",
+        inputs: [
+          { name: "nullifierHash", type: "uint256" },
+          { name: "nonce", type: "uint256" },
+          { name: "signalHash", type: "uint256" },
+          { name: "expiresAtMin", type: "uint64" },
+          { name: "issuerSchemaId", type: "uint64" },
+          { name: "proof", type: "uint256[5]" },
+        ], outputs: [],
+      }],
+      functionName: "registerWorldId",
+      args: [
+        BigInt(response.nullifier),
+        nonceToUint256(result.nonce),
+        BigInt(response.signal_hash),
+        BigInt(response.expires_at_min),
+        BigInt(response.issuer_schema_id),
+        proof,
+      ],
+    }),
+  };
+}
+
+function nonceToUint256(value) {
+  if (typeof value !== "string") throw new Error("invalid_world_id_nonce");
+  if (/^0x[0-9a-fA-F]{1,64}$/.test(value) || /^\d+$/.test(value)) return BigInt(value);
+  const compactUuid = value.replaceAll("-", "");
+  if (/^[0-9a-fA-F]{1,64}$/.test(compactUuid)) return BigInt(`0x${compactUuid}`);
+  throw new Error("invalid_world_id_nonce");
+}
+
+/** Requests a World ID 4 Proof of Human whose signal is the player's World wallet. */
 export async function requestWorldIdGameAccess({
-  config = getWorldIdConfig(), fetchImpl = globalThis.fetch, idkit = IDKit,
+  config = getWorldIdConfig(), walletAddress, fetchImpl = globalThis.fetch, idkit = IDKit, humanPreset = proofOfHuman,
 } = {}) {
-  if (!config.configured || typeof fetchImpl !== "function") return { ok: false, reason: "configuration_required" };
+  if (!config.configured || !isAddress(walletAddress) || typeof fetchImpl !== "function") return { ok: false, reason: "configuration_required" };
   try {
     const rpContext = await fetchImpl(config.proofContextEndpoint, {
       method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ action: WORLD_ID_GAME_ACCESS_ACTION }),
+      body: JSON.stringify({ action: config.action, signal: getAddress(walletAddress) }),
     }).then(jsonResponse);
     if (!validRpContext(rpContext)) return { ok: false, reason: "invalid_proof_context" };
     const request = await idkit.request({
-      app_id: config.appId, action: WORLD_ID_GAME_ACCESS_ACTION, rp_context: rpContext,
+      app_id: config.appId, action: config.action, rp_context: rpContext,
       allow_legacy_proofs: false, environment: config.environment,
-    }).preset(proofOfHuman());
+    }).preset(humanPreset({ signal: getAddress(walletAddress) }));
     const completion = await request.pollUntilCompletion();
     if (!completion.success) return { ok: false, reason: completion.error || "proof_failed" };
-    const verification = await fetchImpl(config.verifyEndpoint, {
-      method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ action: WORLD_ID_GAME_ACCESS_ACTION, rp_id: rpContext.rp_id, idkitResponse: completion.result }),
-    }).then(jsonResponse);
-    return verification?.verified === true ? { ok: true } : { ok: false, reason: "verification_rejected" };
+    return { ok: true, registration: buildWorldIdRegistration({ config, walletAddress, result: completion.result }) };
   } catch (error) {
-    return { ok: false, reason: error instanceof Error ? error.message : "verification_failed" };
+    return { ok: false, reason: error instanceof Error ? error.message : "proof_failed" };
   }
+}
+
+/** Submits the already-encoded registration transaction through World App. */
+export async function submitWorldIdRegistration(registration, miniKit = MiniKit) {
+  if (!registration || registration.chainId !== WORLD_CHAIN_ID || !miniKit.isInstalled()) {
+    return { ok: false, reason: "wallet_unavailable" };
+  }
+  const response = await miniKit.sendTransaction({
+    chainId: WORLD_CHAIN_ID,
+    transactions: [{ to: registration.to, data: registration.data, value: registration.value }],
+  });
+  return response?.data?.status === "success" ? { ok: true, transaction: response.data } : { ok: false, reason: "transaction_rejected" };
 }

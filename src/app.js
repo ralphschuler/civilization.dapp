@@ -1,5 +1,5 @@
 import "./styles.css";
-import { getWorldIdConfig, installWorldAppBridge, requestWorldIdGameAccess } from "./world.js";
+import { buildTestnetRegistration, getWorldIdConfig, installWorldAppBridge, requestWorldIdGameAccess, submitTestnetRegistration, submitWorldIdRegistration } from "./world.js";
 import {
   BUILDINGS,
   RESOURCE_DEFS,
@@ -39,7 +39,7 @@ const BUILDING_IDS = ["townhall", "timber", "claypit", "quarry", "warehouse", "w
 const worldApp = installWorldAppBridge();
 const worldIdConfig = getWorldIdConfig();
 const worldBadge = worldApp.installed ? `WORLD APP${worldApp.walletAddress ? ` · ${worldApp.walletAddress.slice(0, 6)}…${worldApp.walletAddress.slice(-4)}` : " · VERBUNDEN"}` : "DEMO · LOKAL";
-let worldIdStatus = worldApp.installed ? (worldIdConfig.configured ? "not_verified" : "configuration_required") : "local_demo";
+let worldIdStatus = worldIdConfig.testnetConfigured ? "testnet_ready" : (worldApp.installed ? (worldIdConfig.configured ? "not_verified" : "configuration_required") : "local_demo");
 let feedback = "Wähle ein Gebäude auf dem Dorfplan.";
 let selectedBuilding = "townhall";
 let activePanel = "build";
@@ -133,14 +133,25 @@ function collectionStatus() {
 }
 
 function hasGameAccess() { return !worldApp.installed || worldIdStatus === "verified"; }
+async function injectedWalletAddress() {
+  try {
+    const wallet = globalThis.ethereum;
+    if (!wallet?.request) return null;
+    const [address] = await wallet.request({ method: "eth_requestAccounts" });
+    return address || null;
+  } catch { return null; }
+}
 function worldIdStatusView() {
+  if (worldIdConfig.testnetConfigured) {
+    return `<div class="world-id-status" role="status"><b>SEPOLIA · TEST-CONTRACT</b><span>Mock World ID. Funktioniert nur mit externer EVM-Wallet auf World Chain Sepolia, nicht in World App.</span><button id="testnet-register">Testdorf on-chain registrieren</button></div>`;
+  }
   if (!worldApp.installed) return "";
   const content = {
     not_verified: ["WORLD ID · NICHT VERIFIZIERT", "Bestätige den Spielzugang mit World ID."],
-    checking: ["WORLD ID · PRÜFUNG LÄUFT", "Die Anfrage wird in World App und auf dem Server geprüft."],
-    verified: ["WORLD ID · VERIFIZIERT", "Spielzugang wurde vom Verify-Endpunkt bestätigt."],
-    configuration_required: ["WORLD ID · SERVER NICHT KONFIGURIERT", "Ohne HTTPS-Proof- und Verify-Endpunkt wird kein verifizierter Spielzugang erteilt."],
-    error: ["WORLD ID · FEHLER", "Die Verifizierung wurde nicht bestätigt. Bitte erneut versuchen."],
+    checking: ["WORLD ID · PRÜFUNG LÄUFT", "World App erzeugt den Nachweis; die Registrierung wird auf World Chain geprüft."],
+    verified: ["WORLD ID · REGISTRIERT", "Der Spielzugang wurde mit einer World-Chain-Transaktion registriert."],
+    configuration_required: ["WORLD ID · NOCH NICHT BEREIT", "App-ID, Aktion, RP-Endpunkt und Vertragsadresse müssen gesetzt sein."],
+    error: ["WORLD ID · FEHLER", "Nachweis oder World-Chain-Transaktion wurde nicht bestätigt. Bitte erneut versuchen."],
   }[worldIdStatus];
   const canStart = worldIdStatus === "not_verified" || worldIdStatus === "error";
   return `<div class="world-id-status" role="status"><b>${content[0]}</b><span>${content[1]}</span>${canStart ? "<button id=\"world-id-verify\">Mit World ID verifizieren</button>" : ""}</div>`;
@@ -249,12 +260,20 @@ function render() {
   document.querySelector("#app").innerHTML = `<section class="game-shell village-shell" style="--city-map-desktop:url('${CITY_MAPS.desktop}');--city-map-mobile:url('${CITY_MAPS.mobile}')"><header class="hud village-hud"><div class="game-mark"><span>CD</span><div><b>CIVILIZATION</b><small>DAPP · DORF VON MINTIA</small></div></div><div class="resource-hud">${Object.entries(RESOURCE_DEFS).map(([id, definition]) => resourceHudItem(id, definition, production, capacity)).join("")}</div><span class="demo-badge ${worldApp.installed ? "is-world" : ""}">${worldBadge}</span></header><main class="command-layout"><section class="village-map" id="dorf" aria-label="Interaktive Stadtkarte von Mintia. Wähle ein Gebäude, um seinen Ausbau zu planen."><div class="map-head"><p>DORF VON MINTIA</p><h1>Dein Dorf.</h1><span>Rathaus ${state.buildings.townhall} · Speicher ${format(capacity)}</span></div><button class="collect-button" id="gather" ${collection.locked ? "disabled" : ""}><span data-collection-status>${collection.detail}</span><b data-ready-to-claim>${collection.locked ? collection.label : `${format(readyToClaim)} sammeln`}</b></button><div class="map-buildings">${BUILDING_IDS.map(buildingSpot).join("")}<button class="map-building map-market ${activePanel === "market" ? "is-selected" : ""}" data-panel="market" aria-label="Tauschhalle öffnen"><img src="${BUILDING_ASSETS.market}" alt=""><span><b>Tauschhalle</b><small>ERC-20 Markt</small></span></button></div><p class="map-feedback" aria-live="polite">${feedback}</p></section><aside class="command-rail"><nav class="command-tabs" aria-label="Dorfaktionen">${[["build", "Bauplan"], ["army", "Kaserne"], ["market", "Markt"], ["raid", "Überfall"]].map(([id, label]) => `<button data-panel="${id}" class="${activePanel === id ? "is-active" : ""}">${label}</button>`).join("")}</nav><section class="command-panel">${panelContents()}</section></aside></main><footer class="game-footer"><span><i></i> Speicher geschützt · Feldlager raidbar</span><span>${state.raids} Demo-Überfälle · ${worldApp.installed ? "World App erkannt" : "Kein Wallet verbunden"}</span><button id="reset">Demo zurücksetzen</button></footer><nav class="mobile-hud" aria-label="Schnellzugriff">${[["build", "Bau"], ["army", "Armee"], ["market", "Markt"], ["raid", "Überfall"]].map(([id, label]) => `<button data-panel="${id}" class="${activePanel === id ? "is-active" : ""}">${label}</button>`).join("")}</nav></section>`;
 
   document.querySelector("#app").insertAdjacentHTML("afterbegin", worldIdStatusView());
+  document.querySelector("#testnet-register")?.addEventListener("click", async () => {
+    const walletAddress = await injectedWalletAddress();
+    const registration = walletAddress ? buildTestnetRegistration({ config: worldIdConfig, walletAddress }) : null;
+    const submission = await submitTestnetRegistration(registration);
+    feedback = submission.ok ? `Testdorf on-chain registriert: ${submission.transaction.slice(0, 10)}…` : "Keine kompatible Sepolia-Wallet verfügbar oder Testregistrierung abgebrochen.";
+    render();
+  });
   document.querySelector("#world-id-verify")?.addEventListener("click", async () => {
     worldIdStatus = "checking";
     render();
-    const result = await requestWorldIdGameAccess({ config: worldIdConfig });
-    worldIdStatus = result.ok ? "verified" : "error";
-    feedback = result.ok ? "World-ID-Spielzugang wurde serverseitig bestätigt." : "World-ID-Verifizierung wurde nicht bestätigt.";
+    const result = await requestWorldIdGameAccess({ config: worldIdConfig, walletAddress: worldApp.walletAddress });
+    const submission = result.ok ? await submitWorldIdRegistration(result.registration) : { ok: false };
+    worldIdStatus = submission.ok ? "verified" : "error";
+    feedback = submission.ok ? "World-ID-Spielzugang wurde auf World Chain registriert." : "World-ID-Nachweis oder Registrierung wurde nicht bestätigt.";
     render();
   });
   document.querySelector("#gather").addEventListener("click", async () => { if (!requireWorldIdAccess()) return; if (serverAuthoritative) return performServerAction("gather", {}, (result) => !result.ok ? "Sammler sind noch unterwegs." : Object.values(result.collected).some(Boolean) ? "Im Speicher gesichert. Nächste Sammlung in 01:00." : "Feldlager leer oder Speicher voll."); const result = startGathering(state); const collected = result.ok ? costLine(result.collected) : ""; feedback = !result.ok ? "Sammler sind noch unterwegs." : collected ? `Im Speicher gesichert: ${collected}. Nächste Sammlung in 01:00.` : "Feldlager leer oder Speicher voll. Nächste Sammlung in 01:00."; save(); render(); });

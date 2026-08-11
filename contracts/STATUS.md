@@ -6,7 +6,7 @@
 
 | Source | Status | Release boundary |
 | --- | --- | --- |
-| `src/CivilizationGame.sol` | Draft, not deployed, source-only | World-ID-attested registration plus player-signed on-chain game state, construction timers, prestige, CGOLD mint/burn through game rules, and a direct 1 WLD/hour construction boost to immutable treasury; no backend game-mutation entrypoint or WLD custody. |
+| `src/CivilizationGame.sol` | Draft, not deployed, source-only | Direct World ID 4 on-chain registration through World Chain's official verifier plus player-signed on-chain game state, construction timers, prestige, CGOLD mint/burn through game rules, and a direct 1 WLD/hour construction boost to immutable treasury; no backend game-mutation entrypoint or WLD custody. |
 | `src/GameResourceToken.sol` | Draft, not deployed, superseded | Older standalone token draft; not used by CivilizationGame. |
 | `src/GoldSettlementRegistry.sol` | Draft, not deployed, allowlist only | Cannot custody assets or execute a swap. |
 | `src/IdleCoin.sol` | Legacy draft, not deployed | Not part of the current resource path. |

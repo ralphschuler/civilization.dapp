@@ -1,51 +1,75 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { COLLECTION_COOLDOWN_MS, MARCH_DURATION_MS, createInitialState, gather, getRequirements, resolveRaidMarch, sendRaid, settle, startGathering, startRaidMarch, swapInternal, trainTroop, upgradeBuilding } from "../src/game.js";
-import { getWorldIdConfig, installWorldAppBridge, requestWorldIdGameAccess, WORLD_ID_GAME_ACCESS_ACTION } from "../src/world.js";
+import { buildTestnetRegistration, buildWorldIdRegistration, getWorldIdConfig, installWorldAppBridge, requestWorldIdGameAccess, WORLD_CHAIN_SEPOLIA_ID } from "../src/world.js";
 
 test("World bridge remains inactive in the regular browser demo", () => {
   assert.deepEqual(installWorldAppBridge(), { installed: false });
 });
 
-test("World ID stays unavailable until both trusted HTTPS endpoints are configured", () => {
+const worldConfigEnv = {
+  VITE_WORLD_APP_ID: "app_example",
+  VITE_WORLD_ID_ACTION: "play",
+  VITE_CIVILIZATION_CONTRACT_ADDRESS: "0x1111111111111111111111111111111111111111",
+  VITE_WORLD_ID_PROOF_CONTEXT_URL: "https://api.example/proof",
+  VITE_WORLD_ID_ENVIRONMENT: "production",
+};
+const walletAddress = "0x2222222222222222222222222222222222222222";
+
+test("World ID stays unavailable until its on-chain contract and trusted RP endpoint are configured", () => {
   assert.equal(getWorldIdConfig({ VITE_WORLD_APP_ID: "app_example" }).configured, false);
-  assert.equal(getWorldIdConfig({
-    VITE_WORLD_APP_ID: "app_example", VITE_WORLD_ID_PROOF_CONTEXT_URL: "https://api.example/proof",
-    VITE_WORLD_ID_VERIFY_URL: "https://api.example/verify", VITE_WORLD_ID_ENVIRONMENT: "production",
-  }).configured, true);
+  assert.equal(getWorldIdConfig(worldConfigEnv).configured, true);
+  assert.equal(getWorldIdConfig({ ...worldConfigEnv, VITE_CIVILIZATION_CONTRACT_ADDRESS: "0x0000000000000000000000000000000000000000" }).configured, false);
 });
 
-test("World ID access is granted only after the server verifies the returned proof", async () => {
+test("Sepolia test mode targets the deployed mock contract but never enables real World ID", () => {
   const config = getWorldIdConfig({
-    VITE_WORLD_APP_ID: "app_example", VITE_WORLD_ID_PROOF_CONTEXT_URL: "https://api.example/proof",
-    VITE_WORLD_ID_VERIFY_URL: "https://api.example/verify", VITE_WORLD_ID_ENVIRONMENT: "production",
+    VITE_CIVILIZATION_NETWORK: "worldchain-sepolia",
+    VITE_CIVILIZATION_CONTRACT_ADDRESS: "0xfCdB50926c3c6b2CDF3ACE76B13c9383A2DC3199",
+    VITE_CIVILIZATION_TESTNET_WORLD_TOKEN: "0x29147C7BEAd901E8019d7911A7DC404447877C62",
+    VITE_CIVILIZATION_TESTNET_WORLD_ID_VERIFIER: "0x1A64F89881FD2E38255E62c6D62b68076052DF4b",
   });
+  assert.equal(config.chainId, WORLD_CHAIN_SEPOLIA_ID);
+  assert.equal(config.configured, false);
+  assert.equal(config.testnetConfigured, true);
+  const registration = buildTestnetRegistration({ config, walletAddress });
+  assert.equal(registration.chainId, WORLD_CHAIN_SEPOLIA_ID);
+  assert.equal(registration.to, config.contractAddress);
+  assert.match(registration.data, /^0x/);
+});
+
+test("World ID 4 proof becomes World Chain registration calldata without backend approval", async () => {
+  const config = getWorldIdConfig(worldConfigEnv);
   const calls = [];
   const fetchImpl = async (url, options) => {
     calls.push({ url, body: JSON.parse(options.body) });
-    const body = url === config.proofContextEndpoint
-      ? { rp_id: "rp_example", nonce: "nonce", created_at: 1, expires_at: 2, signature: "0xsignature" }
-      : { verified: true };
-    return { ok: true, json: async () => body };
+    return { ok: true, json: async () => ({ rp_id: "rp_example", nonce: "0x1234", created_at: 1, expires_at: 2, signature: "0xsignature" }) };
   };
-  const idkit = { request: (request) => ({ preset: async () => ({ pollUntilCompletion: async () => ({ success: true, result: { protocol_version: "4.0", action: request.action } }) }) }) };
-  assert.deepEqual(await requestWorldIdGameAccess({ config, fetchImpl, idkit }), { ok: true });
-  assert.equal(calls.length, 2);
-  assert.equal(calls[0].body.action, WORLD_ID_GAME_ACCESS_ACTION);
-  assert.equal(calls[1].body.idkitResponse.action, WORLD_ID_GAME_ACCESS_ACTION);
+  let requestOptions;
+  const idkit = { request: (request) => ({ preset: async (preset) => {
+    requestOptions = { request, preset };
+    return { pollUntilCompletion: async () => ({ success: true, result: {
+      protocol_version: "4.0", nonce: "0x1234", action: request.action,
+      responses: [{ identifier: "proof_of_human", signal_hash: "0x123", nullifier: "0x456", expires_at_min: 3, issuer_schema_id: 1, proof: ["0x1", "0x2", "0x3", "0x4", "0x5"] }],
+    } }) };
+  } }) };
+  const humanPreset = (input) => ({ type: "ProofOfHuman", ...input });
+  const result = await requestWorldIdGameAccess({ config, walletAddress, fetchImpl, idkit, humanPreset });
+  assert.equal(result.ok, true);
+  assert.equal(result.registration.chainId, 480);
+  assert.equal(result.registration.to, worldConfigEnv.VITE_CIVILIZATION_CONTRACT_ADDRESS);
+  assert.match(result.registration.data, /^0x/);
+  assert.equal(calls.length, 1, "the backend signs RP context only; it never verifies or approves registration");
+  assert.equal(calls[0].body.action, "play");
+  assert.equal(calls[0].body.signal, walletAddress);
+  assert.equal(requestOptions.request.allow_legacy_proofs, false);
+  assert.deepEqual(requestOptions.preset, { type: "ProofOfHuman", signal: walletAddress });
 });
 
-test("World ID client proof alone cannot grant access", async () => {
-  const config = getWorldIdConfig({
-    VITE_WORLD_APP_ID: "app_example", VITE_WORLD_ID_PROOF_CONTEXT_URL: "https://api.example/proof",
-    VITE_WORLD_ID_VERIFY_URL: "https://api.example/verify", VITE_WORLD_ID_ENVIRONMENT: "production",
-  });
-  let requestCount = 0;
-  const fetchImpl = async () => ({ ok: true, json: async () => (++requestCount === 1
-    ? { rp_id: "rp_example", nonce: "nonce", created_at: 1, expires_at: 2, signature: "0xsignature" }
-    : { verified: false }) });
-  const idkit = { request: () => ({ preset: async () => ({ pollUntilCompletion: async () => ({ success: true, result: {} }) }) }) };
-  assert.deepEqual(await requestWorldIdGameAccess({ config, fetchImpl, idkit }), { ok: false, reason: "verification_rejected" });
+test("World ID client does not create registration calldata from a non-v4 or incomplete proof", () => {
+  const config = getWorldIdConfig(worldConfigEnv);
+  assert.throws(() => buildWorldIdRegistration({ config, walletAddress, result: { protocol_version: "3.0" } }), /world_id_v4_proof_required/);
+  assert.throws(() => buildWorldIdRegistration({ config, walletAddress, result: { protocol_version: "4.0", responses: [] } }), /incomplete_world_id_proof/);
 });
 
 test("resource buildings fill raidable field stock before collection", () => {
