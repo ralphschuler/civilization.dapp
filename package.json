@@ -27,7 +27,10 @@
   "dependencies": {
     "@worldcoin/idkit-core": "^4.2.3",
     "@worldcoin/minikit-js": "^2.0.3",
+    "@worldcoin/minikit-react": "2.0.3",
     "pg": "^8.16.3",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
     "viem": "^2.55.11"
   }
 }

@@ -1,5 +1,6 @@
 import "./styles.css";
-import { authenticateWorldWallet, buildTestnetRegistration, confirmWorldIdRegistration, getWorldIdConfig, installWorldAppBridge, requestWorldIdGameAccess, reserveWorldIdConnectorWindow, submitTestnetRegistration, submitWorldIdRegistration } from "./world.js";
+import { MiniKit } from "@worldcoin/minikit-js";
+import { authenticateWorldWallet, buildTestnetRegistration, confirmWorldIdRegistration, getWorldIdConfig, requestWorldIdGameAccess, reserveWorldIdConnectorWindow, submitTestnetRegistration, submitWorldIdRegistration } from "./world.js";
 import { canRenderGameWorld, canRetryWorldIdVerification } from "./world-gate.js";
 import {
   BUILDINGS,
@@ -37,10 +38,11 @@ const CITY_MAPS = {
   mobile: asset("maps/mintia-village-map-mobile-v2.png"),
 };
 const BUILDING_IDS = ["townhall", "timber", "claypit", "quarry", "warehouse", "workshop", "goldmine", "barracks"];
-const worldApp = installWorldAppBridge();
+let appRoot = null;
+let worldApp = { installed: false };
 const worldIdConfig = getWorldIdConfig();
-const worldBadge = worldApp.installed ? `WORLD APP${worldApp.walletAddress ? ` · ${worldApp.walletAddress.slice(0, 6)}…${worldApp.walletAddress.slice(-4)}` : " · VERBUNDEN"}` : "DEMO · LOKAL";
-let worldIdStatus = worldIdConfig.testnetConfigured ? "testnet_ready" : (worldApp.installed ? (worldIdConfig.configured ? "not_verified" : "configuration_required") : "local_demo");
+let worldBadge = "DEMO · LOKAL";
+let worldIdStatus = "local_demo";
 let worldIdError = "";
 let feedback = "Wähle ein Gebäude auf dem Dorfplan.";
 let selectedBuilding = "townhall";
@@ -49,6 +51,15 @@ let state = load();
 let serverAuthoritative = false;
 let onlineTargets = [];
 let serverStateInitialized = false;
+let waitForUserOperation = null;
+
+function activateWorldRuntime(isInstalled) {
+  worldApp = isInstalled && MiniKit.isInstalled()
+    ? { installed: true, walletAddress: MiniKit.user.walletAddress || null }
+    : { installed: false };
+  worldBadge = worldApp.installed ? `WORLD APP${worldApp.walletAddress ? ` · ${worldApp.walletAddress.slice(0, 6)}…${worldApp.walletAddress.slice(-4)}` : " · VERBUNDEN"}` : "DEMO · LOKAL";
+  worldIdStatus = worldIdConfig.testnetConfigured ? "testnet_ready" : (worldApp.installed ? (worldIdConfig.configured ? "not_verified" : "configuration_required") : "local_demo");
+}
 
 function anonymousBrowserId() {
   let id = localStorage.getItem(ANONYMOUS_ID_KEY);
@@ -208,6 +219,12 @@ function bindWorldIdActions() {
       return;
     }
     const submission = result.ok ? await submitWorldIdRegistration(result.registration) : { ok: false };
+    // MiniKit first returns a user-operation hash. Polling it through the
+    // official React hook gives the wallet a precise completion signal; the
+    // authoritative gate remains the independent playerState chain read.
+    if (submission.ok && submission.userOpHash && waitForUserOperation) {
+      try { await waitForUserOperation(submission.userOpHash); } catch { /* playerState remains the final authority */ }
+    }
     const confirmation = submission.ok ? await confirmWorldIdRegistration({ config: worldIdConfig, walletAddress }) : { ok: false };
     worldIdStatus = confirmation.ok ? "verified" : "error";
     feedback = confirmation.ok ? "World-ID-Spielzugang wurde auf World Chain registriert." : "World-ID-Nachweis oder Registrierung wurde nicht auf World Chain bestätigt.";
@@ -312,7 +329,7 @@ function refreshTickValues() {
 
 function render() {
   if (!hasGameAccess()) {
-    document.querySelector("#app").innerHTML = worldIdGateView();
+    appRoot.innerHTML = worldIdGateView();
     bindWorldIdActions();
     return;
   }
@@ -321,9 +338,9 @@ function render() {
   const capacity = getCapacity(state);
   const readyToClaim = Object.values(state.unclaimed).reduce((sum, amount) => sum + amount, 0);
   const collection = collectionStatus();
-  document.querySelector("#app").innerHTML = `<section class="game-shell village-shell" style="--city-map-desktop:url('${CITY_MAPS.desktop}');--city-map-mobile:url('${CITY_MAPS.mobile}')"><header class="hud village-hud"><div class="game-mark"><span>CD</span><div><b>CIVILIZATION</b><small>DAPP · DORF VON MINTIA</small></div></div><div class="resource-hud">${Object.entries(RESOURCE_DEFS).map(([id, definition]) => resourceHudItem(id, definition, production, capacity)).join("")}</div><span class="demo-badge ${worldApp.installed ? "is-world" : ""}">${worldBadge}</span></header><main class="command-layout"><section class="village-map" id="dorf" aria-label="Interaktive Stadtkarte von Mintia. Wähle ein Gebäude, um seinen Ausbau zu planen."><div class="map-head"><p>DORF VON MINTIA</p><h1>Dein Dorf.</h1><span>Rathaus ${state.buildings.townhall} · Speicher ${format(capacity)}</span></div><button class="collect-button" id="gather" ${collection.locked ? "disabled" : ""}><span data-collection-status>${collection.detail}</span><b data-ready-to-claim>${collection.locked ? collection.label : `${format(readyToClaim)} sammeln`}</b></button><div class="map-buildings">${BUILDING_IDS.map(buildingSpot).join("")}<button class="map-building map-market ${activePanel === "market" ? "is-selected" : ""}" data-panel="market" aria-label="Tauschhalle öffnen"><img src="${BUILDING_ASSETS.market}" alt=""><span><b>Tauschhalle</b><small>ERC-20 Markt</small></span></button></div><p class="map-feedback" aria-live="polite">${feedback}</p></section><aside class="command-rail"><nav class="command-tabs" aria-label="Dorfaktionen">${[["build", "Bauplan"], ["army", "Kaserne"], ["market", "Markt"], ["raid", "Überfall"]].map(([id, label]) => `<button data-panel="${id}" class="${activePanel === id ? "is-active" : ""}">${label}</button>`).join("")}</nav><section class="command-panel">${panelContents()}</section></aside></main><footer class="game-footer"><span><i></i> Speicher geschützt · Feldlager raidbar</span><span>${state.raids} Demo-Überfälle · ${worldApp.installed ? "World App erkannt" : "Kein Wallet verbunden"}</span><button id="reset">Demo zurücksetzen</button></footer><nav class="mobile-hud" aria-label="Schnellzugriff">${[["build", "Bau"], ["army", "Armee"], ["market", "Markt"], ["raid", "Überfall"]].map(([id, label]) => `<button data-panel="${id}" class="${activePanel === id ? "is-active" : ""}">${label}</button>`).join("")}</nav></section>`;
+  appRoot.innerHTML = `<section class="game-shell village-shell" style="--city-map-desktop:url('${CITY_MAPS.desktop}');--city-map-mobile:url('${CITY_MAPS.mobile}')"><header class="hud village-hud"><div class="game-mark"><span>CD</span><div><b>CIVILIZATION</b><small>DAPP · DORF VON MINTIA</small></div></div><div class="resource-hud">${Object.entries(RESOURCE_DEFS).map(([id, definition]) => resourceHudItem(id, definition, production, capacity)).join("")}</div><span class="demo-badge ${worldApp.installed ? "is-world" : ""}">${worldBadge}</span></header><main class="command-layout"><section class="village-map" id="dorf" aria-label="Interaktive Stadtkarte von Mintia. Wähle ein Gebäude, um seinen Ausbau zu planen."><div class="map-head"><p>DORF VON MINTIA</p><h1>Dein Dorf.</h1><span>Rathaus ${state.buildings.townhall} · Speicher ${format(capacity)}</span></div><button class="collect-button" id="gather" ${collection.locked ? "disabled" : ""}><span data-collection-status>${collection.detail}</span><b data-ready-to-claim>${collection.locked ? collection.label : `${format(readyToClaim)} sammeln`}</b></button><div class="map-buildings">${BUILDING_IDS.map(buildingSpot).join("")}<button class="map-building map-market ${activePanel === "market" ? "is-selected" : ""}" data-panel="market" aria-label="Tauschhalle öffnen"><img src="${BUILDING_ASSETS.market}" alt=""><span><b>Tauschhalle</b><small>ERC-20 Markt</small></span></button></div><p class="map-feedback" aria-live="polite">${feedback}</p></section><aside class="command-rail"><nav class="command-tabs" aria-label="Dorfaktionen">${[["build", "Bauplan"], ["army", "Kaserne"], ["market", "Markt"], ["raid", "Überfall"]].map(([id, label]) => `<button data-panel="${id}" class="${activePanel === id ? "is-active" : ""}">${label}</button>`).join("")}</nav><section class="command-panel">${panelContents()}</section></aside></main><footer class="game-footer"><span><i></i> Speicher geschützt · Feldlager raidbar</span><span>${state.raids} Demo-Überfälle · ${worldApp.installed ? "World App erkannt" : "Kein Wallet verbunden"}</span><button id="reset">Demo zurücksetzen</button></footer><nav class="mobile-hud" aria-label="Schnellzugriff">${[["build", "Bau"], ["army", "Armee"], ["market", "Markt"], ["raid", "Überfall"]].map(([id, label]) => `<button data-panel="${id}" class="${activePanel === id ? "is-active" : ""}">${label}</button>`).join("")}</nav></section>`;
 
-  document.querySelector("#app").insertAdjacentHTML("afterbegin", worldIdStatusView());
+  appRoot.insertAdjacentHTML("afterbegin", worldIdStatusView());
   bindWorldIdActions();
   document.querySelector("#gather").addEventListener("click", async () => { if (!requireWorldIdAccess()) return; if (serverAuthoritative) return performServerAction("gather", {}, (result) => !result.ok ? "Sammler sind noch unterwegs." : Object.values(result.collected).some(Boolean) ? "Im Speicher gesichert. Nächste Sammlung in 01:00." : "Feldlager leer oder Speicher voll."); const result = startGathering(state); const collected = result.ok ? costLine(result.collected) : ""; feedback = !result.ok ? "Sammler sind noch unterwegs." : collected ? `Im Speicher gesichert: ${collected}. Nächste Sammlung in 01:00.` : "Feldlager leer oder Speicher voll. Nächste Sammlung in 01:00."; save(); render(); });
   document.querySelectorAll("[data-map-building]").forEach((button) => button.addEventListener("click", () => { selectedBuilding = button.dataset.mapBuilding; activePanel = "build"; feedback = `${BUILDINGS[selectedBuilding].label} ausgewählt.`; render(); }));
@@ -335,9 +352,16 @@ function render() {
   document.querySelector("#reset").addEventListener("click", async () => { selectedBuilding = "townhall"; activePanel = "build"; if (serverAuthoritative) return performServerAction("reset", {}, () => "Online-Dorf zurückgesetzt."); state = createInitialState(); feedback = "Demo-Dorf zurückgesetzt."; localStorage.removeItem(STORAGE_KEY); render(); });
 }
 
-render();
-if (hasGameAccess()) initializeServerState();
-setInterval(() => {
+let gameTimer = null;
+
+export function startCivilizationApp({ root, worldAppInstalled, onUserOperation }) {
+  if (!root || gameTimer) return;
+  appRoot = root;
+  waitForUserOperation = typeof onUserOperation === "function" ? onUserOperation : null;
+  activateWorldRuntime(worldAppInstalled);
+  render();
+  if (hasGameAccess()) initializeServerState();
+  gameTimer = setInterval(() => {
   if (!hasGameAccess()) return;
   if (serverAuthoritative) {
     if (state.pendingRaid && Date.now() >= state.pendingRaid.arrivesAt) performServerAction("resolve_raid", {}, (result) => result.ok ? "Marsch beendet." : "Marsch wird noch ausgewertet.");
@@ -354,4 +378,12 @@ setInterval(() => {
   }
   save();
   refreshTickValues();
-}, 1000);
+  }, 1000);
+}
+
+export function stopCivilizationApp() {
+  if (gameTimer) clearInterval(gameTimer);
+  gameTimer = null;
+  appRoot = null;
+  waitForUserOperation = null;
+}

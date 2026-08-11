@@ -1,10 +1,18 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { COLLECTION_COOLDOWN_MS, MARCH_DURATION_MS, createInitialState, gather, getRequirements, resolveRaidMarch, sendRaid, settle, startGathering, startRaidMarch, swapInternal, trainTroop, upgradeBuilding } from "../src/game.js";
-import { authenticateWorldWallet, buildTestnetRegistration, buildWorldIdRegistration, confirmWorldIdRegistration, getWorldIdConfig, installWorldAppBridge, requestWorldIdGameAccess, reserveWorldIdConnectorWindow, resolveWorldWalletAddress, walletAuthEndpoints, WORLD_CHAIN_SEPOLIA_ID } from "../src/world.js";
+import { authenticateWorldWallet, buildTestnetRegistration, buildWorldIdRegistration, confirmWorldIdRegistration, getWorldIdConfig, installWorldAppBridge, requestWorldIdGameAccess, reserveWorldIdConnectorWindow, resolveWorldWalletAddress, submitWorldIdRegistration, walletAuthEndpoints, WORLD_CHAIN_ID, WORLD_CHAIN_SEPOLIA_ID } from "../src/world.js";
 
 test("World bridge remains inactive in the regular browser demo", () => {
   assert.deepEqual(installWorldAppBridge(), { installed: false });
+});
+
+test("MiniKit transaction preserves its user-operation hash for React receipt polling", async () => {
+  const result = await submitWorldIdRegistration(
+    { chainId: WORLD_CHAIN_ID, to: walletAddress, data: "0x", value: "0x0" },
+    { isInstalled: () => true, sendTransaction: async () => ({ data: { status: "success", userOpHash: "0xuserop" } }) },
+  );
+  assert.deepEqual(result, { ok: true, transaction: { status: "success", userOpHash: "0xuserop" }, userOpHash: "0xuserop" });
 });
 
 const worldConfigEnv = {

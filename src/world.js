@@ -326,7 +326,9 @@ export async function submitWorldIdRegistration(registration, miniKit = MiniKit)
     chainId: WORLD_CHAIN_ID,
     transactions: [{ to: registration.to, data: registration.data, value: registration.value }],
   });
-  return response?.data?.status === "success" ? { ok: true, transaction: response.data } : { ok: false, reason: "transaction_rejected" };
+  return response?.data?.status === "success"
+    ? { ok: true, transaction: response.data, userOpHash: response.data.userOpHash }
+    : { ok: false, reason: "transaction_rejected" };
 }
 
 function playerStateIsRegistered(playerState) {
