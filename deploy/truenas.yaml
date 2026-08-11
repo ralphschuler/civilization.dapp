@@ -3,7 +3,7 @@
 # no active custody, purchase, sale, or mint endpoint; IMG/WLD is quote-only.
 services:
   idlemint:
-    image: ghcr.io/ralphschuler/idlemint:latest
+    image: ghcr.io/ralphschuler/civilisation.dapp:latest
     environment:
       NODE_ENV: production
       HOST: 0.0.0.0

@@ -1,6 +1,6 @@
-# IdleMint
+# Civilisation DApp
 
-Browser-first idle clicker for **Idle Coin (IDC)**. The first TrueNAS release serves this game and a private API from one container. When the same-origin game API and PostgreSQL are available, game progress is stored and calculated server-side. The browser supplies only an opaque anonymous browser ID for this nonfinancial milestone; it is not World ID, wallet authentication, or a financial account. If the API is unavailable, the regular browser demo explicitly remains local-only in `localStorage`.
+Browser-first civilisation-building clicker. The first TrueNAS release serves this game and a private API from one container. When the same-origin game API and PostgreSQL are available, game progress is stored and calculated server-side. The browser supplies only an opaque anonymous browser ID for this nonfinancial milestone; it is not World ID, wallet authentication, or a financial account. If the API is unavailable, the regular browser demo explicitly remains local-only in `localStorage`.
 
 ## Demo
 
@@ -14,13 +14,13 @@ Every push to `master` runs tests, builds the Vite app, and deploys `dist/` to G
 
 ## Private TrueNAS service
 
-`Dockerfile`, `compose.yaml`, and `deploy/truenas.yaml` package IdleMint as a standalone service on port `31057`, with its own private PostgreSQL database. The intended public route is `idlemint.nyphon.de` through NPMplus on the TrueNAS host; the proxy target is `10.42.54.153:31057`.
+`Dockerfile`, `compose.yaml`, and `deploy/truenas.yaml` package Civilisation DApp as a standalone service on port `31057`, with its own private PostgreSQL database. The current public route remains `idlemint.nyphon.de` through NPMplus on the TrueNAS host; the proxy target is `10.42.54.153:31057`.
 
-`GET /api/healthz` reports process health and database status; `GET /api/readyz` returns success only when PostgreSQL accepts queries and is appropriate for deployment readiness checks. `GET /api/contracts/status` makes the current `beta_quote_only` / `not_deployed` contract boundary machine-verifiable and has no transaction capability. `GET /api/market/quote?side=buy|sell&amount=<base-unit-integer>` exposes only settlement quotes: it cannot accept WLD, transfer IMG, mint, burn, or pay out assets. The container workflow publishes `ghcr.io/ralphschuler/idlemint` after tests pass on `master`.
+`GET /api/healthz` reports process health and database status; `GET /api/readyz` returns success only when PostgreSQL accepts queries and is appropriate for deployment readiness checks. `GET /api/contracts/status` makes the current `beta_quote_only` / `not_deployed` contract boundary machine-verifiable and has no transaction capability. `GET /api/market/quote?side=buy|sell&amount=<base-unit-integer>` exposes only settlement quotes: it cannot accept WLD, transfer IMG, mint, burn, or pay out assets. The container workflow publishes `ghcr.io/ralphschuler/civilisation.dapp` after tests pass on `master`.
 
 ### Authoritative game-state API
 
-The SPA probes its same-origin `GET /api/game/state` endpoint at startup. It sends a generated opaque browser ID (32–128 URL-safe characters) only in `X-IdleMint-Anonymous-Id`; this ID is deliberately anonymous and can be lost when browser storage is cleared. A successful probe activates online mode and no browser game-state values are posted or trusted. If the endpoint is unavailable, the UI labels and uses its local demo fallback instead.
+The SPA probes its same-origin `GET /api/game/state` endpoint at startup. It sends a generated opaque browser ID (32–128 URL-safe characters) only in `X-IdleMint-Anonymous-Id`; this ID is deliberately anonymous and can be lost when browser storage is cleared. A successful probe activates online mode and no browser game-state values are posted or trusted. If the endpoint is unavailable, the UI labels and uses its local demo fallback instead. This header is retained temporarily for compatibility; see [transition exceptions](./TRANSITION_COMPATIBILITY.md).
 
 `POST /api/game/state` accepts `{ "id": "<unique action id>", "action": { "type": "...", "payload": { ... } } }` with the same header. The server accepts only gather, upgrade, train, in-game non-gold swap, raid start/resolution, and reset actions. It locks the player row, recalculates elapsed production from server time, validates the action, and stores the resulting state in the same PostgreSQL transaction. `(anonymous_id, action_id)` is unique, so a retry is idempotent and returns the original action result. Client resources, buildings, troops, timestamps, and raid outcomes are never accepted.
 
@@ -58,11 +58,11 @@ Without the API, raid targets are deterministic local demo villages. With the Po
 
 ## World App / Worldchain handoff
 
-IdleMint includes `@worldcoin/minikit-js` and only initializes MiniKit when it is actually opened inside World App. Regular browsers remain a walletless local demo. The public portal app ID belongs in the GitHub Actions repository variable `WORLD_APP_ID` (see `.env.example`); it is intentionally not a secret.
+Civilisation DApp includes `@worldcoin/minikit-js` and only initializes MiniKit when it is actually opened inside World App. Regular browsers remain a walletless local demo. The public portal app ID belongs in the GitHub Actions repository variable `WORLD_APP_ID` (see `.env.example`); it is intentionally not a secret.
 
 ### World ID game access
 
-Inside World App only, IdleMint uses IDKit v4 for the production action `idlemint-game-access-v1`. The UI has explicit states for not verified, checking, verified, and error/configuration failure. The browser demo remains fully local and does not request World ID.
+Inside World App only, Civilisation DApp uses IDKit v4 for the production action `idlemint-game-access-v1`. The UI has explicit states for not verified, checking, verified, and error/configuration failure. The browser demo remains fully local and does not request World ID. This action ID remains unchanged during the transition; see [transition exceptions](./TRANSITION_COMPATIBILITY.md).
 
 Set these public build-time variables to the HTTPS endpoints of the trusted backend (the example values are placeholders):
 

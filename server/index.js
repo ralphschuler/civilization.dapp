@@ -256,4 +256,4 @@ const server = createServer(async (request, response) => {
   }
 });
 
-server.listen(port, host, () => console.log(`IdleMint listening on ${host}:${port}`));
+server.listen(port, host, () => console.log(`Civilisation DApp listening on ${host}:${port}`));

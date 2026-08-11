@@ -1,12 +1,12 @@
-# Civilisation asset provenance
+# Civilisation DApp asset provenance
 
-This repository reuses the following files from the sibling project `ralphschuler/civilisation.dapp`, copied on 2026-08-09 from its `assets/` directory:
+This repository retains the following files from the Civilisation project asset collection, copied on 2026-08-09 from its `assets/` directory before this repository was renamed:
 
 - Buildings: `town-hall`, `barracks`, `storage`, `wood-cutter`, `clay-pit`, `iron-mine`, `market`, `house`.
 - Resources: `wood`, `clay`, `iron`, `gold`.
 - Units: `spearman`, `archer`, `knight`.
 
-They are project-owned visual assets, used here only for the IdleMint demo. `iron.png` and `iron-mine.png` are temporary visual stand-ins for the current Stone resource because Civilisation does not contain a dedicated stone asset. Replace them when a proper stone asset is supplied.
+They are project-owned visual assets used by Civilisation DApp. `iron.png` and `iron-mine.png` are temporary visual stand-ins for the current Stone resource because Civilisation does not contain a dedicated stone asset. Replace them when a proper stone asset is supplied.
 
 ## City map backgrounds
 

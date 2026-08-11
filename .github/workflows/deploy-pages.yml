@@ -1,4 +1,4 @@
-name: Deploy IdleMint to GitHub Pages
+name: Deploy Civilisation DApp to GitHub Pages
 
 on:
   push:
