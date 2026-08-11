@@ -1,4 +1,4 @@
-name: Deploy Civilisation DApp to GitHub Pages
+name: Deploy Civilization DApp to GitHub Pages
 
 on:
   push:

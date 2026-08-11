@@ -1,6 +1,6 @@
-# Civilisation DApp transition compatibility
+# Civilization DApp transition compatibility
 
-Civilisation DApp is the new product and repository name. The following live integration identifiers deliberately remain unchanged during this transition:
+Civilization DApp is the new product and repository name. The following live integration identifiers deliberately remain unchanged during this transition:
 
 - Public domain: `idlemint.nyphon.de`.
 - API paths and `X-IdleMint-Anonymous-Id` / `x-idlemint-anonymous-id` header.
@@ -9,4 +9,4 @@ Civilisation DApp is the new product and repository name. The following live int
 - The legacy `IdleCoin` Solidity draft and its `Idle Coin`/`IDC` token metadata; it is undeployed and changing it is outside this rebrand.
 - Existing wallet, payment, contract, WLD, IMG, and quote-only behaviour. No on-chain action is introduced by this change.
 
-Container publication and future deployment templates use `ghcr.io/ralphschuler/civilisation.dapp`. These compatibility identifiers must be migrated only with a separately planned, live-state-aware change.
+Future container publication and deployment templates use `ghcr.io/ralphschuler/civilization.dapp`. The currently running image will be migrated by the release rollout.

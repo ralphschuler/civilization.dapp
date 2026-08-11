@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-/// @notice Legacy deployment draft retained during the Civilisation DApp transition.
+/// @notice Legacy deployment draft retained during the Civilization DApp transition.
 /// @dev Deliberately not deployed; production needs an audited claim authority.
 contract IdleCoin {
     string public constant name = "Idle Coin";
