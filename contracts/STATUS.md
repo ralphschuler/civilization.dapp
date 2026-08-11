@@ -6,6 +6,7 @@
 
 | Source | Status | Release boundary |
 | --- | --- | --- |
+| `src/CivilizationGame.sol` | Draft, not deployed, source-only | World-ID-attested registration plus player-signed on-chain game state; no backend game-mutation entrypoint. |
 | `src/GameResourceToken.sol` | Draft, not deployed | A controller/venue-restricted ERC-20 implementation; no game controller or venue is deployed. |
 | `src/GoldSettlementRegistry.sol` | Draft, not deployed, allowlist only | Cannot custody assets or execute a swap. |
 | `src/IdleCoin.sol` | Legacy draft, not deployed | Not part of the current resource path. |
@@ -20,4 +21,4 @@ The `worldchain.tokens.example.json` addresses are reference data only, not an a
 
 ## Local Solidity verification
 
-This workspace intentionally declares no Solidity compiler or contract-test framework in `package.json`; `forge`, `solc`, and `solcjs` were not available during this release check. No compiler dependency or deployment tooling was added. The Node test suite verifies the source inventory and release boundary deterministically, but it is not a replacement for compiler/unit-test coverage once an approved Solidity toolchain is introduced.
+`npm test` compiles every `contracts/src/*.sol` source deterministically with the pinned official `solc` npm package (`0.8.30`) and verifies the CivilizationGame ABI/source safety boundary. This is source-level evidence only, not a deployment, EVM integration suite, or substitute for an independent audit.

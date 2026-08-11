@@ -46,7 +46,11 @@ The game resources `IMW` (Mint Wood), `IMC` (Mint Clay), and `IMS` (Mint Stone) 
 
 `contracts/worldchain.tokens.example.json` is an example reference for WLD and WBTC on World Chain Mainnet. Re-verify every address against the current [World Chain useful-contract registry](https://docs.world.org/world-chain/reference/useful-contracts) before allowlisting.
 
-The machine-readable in-app release boundary is defined in `server/contract-status.js`; see [the contract status](./contracts/STATUS.md) for the source inventory, no-deployment assertion, and prerequisites. No Solidity compiler is declared or bundled for this beta, so no contract compile/test command is part of `npm test`.
+The machine-readable in-app release boundary is defined in `server/contract-status.js`; see [the contract status](./contracts/STATUS.md) for the source inventory, no-deployment assertion, and prerequisites. `npm test` includes a deterministic source compile with the pinned official `solc` package; it does not deploy or connect a wallet.
+
+## On-chain game-state draft
+
+`contracts/src/CivilizationGame.sol` is a source-only, undeployed migration target that makes the contract—not the beta backend—authoritative for resource accrual/claiming, upgrades, training, and PvP. The backend's future role is restricted to verifying a World ID proof and signing a short-lived registration attestation. See [the on-chain architecture](./docs/ONCHAIN_ARCHITECTURE.md) for the authority boundary, MiniKit call flow, and deployment/audit prerequisites. The existing beta API/database remains unchanged and is not an authority in this draft.
 
 ## Visual assets
 

@@ -11,7 +11,7 @@ test("contract status is explicitly non-deployed and quote-only", () => {
   assert.equal(CONTRACT_STATUS.custodyEnabled, false);
   assert.equal(CONTRACT_STATUS.paymentsEnabled, false);
   assert.equal(CONTRACT_STATUS.withdrawalsEnabled, false);
-  assert.equal(CONTRACT_STATUS.contracts.length, 3);
+  assert.equal(CONTRACT_STATUS.contracts.length, 4);
 });
 
 test("Solidity sources declare drafts but no hard-coded deployment address", async () => {

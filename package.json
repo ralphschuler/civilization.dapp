@@ -12,6 +12,7 @@
     "check": "node --check src/*.js server/*.js"
   },
   "devDependencies": {
+    "solc": "0.8.30",
     "vite": "^7.3.6"
   },
   "dependencies": {
