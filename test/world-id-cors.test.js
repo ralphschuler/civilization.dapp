@@ -56,3 +56,38 @@ test("proof-context CORS preflight permits only the GitHub Pages origin", async 
   assert.equal(post.status, 200);
   assert.equal(post.headers.get("access-control-allow-origin"), "https://nyphon.de");
 });
+
+test("wallet-auth nonce endpoint permits the production page and consumes rejected nonces", async (t) => {
+  const { child, baseUrl } = await startServer();
+  t.after(() => child.kill());
+
+  const preflight = await fetch(`${baseUrl}/api/wallet-auth/verify`, {
+    method: "OPTIONS",
+    headers: { Origin: "https://nyphon.de", "Access-Control-Request-Method": "POST", "Access-Control-Request-Headers": "content-type" },
+  });
+  assert.equal(preflight.status, 204);
+  assert.equal(preflight.headers.get("access-control-allow-origin"), "https://nyphon.de");
+  assert.equal(preflight.headers.get("access-control-allow-methods"), "GET, POST, OPTIONS");
+
+  const nonceResponse = await fetch(`${baseUrl}/api/wallet-auth/nonce`, { headers: { Origin: "https://nyphon.de" } });
+  assert.equal(nonceResponse.status, 200);
+  assert.equal(nonceResponse.headers.get("access-control-allow-origin"), "https://nyphon.de");
+  const nonce = await nonceResponse.json();
+  assert.match(nonce.nonce, /^[A-Za-z0-9]{8,}$/);
+  assert.ok(nonce.expires_at > Date.now());
+
+  const body = { nonce: nonce.nonce, payload: { address: "0x2222222222222222222222222222222222222222", message: "bad", signature: "0xbad" } };
+  const rejected = await fetch(`${baseUrl}/api/wallet-auth/verify`, {
+    method: "POST", headers: { Origin: "https://nyphon.de", "content-type": "application/json" }, body: JSON.stringify(body),
+  });
+  assert.equal(rejected.status, 400);
+  assert.deepEqual(await rejected.json(), { isValid: false, error: "wallet_auth_verification_failed" });
+  const replay = await fetch(`${baseUrl}/api/wallet-auth/verify`, {
+    method: "POST", headers: { Origin: "https://nyphon.de", "content-type": "application/json" }, body: JSON.stringify(body),
+  });
+  assert.equal(replay.status, 400);
+  assert.deepEqual(await replay.json(), { isValid: false, error: "invalid_or_expired_nonce" });
+
+  const foreign = await fetch(`${baseUrl}/api/wallet-auth/nonce`, { headers: { Origin: "https://untrusted.example" } });
+  assert.equal(foreign.status, 403);
+});

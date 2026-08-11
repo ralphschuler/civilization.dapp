@@ -92,42 +92,46 @@ export function resolveWorldWalletAddress({ miniKit = MiniKit, worldApp = global
   return isAddress(address) ? getAddress(address) : null;
 }
 
-/**
- * Wallet Auth requires an alphanumeric nonce of at least eight characters.
- * This client-only nonce is solely request freshness for the native prompt:
- * the World ID proof and the registering transaction remain the game access
- * authority, so no identity state or authority is added to the backend.
- */
-export function createWalletAuthNonce(cryptoImpl = globalThis.crypto) {
-  if (typeof cryptoImpl?.getRandomValues !== "function") throw new Error("wallet_auth_nonce_unavailable");
-  const bytes = cryptoImpl.getRandomValues(new Uint8Array(32));
-  return Array.from(bytes, (value) => value.toString(16).padStart(2, "0")).join("");
+const WALLET_AUTH_STATEMENT = "Bestätige deine World-Wallet für den Civilization-Spielzugang.";
+
+export function walletAuthEndpoints(proofContextEndpoint) {
+  try {
+    const origin = new URL(proofContextEndpoint).origin;
+    return { nonce: new URL("/api/wallet-auth/nonce", origin).toString(), verify: new URL("/api/wallet-auth/verify", origin).toString() };
+  } catch { return null; }
 }
 
 /**
- * Gets the World wallet through the native SIWE Wallet Auth command when the
- * install payload has not populated a wallet address yet. Its signed response
- * is not used as game authorization; it only supplies the address that is
- * bound again by the World ID signal and the caller of registerWorldId.
+ * Uses a backend-issued, single-use nonce and accepts only the address that
+ * the backend returns after SIWE signature, nonce and statement validation.
  */
 export async function authenticateWorldWallet({
-  miniKit = MiniKit, createNonce = createWalletAuthNonce, now = () => Date.now(),
+  miniKit = MiniKit, proofContextEndpoint = getWorldIdConfig().proofContextEndpoint, fetchImpl = globalThis.fetch,
 } = {}) {
-  if (!miniKit?.isInstalled?.() || typeof miniKit.walletAuth !== "function") {
+  const endpoints = walletAuthEndpoints(proofContextEndpoint);
+  if (!miniKit?.isInstalled?.() || typeof miniKit.walletAuth !== "function" || !endpoints || typeof fetchImpl !== "function") {
     return { ok: false, reason: "wallet_auth_unavailable" };
   }
   try {
+    const nonceResponse = await fetchImpl(endpoints.nonce).then(jsonResponse);
+    if (typeof nonceResponse?.nonce !== "string" || !/^[A-Za-z0-9]{8,}$/.test(nonceResponse.nonce)
+      || !Number.isFinite(nonceResponse.expires_at) || nonceResponse.expires_at <= Date.now()) {
+      return { ok: false, reason: "invalid_wallet_auth_nonce" };
+    }
     const result = await miniKit.walletAuth({
-      nonce: createNonce(),
-      statement: "Bestätige deine World-Wallet für den Civilization-Spielzugang.",
-      expirationTime: new Date(now() + 5 * 60_000),
+      nonce: nonceResponse.nonce,
+      statement: WALLET_AUTH_STATEMENT,
+      expirationTime: new Date(nonceResponse.expires_at),
     });
-    // Only the native World App command is allowed here; web fallbacks do not
-    // provide the World Mini App wallet this flow is binding on-chain.
-    if (result?.executedWith !== "minikit" || !isAddress(result?.data?.address)) {
+    if (result?.executedWith !== "minikit" || !result?.data) {
       return { ok: false, reason: "wallet_auth_rejected" };
     }
-    return { ok: true, walletAddress: getAddress(result.data.address) };
+    const verified = await fetchImpl(endpoints.verify, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ payload: result.data, nonce: nonceResponse.nonce }),
+    }).then(jsonResponse);
+    if (verified?.isValid !== true || !isAddress(verified.address)) return { ok: false, reason: "wallet_auth_verification_failed" };
+    return { ok: true, walletAddress: getAddress(verified.address) };
   } catch (error) {
     return { ok: false, reason: error instanceof Error ? error.message : "wallet_auth_rejected" };
   }

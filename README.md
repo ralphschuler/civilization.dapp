@@ -42,6 +42,8 @@ For the World ID v4 proof-context endpoint, configure these server-only values i
 
 `POST /api/world-id/proof-context` consumes JSON but returns only `{ rp_id, nonce, created_at, expires_at, signature }`. It makes no game decision, keeps no wallet credentials, and the World Chain contract remains the proof verifier and nullifier replay guard. It permits browser CORS only for `https://nyphon.de`, solely for this endpoint's `POST`/preflight flow.
 
+World Wallet Auth uses `GET /api/wallet-auth/nonce` and `POST /api/wallet-auth/verify`. The server issues a cryptographically random, five-minute, single-use nonce and consumes it before verification. It verifies the native SIWE payload with `@worldcoin/minikit-js/siwe`, requiring the fixed wallet-auth statement and matching signed/payload address, then returns only the verified address. This in-memory replay guard creates no game session and does not authorize or store game state; the World ID signal remains that verified address and `playerState` registration on-chain remains the access gate. Both endpoints permit CORS only for `https://nyphon.de`.
+
 ## Token model
 
 Wood, clay and stone are internal game resources. `CGOLD` (Civilization Gold) is the sole ERC-20, with 18 decimals, implemented directly by `CivilizationGame.sol`. It is minted only when the on-chain game rules settle a claim or a successful raid, and burned only when on-chain game rules spend gold. Prestige resets the village but does not burn the player's CGOLD.
@@ -89,6 +91,7 @@ Production builds set these public build-time variables (only `VITE_WORLD_APP_ID
 - `VITE_WORLD_ID_ACTION`: exact Portal action ID.
 - `VITE_CIVILIZATION_CONTRACT_ADDRESS=0x29147c7bead901e8019d7911a7dc404447877c62`: the World Chain mainnet deployment address.
 - `VITE_WORLD_ID_PROOF_CONTEXT_URL=https://civilization.nyphon.de/api/world-id/proof-context`: `POST` endpoint that accepts the configured action and returns only `{ rp_id, nonce, created_at, expires_at, signature }`. It must generate the RP signature server-side with the protected signing key.
+- Wallet Auth endpoints are derived from that trusted API origin as `/api/wallet-auth/nonce` and `/api/wallet-auth/verify`; they are not configurable to an unrelated origin.
 - `VITE_WORLD_ID_ENVIRONMENT=production`: this must match the Portal app and relying-party registration.
 
 The RP endpoint must ignore a client-selected action and sign only its configured production action. The app then encodes the v4 proof and submits it to `CivilizationGame.registerWorldId`; World Chain verifies the proof and the contract stores the nullifier. A reused nullifier reverts on-chain. Neither a client result nor the static UI grants access without that transaction.

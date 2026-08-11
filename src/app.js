@@ -1,5 +1,5 @@
 import "./styles.css";
-import { authenticateWorldWallet, buildTestnetRegistration, confirmWorldIdRegistration, getWorldIdConfig, installWorldAppBridge, requestWorldIdGameAccess, reserveWorldIdConnectorWindow, resolveWorldWalletAddress, submitTestnetRegistration, submitWorldIdRegistration } from "./world.js";
+import { authenticateWorldWallet, buildTestnetRegistration, confirmWorldIdRegistration, getWorldIdConfig, installWorldAppBridge, requestWorldIdGameAccess, reserveWorldIdConnectorWindow, submitTestnetRegistration, submitWorldIdRegistration } from "./world.js";
 import { canRenderGameWorld, canRetryWorldIdVerification } from "./world-gate.js";
 import {
   BUILDINGS,
@@ -180,22 +180,21 @@ function bindWorldIdActions() {
     // Must happen before any await: the Wallet Auth prompt may be needed
     // before IDKit has produced a connector URI.
     const openConnector = reserveWorldIdConnectorWindow();
-    let walletAddress = resolveWorldWalletAddress();
-    if (!walletAddress) {
-      worldIdError = "";
-      worldIdStatus = "wallet_auth";
+    worldIdError = "";
+    worldIdStatus = "wallet_auth";
+    render();
+    // Do not trust MiniKit's cached address or the native response. The SIWE
+    // verifier is the sole source for the address used as the World ID signal.
+    const walletAuth = await authenticateWorldWallet({ proofContextEndpoint: worldIdConfig.proofContextEndpoint });
+    if (!walletAuth.ok) {
+      openConnector.close();
+      worldIdStatus = "wallet_auth_error";
+      worldIdError = walletAuth.reason;
+      feedback = "World-Wallet-Anmeldung wurde abgebrochen oder nicht bestätigt. Bitte erneut versuchen.";
       render();
-      const walletAuth = await authenticateWorldWallet();
-      if (!walletAuth.ok) {
-        openConnector.close();
-        worldIdStatus = "wallet_auth_error";
-        worldIdError = walletAuth.reason;
-        feedback = "World-Wallet-Anmeldung wurde abgebrochen oder nicht bestätigt. Bitte erneut versuchen.";
-        render();
-        return;
-      }
-      walletAddress = walletAuth.walletAddress;
+      return;
     }
+    const walletAddress = walletAuth.walletAddress;
     worldIdError = "";
     worldIdStatus = "checking";
     render();

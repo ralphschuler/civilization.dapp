@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { COLLECTION_COOLDOWN_MS, MARCH_DURATION_MS, createInitialState, gather, getRequirements, resolveRaidMarch, sendRaid, settle, startGathering, startRaidMarch, swapInternal, trainTroop, upgradeBuilding } from "../src/game.js";
-import { authenticateWorldWallet, buildTestnetRegistration, buildWorldIdRegistration, confirmWorldIdRegistration, createWalletAuthNonce, getWorldIdConfig, installWorldAppBridge, requestWorldIdGameAccess, reserveWorldIdConnectorWindow, resolveWorldWalletAddress, WORLD_CHAIN_SEPOLIA_ID } from "../src/world.js";
+import { authenticateWorldWallet, buildTestnetRegistration, buildWorldIdRegistration, confirmWorldIdRegistration, getWorldIdConfig, installWorldAppBridge, requestWorldIdGameAccess, reserveWorldIdConnectorWindow, resolveWorldWalletAddress, walletAuthEndpoints, WORLD_CHAIN_SEPOLIA_ID } from "../src/world.js";
 
 test("World bridge remains inactive in the regular browser demo", () => {
   assert.deepEqual(installWorldAppBridge(), { installed: false });
@@ -37,6 +37,8 @@ test("World ID reports a retryable wallet error before requesting proof context"
 
 test("Wallet Auth supplies a World wallet when MiniKit has no cached address", async () => {
   let walletAuthInput;
+  const calls = [];
+  const verifiedWalletAddress = "0x3333333333333333333333333333333333333333";
   const result = await authenticateWorldWallet({
     miniKit: {
       isInstalled: () => true,
@@ -45,30 +47,55 @@ test("Wallet Auth supplies a World wallet when MiniKit has no cached address", a
         return { executedWith: "minikit", data: { address: walletAddress, message: "SIWE", signature: "0xsigned" } };
       },
     },
-    createNonce: () => "a1b2c3d4e5f6a7b8",
-    now: () => 1_000,
+    proofContextEndpoint: worldConfigEnv.VITE_WORLD_ID_PROOF_CONTEXT_URL,
+    fetchImpl: async (url, options) => {
+      calls.push({ url, options });
+      if (!options) return { ok: true, json: async () => ({ nonce: "a1b2c3d4e5f6a7b8", expires_at: Date.now() + 60_000 }) };
+      assert.deepEqual(JSON.parse(options.body), { payload: { address: walletAddress, message: "SIWE", signature: "0xsigned" }, nonce: "a1b2c3d4e5f6a7b8" });
+      return { ok: true, json: async () => ({ isValid: true, address: verifiedWalletAddress }) };
+    },
   });
-  assert.deepEqual(result, { ok: true, walletAddress });
+  assert.deepEqual(result, { ok: true, walletAddress: verifiedWalletAddress });
   assert.equal(walletAuthInput.nonce, "a1b2c3d4e5f6a7b8");
   assert.equal(walletAuthInput.statement, "Bestätige deine World-Wallet für den Civilization-Spielzugang.");
-  assert.equal(walletAuthInput.expirationTime.getTime(), 301_000);
+  assert.ok(walletAuthInput.expirationTime.getTime() > Date.now());
+  assert.deepEqual(calls.map(({ url }) => url), ["https://api.example/api/wallet-auth/nonce", "https://api.example/api/wallet-auth/verify"]);
 });
 
-test("Wallet Auth nonce uses browser cryptographic randomness", () => {
-  const nonce = createWalletAuthNonce({ getRandomValues: (bytes) => bytes.fill(15) });
-  assert.equal(nonce, "0f".repeat(32));
-  assert.match(nonce, /^[a-zA-Z0-9]{8,}$/);
+test("Wallet Auth endpoints stay on the trusted backend origin", () => {
+  assert.deepEqual(walletAuthEndpoints("https://civilization.nyphon.de/api/world-id/proof-context"), {
+    nonce: "https://civilization.nyphon.de/api/wallet-auth/nonce",
+    verify: "https://civilization.nyphon.de/api/wallet-auth/verify",
+  });
+  assert.equal(walletAuthEndpoints("not a URL"), null);
 });
 
 test("Wallet Auth rejection yields no wallet for a proof request", async () => {
   let proofContexts = 0;
+  let verificationRequests = 0;
   const auth = await authenticateWorldWallet({
     miniKit: { isInstalled: () => true, walletAuth: async () => { throw new Error("user_rejected"); } },
-    createNonce: () => "a1b2c3d4e5f6a7b8",
+    proofContextEndpoint: worldConfigEnv.VITE_WORLD_ID_PROOF_CONTEXT_URL,
+    fetchImpl: async (_url, options) => {
+      if (options) verificationRequests += 1;
+      return { ok: true, json: async () => ({ nonce: "a1b2c3d4e5f6a7b8", expires_at: Date.now() + 60_000 }) };
+    },
   });
   assert.deepEqual(auth, { ok: false, reason: "user_rejected" });
   if (auth.ok) await requestWorldIdGameAccess({ config: getWorldIdConfig(worldConfigEnv), walletAddress: auth.walletAddress, fetchImpl: async () => { proofContexts += 1; } });
   assert.equal(proofContexts, 0, "a rejected Wallet Auth must not start a World ID proof request");
+  assert.equal(verificationRequests, 0, "a rejected Wallet Auth must not reach SIWE verification");
+});
+
+test("Wallet Auth refuses a rejected backend verification before World ID proof", async () => {
+  const auth = await authenticateWorldWallet({
+    miniKit: { isInstalled: () => true, walletAuth: async () => ({ executedWith: "minikit", data: { address: walletAddress, message: "SIWE", signature: "0xsigned" } }) },
+    proofContextEndpoint: worldConfigEnv.VITE_WORLD_ID_PROOF_CONTEXT_URL,
+    fetchImpl: async (_url, options) => options
+      ? { ok: false, json: async () => ({ isValid: false }) }
+      : { ok: true, json: async () => ({ nonce: "a1b2c3d4e5f6a7b8", expires_at: Date.now() + 60_000 }) },
+  });
+  assert.deepEqual(auth, { ok: false, reason: "server_rejected_request" });
 });
 
 test("reserved IDKit connector is reused after Wallet Auth and closes on rejection", () => {

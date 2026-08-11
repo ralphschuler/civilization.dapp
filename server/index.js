@@ -11,6 +11,7 @@ import { GAME_STATE_SCHEMA } from "./schema.js";
 import { publicTarget, resolvePvpRaid, startPvpRaid } from "./pvp.js";
 import { CONTRACT_STATUS } from "./contract-status.js";
 import { createWorldIdProofContext, getWorldIdRpConfiguration } from "./world-id-rp.js";
+import { WalletAuthNonceStore, verifyWalletAuthPayload } from "./wallet-auth.js";
 
 const port = Number(process.env.PORT || 31057);
 const host = process.env.HOST || "0.0.0.0";
@@ -19,6 +20,7 @@ const databaseUrl = process.env.DATABASE_URL || "";
 const databaseConfigured = Boolean(databaseUrl || process.env.PGHOST || process.env.PGDATABASE);
 const pool = databaseConfigured ? new pg.Pool({ ...(databaseUrl ? { connectionString: databaseUrl } : {}), max: 4 }) : null;
 let schemaReady;
+const walletAuthNonces = new WalletAuthNonceStore();
 
 const mimeTypes = {
   ".css": "text/css; charset=utf-8", ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8",
@@ -34,6 +36,13 @@ const pagesOrigin = "https://nyphon.de";
 const proofContextCorsHeaders = Object.freeze({
   "access-control-allow-origin": pagesOrigin,
   "access-control-allow-methods": "POST, OPTIONS",
+  "access-control-allow-headers": "content-type",
+  "access-control-max-age": "600",
+  vary: "Origin",
+});
+const walletAuthCorsHeaders = Object.freeze({
+  "access-control-allow-origin": pagesOrigin,
+  "access-control-allow-methods": "GET, POST, OPTIONS",
   "access-control-allow-headers": "content-type",
   "access-control-max-age": "600",
   vary: "Origin",
@@ -257,6 +266,32 @@ const server = createServer(async (request, response) => {
       return json(response, 200, { targets: await listPvpTargets(id) });
     }
     if (request.method === "GET" && url.pathname === "/api/contracts/status") return json(response, 200, CONTRACT_STATUS);
+    if (url.pathname === "/api/wallet-auth/nonce" && request.method === "OPTIONS") {
+      if (!hasPermittedPagesOrigin(request)) return json(response, 403, { error: "origin_not_allowed" });
+      response.writeHead(204, walletAuthCorsHeaders);
+      return response.end();
+    }
+    if (url.pathname === "/api/wallet-auth/nonce" && request.method === "GET") {
+      if (request.headers.origin && !hasPermittedPagesOrigin(request)) return json(response, 403, { error: "origin_not_allowed" });
+      const { nonce, expiresAt } = walletAuthNonces.issue();
+      return json(response, 200, { nonce, expires_at: expiresAt }, hasPermittedPagesOrigin(request) ? walletAuthCorsHeaders : {});
+    }
+    if (url.pathname === "/api/wallet-auth/verify" && request.method === "OPTIONS") {
+      if (!hasPermittedPagesOrigin(request)) return json(response, 403, { error: "origin_not_allowed" });
+      response.writeHead(204, walletAuthCorsHeaders);
+      return response.end();
+    }
+    if (url.pathname === "/api/wallet-auth/verify" && request.method === "POST") {
+      if (request.headers.origin && !hasPermittedPagesOrigin(request)) return json(response, 403, { error: "origin_not_allowed" });
+      const body = await readJson(request);
+      if (!walletAuthNonces.consume(body?.nonce)) return json(response, 400, { isValid: false, error: "invalid_or_expired_nonce" }, hasPermittedPagesOrigin(request) ? walletAuthCorsHeaders : {});
+      try {
+        const address = await verifyWalletAuthPayload({ payload: body?.payload, nonce: body.nonce });
+        return json(response, 200, { isValid: true, address }, hasPermittedPagesOrigin(request) ? walletAuthCorsHeaders : {});
+      } catch {
+        return json(response, 400, { isValid: false, error: "wallet_auth_verification_failed" }, hasPermittedPagesOrigin(request) ? walletAuthCorsHeaders : {});
+      }
+    }
     if (url.pathname === "/api/world-id/proof-context" && request.method === "OPTIONS") {
       if (!hasPermittedPagesOrigin(request)) return json(response, 403, { error: "origin_not_allowed" });
       response.writeHead(204, proofContextCorsHeaders);
