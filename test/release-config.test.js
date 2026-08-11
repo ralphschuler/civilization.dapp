@@ -19,3 +19,8 @@ test("production GitHub Pages and GHCR builds receive the public World ID config
     assert.match(source, /VITE_WORLD_ID_ENVIRONMENT[=:] ?production/);
   }
 });
+
+test("the JSX browser entry imports the React runtime used by Vite's production build", async () => {
+  const appEntry = await readFile(new URL("../src/app.jsx", import.meta.url), "utf8");
+  assert.match(appEntry, /^import React, \{/m);
+});

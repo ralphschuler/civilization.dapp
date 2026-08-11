@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { MiniKitProvider, useMiniKit } from "@worldcoin/minikit-js/minikit-provider";
 import { useUserOperationReceipt } from "@worldcoin/minikit-react";
