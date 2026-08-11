@@ -10,7 +10,7 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { worldchain } from "viem/chains";
-import { worldRpIdToUint64 } from "../server/world-id-rp.js";
+import { worldRpIdToUint64 } from "./world-id-rp.mjs";
 import solc from "solc";
 
 const RPC_URL = "https://worldchain-mainnet.g.alchemy.com/public";

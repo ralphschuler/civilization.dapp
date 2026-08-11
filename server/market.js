@@ -1,5 +1,5 @@
 export const WLD_DECIMALS = 18;
-export const IMG_DECIMALS = 18;
+export const CGOLD_DECIMALS = 18;
 export const TRADE_FEE_BPS = 150;
 export const TRADE_BPS_DENOMINATOR = 10_000;
 
@@ -15,18 +15,18 @@ function applyFee(gross) {
 
 /**
  * Quote-only settlement math. It never accepts, moves, mints, or burns assets.
- * Both WLD and IMG use 18 decimal base units, so the initial price is one-to-one.
+ * Both WLD and CGOLD use 18 decimal base units, so this illustrative price is one-to-one.
  * A production trade needs an explicit liquidity venue and on-chain settlement.
  */
-export function quoteImgWldTrade({ side, amount }) {
+export function quoteCgoldWldTrade({ side, amount }) {
   const gross = parseBaseUnits(amount);
   if (side === "buy") {
     const result = applyFee(gross);
     return {
       side,
       grossWld: result.gross.toString(),
-      netImg: result.net.toString(),
-      imgSink: result.sink.toString(),
+      netCgold: result.net.toString(),
+      cgoldSink: result.sink.toString(),
       wldSink: "0",
     };
   }
@@ -34,9 +34,9 @@ export function quoteImgWldTrade({ side, amount }) {
     const result = applyFee(gross);
     return {
       side,
-      grossImg: result.gross.toString(),
+      grossCgold: result.gross.toString(),
       netWld: result.net.toString(),
-      imgSink: "0",
+      cgoldSink: "0",
       wldSink: result.sink.toString(),
     };
   }

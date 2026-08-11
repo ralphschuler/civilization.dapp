@@ -21,7 +21,6 @@ export const CONTRACT_STATUS = Object.freeze({
     Object.freeze({ source: "contracts/src/CivilizationGame.sol", status: "mainnet_deployed_not_independently_audited" }),
     Object.freeze({ source: "contracts/src/GameResourceToken.sol", status: "draft_not_deployed" }),
     Object.freeze({ source: "contracts/src/GoldSettlementRegistry.sol", status: "draft_not_deployed_allowlist_only" }),
-    Object.freeze({ source: "contracts/src/IdleCoin.sol", status: "legacy_draft_not_deployed" }),
   ]),
   requiredBeforeSettlement: Object.freeze([
     "independent security review",

@@ -18,7 +18,8 @@ test("contract status identifies the unaudited World Chain mainnet deployment wi
   assert.equal(CONTRACT_STATUS.custodyEnabled, false);
   assert.equal(CONTRACT_STATUS.paymentsEnabled, false);
   assert.equal(CONTRACT_STATUS.withdrawalsEnabled, false);
-  assert.equal(CONTRACT_STATUS.contracts.length, 4);
+  assert.equal(CONTRACT_STATUS.contracts.length, 3);
+  assert.equal(CONTRACT_STATUS.contracts.some(({ source }) => /idle/i.test(source)), false);
 });
 
 test("Solidity sources remain free of deployment configuration", async () => {

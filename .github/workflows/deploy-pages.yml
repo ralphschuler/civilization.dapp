@@ -3,6 +3,8 @@ name: Deploy Civilization DApp to GitHub Pages
 on:
   push:
     branches: [master]
+  pull_request:
+    branches: [master]
   workflow_dispatch:
 
 permissions:
@@ -19,29 +21,28 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.21.0
+          run_install: false
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm test
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
       - name: Configure GitHub Pages
         id: pages
         uses: actions/configure-pages@v5
-      - run: npm run build
+      - run: pnpm build:demo
         env:
           PAGES_BASE_PATH: ${{ steps.pages.outputs.base_path }}
-          VITE_WORLD_APP_ID: ${{ vars.WORLD_APP_ID }}
-          VITE_WORLD_ID_APP_ID: ${{ vars.WORLD_ID_APP_ID || vars.WORLD_APP_ID }}
-          VITE_WORLD_ID_ACTION: play
-          VITE_CIVILIZATION_CONTRACT_ADDRESS: "0x29147c7bead901e8019d7911a7dc404447877c62"
-          VITE_WORLD_ID_PROOF_CONTEXT_URL: https://civilization.nyphon.de/api/world-id/proof-context
-          VITE_WORLD_ID_ENVIRONMENT: production
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: dist
+          path: apps/demo/out
 
   deploy:
+    if: github.event_name != 'pull_request'
     needs: build
     runs-on: ubuntu-latest
     environment:
