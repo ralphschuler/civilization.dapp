@@ -25,9 +25,22 @@ const mimeTypes = {
   ".json": "application/json; charset=utf-8", ".png": "image/png", ".svg": "image/svg+xml", ".webp": "image/webp",
 };
 
-function json(response, statusCode, value) {
-  response.writeHead(statusCode, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+function json(response, statusCode, value, headers = {}) {
+  response.writeHead(statusCode, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", ...headers });
   response.end(JSON.stringify(value));
+}
+
+const pagesOrigin = "https://nyphon.de";
+const proofContextCorsHeaders = Object.freeze({
+  "access-control-allow-origin": pagesOrigin,
+  "access-control-allow-methods": "POST, OPTIONS",
+  "access-control-allow-headers": "content-type",
+  "access-control-max-age": "600",
+  vary: "Origin",
+});
+
+function hasPermittedPagesOrigin(request) {
+  return request.headers.origin === pagesOrigin;
 }
 
 async function databaseHealthy() {
@@ -244,9 +257,14 @@ const server = createServer(async (request, response) => {
       return json(response, 200, { targets: await listPvpTargets(id) });
     }
     if (request.method === "GET" && url.pathname === "/api/contracts/status") return json(response, 200, CONTRACT_STATUS);
+    if (url.pathname === "/api/world-id/proof-context" && request.method === "OPTIONS") {
+      if (!hasPermittedPagesOrigin(request)) return json(response, 403, { error: "origin_not_allowed" });
+      response.writeHead(204, proofContextCorsHeaders);
+      return response.end();
+    }
     if (request.method === "POST" && url.pathname === "/api/world-id/proof-context") {
       await readJson(request);
-      return json(response, 200, createWorldIdProofContext());
+      return json(response, 200, createWorldIdProofContext(), hasPermittedPagesOrigin(request) ? proofContextCorsHeaders : {});
     }
     if (request.method === "GET" && url.pathname === "/api/market/quote") {
       const quote = quoteImgWldTrade({ side: url.searchParams.get("side"), amount: url.searchParams.get("amount") });
@@ -262,4 +280,4 @@ const server = createServer(async (request, response) => {
   }
 });
 
-server.listen(port, host, () => console.log(`Civilization DApp listening on ${host}:${port}`));
+server.listen(port, host, () => console.log(`Civilization DApp listening on ${host}:${server.address().port}`));

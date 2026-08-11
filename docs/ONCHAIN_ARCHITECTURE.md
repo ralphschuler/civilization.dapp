@@ -1,6 +1,6 @@
 # On-chain Civilization game-state draft
 
-`contracts/src/CivilizationGame.sol` is an undeployed, source-only World Chain draft. It is deliberately independent of the running beta API and PostgreSQL state: the beta remains available unchanged until an audited migration is approved.
+`contracts/src/CivilizationGame.sol` is deployed on World Chain mainnet at `0x29147c7bead901e8019d7911a7dc404447877c62`. The deployment has not been independently audited and has no settlement capability. It is deliberately independent of the running beta API and PostgreSQL state.
 
 ## Authority boundary
 
@@ -26,9 +26,9 @@ Every player transition settles elapsed production from `block.timestamp`; produ
 
 After World App returns a World ID 4 Proof of Human, the Mini App encodes `registerWorldId(nullifierHash, nonce, signalHash, expiresAtMin, issuerSchemaId, proof)` and asks the user to submit it with MiniKit on World Chain (chain ID 480). Subsequent UI actions encode the corresponding `claim`, `upgrade`, `completeUpgrade`, `prestige`, `train`, `startRaid`, or `resolveRaid` call and are signed/submitted by that player's wallet. The client reads `playerState`, `balanceOf`, and contract events for display; it does not derive authoritative balances locally.
 
-No address, deployment configuration, wallet configuration, Permit2 flow, withdrawal, redemption, fee routing, liquidity, custody, or World Portal change is included in this repository change. The source includes a direct WLD construction-time payment, but it is not live until a separately authorized deployment. CGOLD's ordinary ERC-20 movement also remains source-only.
+The mainnet address and public World ID build configuration are included for the deployed game. No settlement adapter, Permit2 flow, withdrawal, redemption, fee routing, liquidity, custody, or World Portal change is included in this release. A direct WLD construction-time payment exists in the deployed contract, but no WLD/CGOLD settlement is enabled. CGOLD's ordinary ERC-20 movement remains governed by the deployed game rules.
 
-## Required before deployment
+## Required before settlement or wider release
 
 1. Independent Solidity/security audit, including economic modelling, replay/signature handling, timestamp/miner-influence review, gas/DoS analysis, and invariant/property tests on a real EVM test framework.
 2. Product approval of World ID privacy handling, RP signing-key custody/rotation, configured issuer schema/freshness policy, incident response, rate limits, and player safety/matchmaking policy.
