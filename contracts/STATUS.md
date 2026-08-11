@@ -9,7 +9,6 @@
 | `src/CivilizationGame.sol` | Deployed on World Chain mainnet; not independently audited | `CivilizationGame` at `0x29147c7bead901e8019d7911a7dc404447877c62`: direct World ID 4 on-chain registration through World Chain's official verifier plus player-signed on-chain game state, construction timers, prestige, CGOLD mint/burn through game rules, and a direct 1 WLD/hour construction boost to immutable treasury; no backend game-mutation entrypoint or WLD custody. |
 | `src/GameResourceToken.sol` | Draft, not deployed, superseded | Older standalone token draft; not used by CivilizationGame. |
 | `src/GoldSettlementRegistry.sol` | Draft, not deployed, allowlist only | Cannot custody assets or execute a swap. |
-| `src/IdleCoin.sol` | Legacy draft, not deployed | Not part of the current resource path. |
 
 The `worldchain.tokens.example.json` addresses are reference data only, not an allowlist or deployment configuration. Re-verify them against the official World Chain registry before any future review.
 
@@ -23,4 +22,4 @@ The `worldchain.tokens.example.json` addresses are reference data only, not an a
 
 ## Local Solidity verification
 
-`npm test` compiles every `contracts/src/*.sol` source deterministically with the pinned official `solc` npm package (`0.8.30`) and executes CivilizationGame registration, production, claim, CGOLD transfer, WLD-to-treasury boost, construction-timer, prestige, and replay checks on a local EVM. This is not a deployment or substitute for an independent audit.
+`pnpm test` compiles every `contracts/src/*.sol` source deterministically with the pinned official `solc` package (`0.8.30`) and executes CivilizationGame registration, production, claim, CGOLD transfer, WLD-to-treasury boost, construction-timer, prestige, and replay checks on a local EVM. This is not a deployment or substitute for an independent audit.

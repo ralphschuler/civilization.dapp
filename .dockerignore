@@ -1,6 +1,11 @@
 .git
 node_modules
+.next
+apps/demo/.next
+apps/demo/out
 dist
+.DS_Store
+._.DS_Store
 .env
 .env.*
 !/.env.example

@@ -1,38 +1,47 @@
 services:
-  idlemint:
-    build: .
+  civilization-dapp:
+    build:
+      context: .
     environment:
       NODE_ENV: production
-      HOST: 0.0.0.0
-      PORT: 31057
+      AUTH_URL: ${AUTH_URL:-https://civilization.nyphon.de}
+      AUTH_TRUST_HOST: "true"
+      AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET}
+      HMAC_SECRET_KEY: ${HMAC_SECRET_KEY:?set HMAC_SECRET_KEY}
+      RP_ID: ${RP_ID:-rp_a84548cb908798cf}
+      RP_SIGNING_KEY: ${RP_SIGNING_KEY:?set RP_SIGNING_KEY}
+      WORLD_APP_ID: ${WORLD_APP_ID:?set WORLD_APP_ID}
+      WORLD_ID_APP_ID: ${WORLD_ID_APP_ID:?set WORLD_ID_APP_ID}
+      WORLD_ID_ACTION: ${WORLD_ID_ACTION:-play}
+      WORLD_ID_PROOF_CONTEXT_URL: ${WORLD_ID_PROOF_CONTEXT_URL:-https://civilization.nyphon.de/api/rp-signature}
+      WORLD_ID_ENVIRONMENT: production
+      CIVILIZATION_CONTRACT_ADDRESS: ${CIVILIZATION_CONTRACT_ADDRESS:-0x29147c7bead901e8019d7911a7dc404447877c62}
       PGHOST: postgres
       PGPORT: 5432
-      PGDATABASE: idlemint
-      PGUSER: idlemint
+      PGDATABASE: civilization
+      PGUSER: civilization
       PGPASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
-      WORLD_ID_RP_ID: ${WORLD_ID_RP_ID:?set WORLD_ID_RP_ID}
-      WORLD_ID_ACTION: ${WORLD_ID_ACTION:-play}
-      WORLD_ID_RP_SIGNING_KEY: ${WORLD_ID_RP_SIGNING_KEY:?set WORLD_ID_RP_SIGNING_KEY}
-      WORLD_ID_RP_CONTEXT_TTL_SECONDS: ${WORLD_ID_RP_CONTEXT_TTL_SECONDS:-300}
     ports:
       - "127.0.0.1:31057:31057"
     depends_on:
       postgres:
         condition: service_healthy
     restart: unless-stopped
+
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: idlemint
-      POSTGRES_USER: idlemint
+      POSTGRES_DB: civilization
+      POSTGRES_USER: civilization
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
     volumes:
-      - idlemint_postgres:/var/lib/postgresql/data
+      - civilization_postgres:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U idlemint -d idlemint"]
+      test: ["CMD-SHELL", "pg_isready -U civilization -d civilization"]
       interval: 5s
       timeout: 3s
       retries: 20
     restart: unless-stopped
+
 volumes:
-  idlemint_postgres:
+  civilization_postgres:

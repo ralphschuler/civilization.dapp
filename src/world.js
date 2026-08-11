@@ -39,24 +39,22 @@ const playerStateReadAbi = [{
   inputs: [{ name: "account", type: "address" }], outputs: [],
 }];
 
-function isSepoliaMode(env) {
-  return env?.VITE_CIVILIZATION_NETWORK === "worldchain-sepolia";
-}
+function isSepoliaMode(configuration) { return configuration?.network === "worldchain-sepolia"; }
 
-export function getWorldIdConfig(env = import.meta.env) {
-  const testnet = isSepoliaMode(env);
+export function getWorldIdConfig(configuration = {}) {
+  const testnet = isSepoliaMode(configuration);
   const config = {
     // World ID can be configured as a distinct app while MiniKit always uses
     // the Mini App ID below.
-    appId: env?.VITE_WORLD_ID_APP_ID || env?.VITE_WORLD_APP_ID || "",
-    action: env?.VITE_WORLD_ID_ACTION || "",
-    contractAddress: env?.VITE_CIVILIZATION_CONTRACT_ADDRESS || "",
-    proofContextEndpoint: env?.VITE_WORLD_ID_PROOF_CONTEXT_URL || "",
-    environment: env?.VITE_WORLD_ID_ENVIRONMENT || "production",
+    appId: configuration?.worldIdAppId || configuration?.worldAppId || "",
+    action: configuration?.worldIdAction || "play",
+    contractAddress: configuration?.civilizationContractAddress || "0x29147c7bead901e8019d7911a7dc404447877c62",
+    proofContextEndpoint: configuration?.worldIdProofContextUrl || "https://civilization.nyphon.de/api/rp-signature",
+    environment: configuration?.worldIdEnvironment || "production",
     testnet,
     chainId: testnet ? WORLD_CHAIN_SEPOLIA_ID : WORLD_CHAIN_ID,
-    testnetWorldToken: env?.VITE_CIVILIZATION_TESTNET_WORLD_TOKEN || "",
-    testnetWorldIdVerifier: env?.VITE_CIVILIZATION_TESTNET_WORLD_ID_VERIFIER || "",
+    testnetWorldToken: configuration?.testnetWorldToken || "",
+    testnetWorldIdVerifier: configuration?.testnetWorldIdVerifier || "",
   };
   return {
     ...config,
@@ -74,75 +72,9 @@ export function getWorldIdConfig(env = import.meta.env) {
   };
 }
 
-/** The injected bridge, not MiniKit install state, identifies World App. */
+/** World App context is independent from provider feature-support status. */
 export function isWorldAppBridgePresent(worldApp = globalThis.window?.WorldApp) {
-  return Boolean(worldApp);
-}
-
-// World App injects this bridge before the Mini App JavaScript executes.
-// Browser demos deliberately stay walletless and never ask for a connection.
-export function installWorldAppBridge() {
-  if (!isWorldAppBridgePresent()) return { installed: false };
-  MiniKit.install(import.meta.env.VITE_WORLD_APP_ID);
-  // `app_out_of_date` is a real World App result. It must remain gated even
-  // though it cannot currently authenticate or transact.
-  return { installed: Boolean(MiniKit.isInstalled()), walletAddress: MiniKit.user.walletAddress || null };
-}
-
-/**
- * Reads the wallet when an action is actually started, rather than retaining
- * MiniKit's install-time snapshot. `window.WorldApp.wallet_address` is the
- * documented raw World App payload fallback while MiniKit is still populating
- * its normalized user state.
- */
-export function resolveWorldWalletAddress({ miniKit = MiniKit, worldApp = globalThis.window?.WorldApp } = {}) {
-  const address = miniKit?.user?.walletAddress || worldApp?.wallet_address;
-  return isAddress(address) ? getAddress(address) : null;
-}
-
-const WALLET_AUTH_STATEMENT = "Bestätige deine World-Wallet für den Civilization-Spielzugang.";
-
-export function walletAuthEndpoints(proofContextEndpoint) {
-  try {
-    const origin = new URL(proofContextEndpoint).origin;
-    return { nonce: new URL("/api/wallet-auth/nonce", origin).toString(), verify: new URL("/api/wallet-auth/verify", origin).toString() };
-  } catch { return null; }
-}
-
-/**
- * Uses a backend-issued, single-use nonce and accepts only the address that
- * the backend returns after SIWE signature, nonce and statement validation.
- */
-export async function authenticateWorldWallet({
-  miniKit = MiniKit, proofContextEndpoint = getWorldIdConfig().proofContextEndpoint, fetchImpl = globalThis.fetch,
-} = {}) {
-  const endpoints = walletAuthEndpoints(proofContextEndpoint);
-  if (!miniKit?.isInstalled?.() || typeof miniKit.walletAuth !== "function" || !endpoints || typeof fetchImpl !== "function") {
-    return { ok: false, reason: "wallet_auth_unavailable" };
-  }
-  try {
-    const nonceResponse = await fetchImpl(endpoints.nonce).then(jsonResponse);
-    if (typeof nonceResponse?.nonce !== "string" || !/^[A-Za-z0-9]{8,}$/.test(nonceResponse.nonce)
-      || !Number.isFinite(nonceResponse.expires_at) || nonceResponse.expires_at <= Date.now()) {
-      return { ok: false, reason: "invalid_wallet_auth_nonce" };
-    }
-    const result = await miniKit.walletAuth({
-      nonce: nonceResponse.nonce,
-      statement: WALLET_AUTH_STATEMENT,
-      expirationTime: new Date(nonceResponse.expires_at),
-    });
-    if (result?.executedWith !== "minikit" || !result?.data) {
-      return { ok: false, reason: "wallet_auth_rejected" };
-    }
-    const verified = await fetchImpl(endpoints.verify, {
-      method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ payload: result.data, nonce: nonceResponse.nonce }),
-    }).then(jsonResponse);
-    if (verified?.isValid !== true || !isAddress(verified.address)) return { ok: false, reason: "wallet_auth_verification_failed" };
-    return { ok: true, walletAddress: getAddress(verified.address) };
-  } catch (error) {
-    return { ok: false, reason: error instanceof Error ? error.message : "wallet_auth_rejected" };
-  }
+  return Boolean(worldApp) || MiniKit.isInWorldApp();
 }
 
 /**
@@ -227,6 +159,7 @@ export function buildWorldIdRegistration({ config = getWorldIdConfig(), walletAd
   if (proof.length !== 5) throw new Error("invalid_world_id_proof");
   return {
     chainId: WORLD_CHAIN_ID,
+    from: getAddress(walletAddress),
     to: getAddress(config.contractAddress),
     value: "0x0",
     data: encodeFunctionData({
@@ -273,10 +206,19 @@ export async function prepareWorldIdProofContext({
   if (!config.configured || typeof fetchImpl !== "function") return { ok: false, reason: "configuration_required" };
   if (!isAddress(walletAddress)) return { ok: false, reason: "world_wallet_unavailable" };
   try {
-    const rpContext = await fetchImpl(config.proofContextEndpoint, {
+    const rawContext = await fetchImpl(config.proofContextEndpoint, {
       method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify({ action: config.action, signal: getAddress(walletAddress) }),
     }).then(jsonResponse);
+    // Official signRequest responses expose `sig`; IDKit's RpContext expects
+    // the same value under `signature`.
+    const rpContext = {
+      rp_id: rawContext?.rp_id,
+      nonce: rawContext?.nonce,
+      created_at: rawContext?.created_at,
+      expires_at: rawContext?.expires_at,
+      signature: rawContext?.signature || rawContext?.sig,
+    };
     if (!validRpContext(rpContext)) return { ok: false, reason: "invalid_proof_context" };
     return { ok: true, rpContext, signal: getAddress(walletAddress) };
   } catch (error) {
@@ -286,16 +228,20 @@ export async function prepareWorldIdProofContext({
 
 /** Submits the already-encoded registration transaction through World App. */
 export async function submitWorldIdRegistration(registration, miniKit = MiniKit) {
-  if (!registration || registration.chainId !== WORLD_CHAIN_ID || !miniKit.isInstalled()) {
+  if (!registration || registration.chainId !== WORLD_CHAIN_ID || !isAddress(registration.from) || !miniKit.isInstalled()) {
     return { ok: false, reason: "wallet_unavailable" };
   }
   const response = await miniKit.sendTransaction({
     chainId: WORLD_CHAIN_ID,
     transactions: [{ to: registration.to, data: registration.data, value: registration.value }],
   });
-  return response?.data?.status === "success"
-    ? { ok: true, transaction: response.data, userOpHash: response.data.userOpHash }
-    : { ok: false, reason: "transaction_rejected" };
+  if (response?.executedWith !== "minikit" || response?.data?.status !== "success") {
+    return { ok: false, reason: response?.data?.error_code || "transaction_rejected" };
+  }
+  if (!isAddress(response.data.from) || getAddress(response.data.from) !== getAddress(registration.from)) {
+    return { ok: false, reason: "transaction_wallet_mismatch" };
+  }
+  return { ok: true, transaction: response.data, userOpHash: response.data.userOpHash };
 }
 
 function playerStateIsRegistered(playerState) {

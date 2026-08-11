@@ -1,7 +1,9 @@
-name: Publish Civilization DApp container
+name: Verify and publish Civilization DApp container
 
 on:
   push:
+    branches: [master]
+  pull_request:
     branches: [master]
 
 permissions:
@@ -9,17 +11,31 @@ permissions:
   packages: write
 
 jobs:
-  verify-and-publish:
+  verify:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.21.0
+          run_install: false
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm test
-      - run: npm run check
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+      - run: pnpm check
+      - run: pnpm build
+      - run: pnpm build:demo
+      - run: docker build .
+
+  publish:
+    if: github.event_name == 'push'
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -29,13 +45,6 @@ jobs:
         with:
           context: .
           push: true
-          build-args: |
-            VITE_WORLD_APP_ID=${{ vars.WORLD_APP_ID }}
-            VITE_WORLD_ID_APP_ID=${{ vars.WORLD_ID_APP_ID || vars.WORLD_APP_ID }}
-            VITE_WORLD_ID_ACTION=play
-            VITE_CIVILIZATION_CONTRACT_ADDRESS=0x29147c7bead901e8019d7911a7dc404447877c62
-            VITE_WORLD_ID_PROOF_CONTEXT_URL=https://civilization.nyphon.de/api/world-id/proof-context
-            VITE_WORLD_ID_ENVIRONMENT=production
           tags: |
             ghcr.io/ralphschuler/civilization.dapp:latest
             ghcr.io/ralphschuler/civilization.dapp:${{ github.sha }}

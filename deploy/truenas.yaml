@@ -1,42 +1,48 @@
-# TrueNAS Apps → Discover → ⋮ → Install via YAML.
-# Replace secret placeholders only in TrueNAS secret editor. `WORLD_ID_RP_SIGNING_KEY`
-# must never enter Git, browser builds, logs, or GitHub Actions. The service has
-# no custody, purchase, sale, or mint endpoint; IMG/WLD is quote-only.
+# TrueNAS Apps custom YAML for the `civilization.dapp` application.
+# Replace every REPLACE_* value only in protected TrueNAS configuration.
 services:
-  idlemint:
+  civilization-dapp:
     image: ghcr.io/ralphschuler/civilization.dapp:latest
     environment:
       NODE_ENV: production
-      HOST: 0.0.0.0
-      PORT: "31057"
+      AUTH_URL: https://civilization.nyphon.de
+      AUTH_TRUST_HOST: "true"
+      AUTH_SECRET: REPLACE_RANDOM_AUTH_SECRET
+      HMAC_SECRET_KEY: REPLACE_RANDOM_WALLET_NONCE_HMAC_SECRET
+      RP_ID: rp_a84548cb908798cf
+      RP_SIGNING_KEY: REPLACE_WORLD_DEVELOPER_PORTAL_RP_SIGNING_KEY
+      WORLD_APP_ID: app_replace_with_mini_app_id
+      WORLD_ID_APP_ID: app_replace_with_world_id_app_id
+      WORLD_ID_ACTION: play
+      WORLD_ID_PROOF_CONTEXT_URL: https://civilization.nyphon.de/api/rp-signature
+      WORLD_ID_ENVIRONMENT: production
+      CIVILIZATION_CONTRACT_ADDRESS: 0x29147c7bead901e8019d7911a7dc404447877c62
       PGHOST: postgres
       PGPORT: "5432"
-      PGDATABASE: idlemint
-      PGUSER: idlemint
+      PGDATABASE: civilization
+      PGUSER: civilization
       PGPASSWORD: REPLACE_POSTGRES_PASSWORD
-      WORLD_ID_RP_ID: rp_replace_after_portal_setup
-      WORLD_ID_ACTION: play
-      WORLD_ID_RP_SIGNING_KEY: REPLACE_WORLD_ID_RP_SIGNING_KEY
-      WORLD_ID_RP_CONTEXT_TTL_SECONDS: "300"
     ports:
       - "31057:31057"
     depends_on:
       postgres:
         condition: service_healthy
     restart: unless-stopped
+
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: idlemint
-      POSTGRES_USER: idlemint
+      POSTGRES_DB: civilization
+      POSTGRES_USER: civilization
       POSTGRES_PASSWORD: REPLACE_POSTGRES_PASSWORD
     volumes:
-      - idlemint_postgres:/var/lib/postgresql/data
+      - civilization_postgres:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U idlemint -d idlemint"]
+      test: ["CMD-SHELL", "pg_isready -U civilization -d civilization"]
       interval: 5s
       timeout: 3s
       retries: 20
     restart: unless-stopped
+
 volumes:
-  idlemint_postgres:
+  civilization_postgres:

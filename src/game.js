@@ -5,13 +5,13 @@ export const RESOURCE_DEFS = {
   gold: { label: "Gold", short: "GOLD", icon: "G", color: "gold" },
 };
 
-// Contract names and symbols are stable identifiers for the planned World Chain deployment.
-// Browser mode remains a walletless ledger and never mints or transfers an on-chain token.
+// Wood, clay, and stone remain internal game resources. Only gold is the
+// CivilizationGame ERC-20. Browser demo remains walletless and never mints it.
 export const TOKEN_REGISTRY = {
-  wood: { name: "Mint Wood", symbol: "IMW", scope: "in-game", externalSettlement: false },
-  clay: { name: "Mint Clay", symbol: "IMC", scope: "in-game", externalSettlement: false },
-  stone: { name: "Mint Stone", symbol: "IMS", scope: "in-game", externalSettlement: false },
-  gold: { name: "Mint Gold", symbol: "IMG", scope: "settlement", externalSettlement: true, pairs: ["WLD", "WBTC"] },
+  wood: { name: "Holz", symbol: "HOLZ", scope: "in-game", externalSettlement: false },
+  clay: { name: "Lehm", symbol: "LEHM", scope: "in-game", externalSettlement: false },
+  stone: { name: "Stein", symbol: "STEIN", scope: "in-game", externalSettlement: false },
+  gold: { name: "Civilization Gold", symbol: "CGOLD", scope: "on-chain", externalSettlement: true, pairs: [] },
 };
 
 const INTERNAL_VALUES = { wood: 1, clay: 1.1, stone: 1.25 };
@@ -67,8 +67,8 @@ export const DEMO_TARGETS = [
 
 export function createInitialState(now = Date.now()) {
   return {
-    // Leaves one IMG available for the first spear after the required workshop
-    // and barracks are paid for. IMG still has no external transfer path.
+    // Leaves demo gold available for the first spear after workshop and
+    // barracks are paid for. Demo state never represents an ERC-20 balance.
     resources: cost(240, 220, 210, 45),
     // Produced resources stay exposed in the field until the player collects them.
     // Only `resources` is spendable; `unclaimed` is the raidable field stock.
