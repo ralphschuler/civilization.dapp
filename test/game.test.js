@@ -1,10 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { COLLECTION_COOLDOWN_MS, MARCH_DURATION_MS, createInitialState, gather, getRequirements, resolveRaidMarch, sendRaid, settle, startGathering, startRaidMarch, swapInternal, trainTroop, upgradeBuilding } from "../src/game.js";
-import { authenticateWorldWallet, buildTestnetRegistration, buildWorldIdRegistration, confirmWorldIdRegistration, getWorldIdConfig, installWorldAppBridge, requestWorldIdGameAccess, reserveWorldIdConnectorWindow, resolveWorldWalletAddress, submitWorldIdRegistration, walletAuthEndpoints, WORLD_CHAIN_ID, WORLD_CHAIN_SEPOLIA_ID } from "../src/world.js";
+import { authenticateWorldWallet, buildTestnetRegistration, buildWorldIdRegistration, confirmWorldIdRegistration, getWorldIdConfig, installWorldAppBridge, isWorldAppBridgePresent, prepareWorldIdProofContext, resolveWorldWalletAddress, submitWorldIdRegistration, walletAuthEndpoints, WORLD_CHAIN_ID, WORLD_CHAIN_SEPOLIA_ID, WORLD_ID_REGISTRATION_READ_ATTEMPTS } from "../src/world.js";
 
 test("World bridge remains inactive in the regular browser demo", () => {
   assert.deepEqual(installWorldAppBridge(), { installed: false });
+});
+
+test("a WorldApp bridge remains a gated World runtime when MiniKit provider installation is false", () => {
+  assert.equal(isWorldAppBridgePresent({}), true);
+  assert.equal(isWorldAppBridgePresent(undefined), false);
 });
 
 test("MiniKit transaction preserves its user-operation hash for React receipt polling", async () => {
@@ -33,11 +38,12 @@ test("World wallet resolution reads current MiniKit state and the documented raw
 test("World ID stays unavailable until its on-chain contract and trusted RP endpoint are configured", () => {
   assert.equal(getWorldIdConfig({ VITE_WORLD_APP_ID: "app_example" }).configured, false);
   assert.equal(getWorldIdConfig(worldConfigEnv).configured, true);
+  assert.equal(getWorldIdConfig({ ...worldConfigEnv, VITE_WORLD_ID_APP_ID: "app_world_id", VITE_WORLD_APP_ID: "app_mini" }).appId, "app_world_id");
   assert.equal(getWorldIdConfig({ ...worldConfigEnv, VITE_CIVILIZATION_CONTRACT_ADDRESS: "0x0000000000000000000000000000000000000000" }).configured, false);
 });
 
-test("World ID reports a retryable wallet error before requesting proof context", async () => {
-  const result = await requestWorldIdGameAccess({ config: getWorldIdConfig(worldConfigEnv), walletAddress: null, fetchImpl: async () => {
+test("World ID reports a wallet error before preparing proof context", async () => {
+  const result = await prepareWorldIdProofContext({ config: getWorldIdConfig(worldConfigEnv), walletAddress: null, fetchImpl: async () => {
     throw new Error("must_not_fetch");
   } });
   assert.deepEqual(result, { ok: false, reason: "world_wallet_unavailable" });
@@ -90,7 +96,7 @@ test("Wallet Auth rejection yields no wallet for a proof request", async () => {
     },
   });
   assert.deepEqual(auth, { ok: false, reason: "user_rejected" });
-  if (auth.ok) await requestWorldIdGameAccess({ config: getWorldIdConfig(worldConfigEnv), walletAddress: auth.walletAddress, fetchImpl: async () => { proofContexts += 1; } });
+  if (auth.ok) await prepareWorldIdProofContext({ config: getWorldIdConfig(worldConfigEnv), walletAddress: auth.walletAddress, fetchImpl: async () => { proofContexts += 1; } });
   assert.equal(proofContexts, 0, "a rejected Wallet Auth must not start a World ID proof request");
   assert.equal(verificationRequests, 0, "a rejected Wallet Auth must not reach SIWE verification");
 });
@@ -104,19 +110,6 @@ test("Wallet Auth refuses a rejected backend verification before World ID proof"
       : { ok: true, json: async () => ({ nonce: "a1b2c3d4e5f6a7b8", expires_at: Date.now() + 60_000 }) },
   });
   assert.deepEqual(auth, { ok: false, reason: "server_rejected_request" });
-});
-
-test("reserved IDKit connector is reused after Wallet Auth and closes on rejection", () => {
-  const connectorWindow = { location: {}, closeCalls: 0, close() { this.closeCalls += 1; } };
-  const openConnector = reserveWorldIdConnectorWindow((url, target) => {
-    assert.equal(url, "");
-    assert.equal(target, "_blank");
-    return connectorWindow;
-  });
-  assert.deepEqual(openConnector("https://id.world.org/connect"), { ok: true, opened: true });
-  assert.equal(connectorWindow.location.href, "https://id.world.org/connect");
-  openConnector.close();
-  assert.equal(connectorWindow.closeCalls, 1);
 });
 
 test("Sepolia test mode targets the deployed mock contract but never enables real World ID", () => {
@@ -135,52 +128,20 @@ test("Sepolia test mode targets the deployed mock contract but never enables rea
   assert.match(registration.data, /^0x/);
 });
 
-test("World ID 4 proof becomes World Chain registration calldata without backend approval", async () => {
+test("World ID proof context is prepared by the RP before the React IDKit widget opens", async () => {
   const config = getWorldIdConfig(worldConfigEnv);
   const calls = [];
   const fetchImpl = async (url, options) => {
     calls.push({ url, body: JSON.parse(options.body) });
     return { ok: true, json: async () => ({ rp_id: "rp_example", nonce: "0x1234", created_at: 1, expires_at: 2, signature: "0xsignature" }) };
   };
-  let requestOptions;
-  const openedConnectors = [];
-  const idkit = { request: (request) => ({ preset: async (preset) => {
-    requestOptions = { request, preset };
-    return { connectorURI: "https://id.world.org/connect", pollUntilCompletion: async () => ({ success: true, result: {
-      protocol_version: "4.0", nonce: "0x1234", action: request.action,
-      responses: [{ identifier: "proof_of_human", signal_hash: "0x123", nullifier: "0x456", expires_at_min: 3, issuer_schema_id: 1, proof: ["0x1", "0x2", "0x3", "0x4", "0x5"] }],
-    } }) };
-  } }) };
-  const humanPreset = (input) => ({ type: "ProofOfHuman", ...input });
-  const result = await requestWorldIdGameAccess({ config, walletAddress, fetchImpl, idkit, humanPreset, openConnector: (uri) => {
-    openedConnectors.push(uri);
-    return { ok: true };
-  } });
+  const result = await prepareWorldIdProofContext({ config, walletAddress, fetchImpl });
   assert.equal(result.ok, true);
-  assert.equal(result.registration.chainId, 480);
-  assert.equal(result.registration.to, worldConfigEnv.VITE_CIVILIZATION_CONTRACT_ADDRESS);
-  assert.match(result.registration.data, /^0x/);
   assert.equal(calls.length, 1, "the backend signs RP context only; it never verifies or approves registration");
   assert.equal(calls[0].body.action, "play");
   assert.equal(calls[0].body.signal, walletAddress);
-  assert.equal(requestOptions.request.allow_legacy_proofs, false);
-  assert.deepEqual(requestOptions.preset, { type: "ProofOfHuman", signal: walletAddress });
-  assert.deepEqual(openedConnectors, ["https://id.world.org/connect"]);
-});
-
-test("World ID surfaces connector-opening failures instead of polling blindly", async () => {
-  const config = getWorldIdConfig(worldConfigEnv);
-  let polled = false;
-  const result = await requestWorldIdGameAccess({
-    config,
-    walletAddress,
-    fetchImpl: async () => ({ ok: true, json: async () => ({ rp_id: "rp_example", nonce: "0x1234", created_at: 1, expires_at: 2, signature: "0xsignature" }) }),
-    humanPreset: (input) => input,
-    idkit: { request: () => ({ preset: async () => ({ connectorURI: "https://id.world.org/connect", pollUntilCompletion: async () => { polled = true; return { success: true }; } }) }) },
-    openConnector: () => ({ ok: false, reason: "connector_open_blocked" }),
-  });
-  assert.deepEqual(result, { ok: false, reason: "connector_open_blocked" });
-  assert.equal(polled, false);
+  assert.equal(result.signal, walletAddress);
+  assert.deepEqual(result.rpContext, { rp_id: "rp_example", nonce: "0x1234", created_at: 1, expires_at: 2, signature: "0xsignature" });
 });
 
 test("World ID client does not create registration calldata from a non-v4 or incomplete proof", () => {
@@ -212,11 +173,15 @@ test("World ID gate waits for World Chain playerState registration after MiniKit
 });
 
 test("World ID gate remains retryable when World Chain never confirms registration", async () => {
+  let reads = 0;
   const confirmation = await confirmWorldIdRegistration({
-    config: getWorldIdConfig(worldConfigEnv), walletAddress, attempts: 2, retryDelayMs: 0,
-    readPlayerState: async () => ({ registered: false }), sleep: async () => {},
+    config: getWorldIdConfig(worldConfigEnv), walletAddress,
+    attempts: WORLD_ID_REGISTRATION_READ_ATTEMPTS, retryDelayMs: 0,
+    readPlayerState: async () => { reads += 1; return { registered: false }; }, sleep: async () => {},
   });
-  assert.deepEqual(confirmation, { ok: false, reason: "registration_not_confirmed", attempts: 2 });
+  assert.equal(WORLD_ID_REGISTRATION_READ_ATTEMPTS, 21);
+  assert.equal(reads, 21);
+  assert.deepEqual(confirmation, { ok: false, reason: "registration_not_confirmed", attempts: 21 });
 });
 
 test("resource buildings fill raidable field stock before collection", () => {

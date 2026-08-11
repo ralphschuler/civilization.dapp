@@ -25,6 +25,7 @@
     "vite": "^7.3.6"
   },
   "dependencies": {
+    "@worldcoin/idkit": "^4.2.2",
     "@worldcoin/idkit-core": "^4.2.3",
     "@worldcoin/minikit-js": "^2.0.3",
     "@worldcoin/minikit-react": "2.0.3",

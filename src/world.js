@@ -1,13 +1,13 @@
-import { IDKit, proofOfHuman } from "@worldcoin/idkit-core";
 import { MiniKit } from "@worldcoin/minikit-js";
 import { createPublicClient, decodeAbiParameters, encodeFunctionData, getAddress, http, isAddress, keccak256, stringToHex } from "viem";
+import { worldchain } from "viem/chains";
 
 // World App transacts only on World Chain mainnet. Sepolia is available for
 // direct EVM-wallet contract tests, never through MiniKit / World App.
 export const WORLD_CHAIN_ID = 480;
 export const WORLD_CHAIN_SEPOLIA_ID = 4801;
 export const WORLD_CHAIN_MAINNET_RPC_URL = "https://worldchain-mainnet.g.alchemy.com/public";
-export const WORLD_ID_REGISTRATION_READ_ATTEMPTS = 6;
+export const WORLD_ID_REGISTRATION_READ_ATTEMPTS = 21;
 export const WORLD_ID_VERIFIER_ADDRESS = "0x00000000009E00F9FE82CfeeBB4556686da094d7";
 export const CIVILIZATION_SEPOLIA_DEPLOYMENT = Object.freeze({
   game: "0xfCdB50926c3c6b2CDF3ACE76B13c9383A2DC3199",
@@ -46,7 +46,9 @@ function isSepoliaMode(env) {
 export function getWorldIdConfig(env = import.meta.env) {
   const testnet = isSepoliaMode(env);
   const config = {
-    appId: env?.VITE_WORLD_APP_ID || "",
+    // World ID can be configured as a distinct app while MiniKit always uses
+    // the Mini App ID below.
+    appId: env?.VITE_WORLD_ID_APP_ID || env?.VITE_WORLD_APP_ID || "",
     action: env?.VITE_WORLD_ID_ACTION || "",
     contractAddress: env?.VITE_CIVILIZATION_CONTRACT_ADDRESS || "",
     proofContextEndpoint: env?.VITE_WORLD_ID_PROOF_CONTEXT_URL || "",
@@ -72,13 +74,19 @@ export function getWorldIdConfig(env = import.meta.env) {
   };
 }
 
+/** The injected bridge, not MiniKit install state, identifies World App. */
+export function isWorldAppBridgePresent(worldApp = globalThis.window?.WorldApp) {
+  return Boolean(worldApp);
+}
+
 // World App injects this bridge before the Mini App JavaScript executes.
 // Browser demos deliberately stay walletless and never ask for a connection.
 export function installWorldAppBridge() {
-  if (typeof window === "undefined" || !window.WorldApp) return { installed: false };
-  const result = MiniKit.install(import.meta.env.VITE_WORLD_APP_ID);
-  if (!result.success || !MiniKit.isInstalled()) return { installed: false };
-  return { installed: true, walletAddress: MiniKit.user.walletAddress || null };
+  if (!isWorldAppBridgePresent()) return { installed: false };
+  MiniKit.install(import.meta.env.VITE_WORLD_APP_ID);
+  // `app_out_of_date` is a real World App result. It must remain gated even
+  // though it cannot currently authenticate or transact.
+  return { installed: Boolean(MiniKit.isInstalled()), walletAddress: MiniKit.user.walletAddress || null };
 }
 
 /**
@@ -135,42 +143,6 @@ export async function authenticateWorldWallet({
   } catch (error) {
     return { ok: false, reason: error instanceof Error ? error.message : "wallet_auth_rejected" };
   }
-}
-
-/** Opens the connector URL returned by IDKit and reports popup failures. */
-export function openWorldIdConnectorURI(connectorURI, openWindow = globalThis.window?.open) {
-  if (!connectorURI) return { ok: true, opened: false };
-  if (typeof openWindow !== "function") return { ok: false, reason: "connector_open_unavailable" };
-  try {
-    return openWindow(connectorURI, "_blank")
-      ? { ok: true, opened: true }
-      : { ok: false, reason: "connector_open_blocked" };
-  } catch (error) {
-    return { ok: false, reason: error instanceof Error ? error.message : "connector_open_failed" };
-  }
-}
-
-/**
- * Reserves the IDKit connector synchronously in the original Verify click.
- * The returned opener can be handed to the normal async proof flow later.
- */
-export function reserveWorldIdConnectorWindow(openWindow = globalThis.open) {
-  const connectorWindow = typeof openWindow === "function" ? openWindow("", "_blank") : null;
-  const openConnector = (connectorURI) => {
-    if (!connectorURI) {
-      connectorWindow?.close?.(); // World App native transport has no URL.
-      return { ok: true, opened: false };
-    }
-    if (!connectorWindow) return { ok: false, reason: "connector_open_blocked" };
-    try {
-      connectorWindow.location.href = connectorURI;
-      return { ok: true, opened: true };
-    } catch (error) {
-      return { ok: false, reason: error instanceof Error ? error.message : "connector_open_failed" };
-    }
-  };
-  openConnector.close = () => connectorWindow?.close?.();
-  return openConnector;
 }
 
 /**
@@ -290,10 +262,13 @@ function nonceToUint256(value) {
   throw new Error("invalid_world_id_nonce");
 }
 
-/** Requests a World ID 4 Proof of Human whose signal is the player's World wallet. */
-export async function requestWorldIdGameAccess({
-  config = getWorldIdConfig(), walletAddress, fetchImpl = globalThis.fetch, idkit = IDKit, humanPreset = proofOfHuman,
-  openConnector = openWorldIdConnectorURI,
+/**
+ * Fetches the signed RP context used by the official React IDKit widget.
+ * The backend signs context only; the widget obtains the proof natively in
+ * World App and the contract remains the registration authority.
+ */
+export async function prepareWorldIdProofContext({
+  config = getWorldIdConfig(), walletAddress, fetchImpl = globalThis.fetch,
 } = {}) {
   if (!config.configured || typeof fetchImpl !== "function") return { ok: false, reason: "configuration_required" };
   if (!isAddress(walletAddress)) return { ok: false, reason: "world_wallet_unavailable" };
@@ -303,15 +278,7 @@ export async function requestWorldIdGameAccess({
       body: JSON.stringify({ action: config.action, signal: getAddress(walletAddress) }),
     }).then(jsonResponse);
     if (!validRpContext(rpContext)) return { ok: false, reason: "invalid_proof_context" };
-    const request = await idkit.request({
-      app_id: config.appId, action: config.action, rp_context: rpContext,
-      allow_legacy_proofs: false, environment: config.environment,
-    }).preset(humanPreset({ signal: getAddress(walletAddress) }));
-    const opened = await openConnector(request.connectorURI);
-    if (!opened?.ok) return { ok: false, reason: opened?.reason || "connector_open_failed" };
-    const completion = await request.pollUntilCompletion();
-    if (!completion.success) return { ok: false, reason: completion.error || "proof_failed" };
-    return { ok: true, registration: buildWorldIdRegistration({ config, walletAddress, result: completion.result }) };
+    return { ok: true, rpContext, signal: getAddress(walletAddress) };
   } catch (error) {
     return { ok: false, reason: error instanceof Error ? error.message : "proof_failed" };
   }
@@ -343,7 +310,7 @@ function wait(milliseconds) {
 
 /** Reads the first playerState return value directly from World Chain mainnet. */
 export async function readWorldChainPlayerState({ contractAddress, walletAddress } = {}) {
-  const client = createPublicClient({ transport: http(WORLD_CHAIN_MAINNET_RPC_URL) });
+  const client = createPublicClient({ chain: worldchain, transport: http(WORLD_CHAIN_MAINNET_RPC_URL) });
   const result = await client.call({
     to: getAddress(contractAddress),
     data: encodeFunctionData({ abi: playerStateReadAbi, functionName: "playerState", args: [getAddress(walletAddress)] }),

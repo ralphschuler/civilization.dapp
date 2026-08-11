@@ -13,6 +13,7 @@ test("production GitHub Pages and GHCR builds receive the public World ID config
   ]);
   for (const source of [pages, containerWorkflow, dockerfile]) {
     assert.match(source, /VITE_WORLD_APP_ID/);
+    assert.match(source, /VITE_WORLD_ID_APP_ID/);
     assert.match(source, /VITE_WORLD_ID_ACTION[=:] ?play/);
     assert.ok(source.includes(contractAddress));
     assert.ok(source.includes(proofContextUrl));
@@ -23,4 +24,10 @@ test("production GitHub Pages and GHCR builds receive the public World ID config
 test("the JSX browser entry imports the React runtime used by Vite's production build", async () => {
   const appEntry = await readFile(new URL("../src/app.jsx", import.meta.url), "utf8");
   assert.match(appEntry, /^import React, \{/m);
+  assert.match(appEntry, /Mit World Wallet anmelden/);
+  assert.match(appEntry, /Mit World ID verifizieren/);
+  assert.match(appEntry, /allow_legacy_proofs=\{false\}/);
+  assert.match(appEntry, /handleVerify=\{registerAndConfirmProof\}/);
+  assert.match(appEntry, /REGISTRATION_CONFIRMATION_ATTEMPTS = 21/);
+  assert.doesNotMatch(appEntry, /useUserOperationReceipt/);
 });
