@@ -92,6 +92,47 @@ export function resolveWorldWalletAddress({ miniKit = MiniKit, worldApp = global
   return isAddress(address) ? getAddress(address) : null;
 }
 
+/**
+ * Wallet Auth requires an alphanumeric nonce of at least eight characters.
+ * This client-only nonce is solely request freshness for the native prompt:
+ * the World ID proof and the registering transaction remain the game access
+ * authority, so no identity state or authority is added to the backend.
+ */
+export function createWalletAuthNonce(cryptoImpl = globalThis.crypto) {
+  if (typeof cryptoImpl?.getRandomValues !== "function") throw new Error("wallet_auth_nonce_unavailable");
+  const bytes = cryptoImpl.getRandomValues(new Uint8Array(32));
+  return Array.from(bytes, (value) => value.toString(16).padStart(2, "0")).join("");
+}
+
+/**
+ * Gets the World wallet through the native SIWE Wallet Auth command when the
+ * install payload has not populated a wallet address yet. Its signed response
+ * is not used as game authorization; it only supplies the address that is
+ * bound again by the World ID signal and the caller of registerWorldId.
+ */
+export async function authenticateWorldWallet({
+  miniKit = MiniKit, createNonce = createWalletAuthNonce, now = () => Date.now(),
+} = {}) {
+  if (!miniKit?.isInstalled?.() || typeof miniKit.walletAuth !== "function") {
+    return { ok: false, reason: "wallet_auth_unavailable" };
+  }
+  try {
+    const result = await miniKit.walletAuth({
+      nonce: createNonce(),
+      statement: "Bestätige deine World-Wallet für den Civilization-Spielzugang.",
+      expirationTime: new Date(now() + 5 * 60_000),
+    });
+    // Only the native World App command is allowed here; web fallbacks do not
+    // provide the World Mini App wallet this flow is binding on-chain.
+    if (result?.executedWith !== "minikit" || !isAddress(result?.data?.address)) {
+      return { ok: false, reason: "wallet_auth_rejected" };
+    }
+    return { ok: true, walletAddress: getAddress(result.data.address) };
+  } catch (error) {
+    return { ok: false, reason: error instanceof Error ? error.message : "wallet_auth_rejected" };
+  }
+}
+
 /** Opens the connector URL returned by IDKit and reports popup failures. */
 export function openWorldIdConnectorURI(connectorURI, openWindow = globalThis.window?.open) {
   if (!connectorURI) return { ok: true, opened: false };
@@ -103,6 +144,29 @@ export function openWorldIdConnectorURI(connectorURI, openWindow = globalThis.wi
   } catch (error) {
     return { ok: false, reason: error instanceof Error ? error.message : "connector_open_failed" };
   }
+}
+
+/**
+ * Reserves the IDKit connector synchronously in the original Verify click.
+ * The returned opener can be handed to the normal async proof flow later.
+ */
+export function reserveWorldIdConnectorWindow(openWindow = globalThis.open) {
+  const connectorWindow = typeof openWindow === "function" ? openWindow("", "_blank") : null;
+  const openConnector = (connectorURI) => {
+    if (!connectorURI) {
+      connectorWindow?.close?.(); // World App native transport has no URL.
+      return { ok: true, opened: false };
+    }
+    if (!connectorWindow) return { ok: false, reason: "connector_open_blocked" };
+    try {
+      connectorWindow.location.href = connectorURI;
+      return { ok: true, opened: true };
+    } catch (error) {
+      return { ok: false, reason: error instanceof Error ? error.message : "connector_open_failed" };
+    }
+  };
+  openConnector.close = () => connectorWindow?.close?.();
+  return openConnector;
 }
 
 /**

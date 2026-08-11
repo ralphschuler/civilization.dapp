@@ -13,6 +13,7 @@ test("World ID errors remain retryable without opening the game", () => {
   assert.equal(canRetryWorldIdVerification("not_verified"), true);
   assert.equal(canRetryWorldIdVerification("error"), true);
   assert.equal(canRetryWorldIdVerification("wallet_unavailable"), true);
+  assert.equal(canRetryWorldIdVerification("wallet_auth_error"), true);
   assert.equal(canRetryWorldIdVerification("checking"), false);
   assert.equal(canRenderGameWorld({ worldAppInstalled: true, worldIdStatus: "error" }), false);
 });

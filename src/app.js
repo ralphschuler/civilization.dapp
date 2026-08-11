@@ -1,5 +1,5 @@
 import "./styles.css";
-import { buildTestnetRegistration, confirmWorldIdRegistration, getWorldIdConfig, installWorldAppBridge, requestWorldIdGameAccess, resolveWorldWalletAddress, submitTestnetRegistration, submitWorldIdRegistration } from "./world.js";
+import { authenticateWorldWallet, buildTestnetRegistration, confirmWorldIdRegistration, getWorldIdConfig, installWorldAppBridge, requestWorldIdGameAccess, reserveWorldIdConnectorWindow, resolveWorldWalletAddress, submitTestnetRegistration, submitWorldIdRegistration } from "./world.js";
 import { canRenderGameWorld, canRetryWorldIdVerification } from "./world-gate.js";
 import {
   BUILDINGS,
@@ -138,27 +138,6 @@ function collectionStatus() {
 }
 
 function hasGameAccess() { return canRenderGameWorld({ worldAppInstalled: worldApp.installed, worldIdStatus }); }
-// Reserve a popup synchronously in the click handler. IDKit creates its
-// connector URI after the RP-context request, when a new popup would no longer
-// reliably be considered user initiated by browser webviews.
-function reserveWorldIdConnectorWindow() {
-  const connectorWindow = globalThis.open?.("", "_blank");
-  const openConnector = (connectorURI) => {
-    if (!connectorURI) {
-      connectorWindow?.close?.(); // World App native transport has no URL.
-      return { ok: true, opened: false };
-    }
-    if (!connectorWindow) return { ok: false, reason: "connector_open_blocked" };
-    try {
-      connectorWindow.location.href = connectorURI;
-      return { ok: true, opened: true };
-    } catch (error) {
-      return { ok: false, reason: error instanceof Error ? error.message : "connector_open_failed" };
-    }
-  };
-  openConnector.close = () => connectorWindow?.close?.();
-  return openConnector;
-}
 async function injectedWalletAddress() {
   try {
     const wallet = globalThis.ethereum;
@@ -178,6 +157,8 @@ function worldIdStatusView() {
     verified: ["WORLD ID · REGISTRIERT", "Der Spielzugang wurde mit einer World-Chain-Transaktion registriert."],
     configuration_required: ["WORLD ID · NOCH NICHT BEREIT", "App-ID, Aktion, RP-Endpunkt und Vertragsadresse müssen gesetzt sein."],
     wallet_unavailable: ["WORLD ID · WALLET NOCH NICHT BEREIT", "Die World-Wallet konnte noch nicht geladen werden. Bitte kurz warten und erneut versuchen."],
+    wallet_auth: ["WORLD WALLET · ANMELDUNG LÄUFT", "Bestätige deine Wallet in World App. Danach wird der World-ID-Nachweis angefordert."],
+    wallet_auth_error: ["WORLD WALLET · ANMELDUNG FEHLGESCHLAGEN", worldIdError ? `Die Wallet-Anmeldung wurde nicht bestätigt (${escapeHtml(worldIdError)}). Bitte erneut versuchen.` : "Die Wallet-Anmeldung wurde nicht bestätigt. Bitte erneut versuchen."],
     error: ["WORLD ID · FEHLER", worldIdError ? `World-ID-Verifizierung konnte nicht gestartet werden (${escapeHtml(worldIdError)}). Bitte erneut versuchen.` : "Nachweis oder World-Chain-Transaktion wurde nicht bestätigt. Bitte erneut versuchen."],
   }[worldIdStatus];
   const canStart = canRetryWorldIdVerification(worldIdStatus);
@@ -196,14 +177,25 @@ function bindWorldIdActions() {
     render();
   });
   document.querySelector("#world-id-verify")?.addEventListener("click", async () => {
-    const walletAddress = resolveWorldWalletAddress();
-    if (!walletAddress) {
-      worldIdStatus = "wallet_unavailable";
-      feedback = "World-Wallet ist noch nicht verfügbar. Bitte kurz warten und die Verifizierung erneut starten.";
-      render();
-      return;
-    }
+    // Must happen before any await: the Wallet Auth prompt may be needed
+    // before IDKit has produced a connector URI.
     const openConnector = reserveWorldIdConnectorWindow();
+    let walletAddress = resolveWorldWalletAddress();
+    if (!walletAddress) {
+      worldIdError = "";
+      worldIdStatus = "wallet_auth";
+      render();
+      const walletAuth = await authenticateWorldWallet();
+      if (!walletAuth.ok) {
+        openConnector.close();
+        worldIdStatus = "wallet_auth_error";
+        worldIdError = walletAuth.reason;
+        feedback = "World-Wallet-Anmeldung wurde abgebrochen oder nicht bestätigt. Bitte erneut versuchen.";
+        render();
+        return;
+      }
+      walletAddress = walletAuth.walletAddress;
+    }
     worldIdError = "";
     worldIdStatus = "checking";
     render();
