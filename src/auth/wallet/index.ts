@@ -8,7 +8,7 @@ import { signIn } from 'next-auth/react';
  * producing a `signedNonce`. The `signedNonce` ensures the response we receive from wallet auth
  * is authentic and matches our session creation.
  *
- * @returns {Promise<SignInResponse>} The result of the sign-in attempt.
+ * @returns {Promise<void>} Resolves after a confirmed sign-in and game navigation.
  * @throws {Error} If wallet authentication fails at any step.
  */
 export const walletAuth = async () => {
@@ -27,12 +27,15 @@ export const walletAuth = async () => {
   const data = result.data;
   if (!data?.address || !data?.message || !data?.signature) throw new Error('wallet_auth_malformed');
 
-  await signIn('credentials', {
-    redirectTo: '/game',
+  const signInResult = await signIn('credentials', {
+    redirect: false,
     nonce,
     signedNonce,
     finalPayloadJson: JSON.stringify({
       status: 'success', address: data.address, message: data.message, signature: data.signature,
     }),
   });
+
+  if (!signInResult || !signInResult.ok || signInResult.error) throw new Error('wallet_auth_sign_in_failed');
+  window.location.assign('/game');
 };

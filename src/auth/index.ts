@@ -6,6 +6,7 @@ import NextAuth, { type DefaultSession } from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 import { consumeAuthChallenge, readAuthChallenge } from '@/lib/auth-challenge';
 import { getAddress, isAddress } from 'viem';
+import { hasValidSiweBinding } from './siwe-binding';
 
 declare module 'next-auth' {
   interface User {
@@ -56,7 +57,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
         if (suppliedNonceSignature.length !== expectedNonceSignature.length
           || !crypto.timingSafeEqual(suppliedNonceSignature, expectedNonceSignature)) {
-          console.log('Invalid signed nonce');
           return null;
         }
 
@@ -72,18 +72,14 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         const result = await verifySiweMessage(finalPayload, nonce, challenge.statement, challenge.requestId);
 
         if (!result.isValid || !result.siweMessageData.address || !isAddress(result.siweMessageData.address)) {
-          console.log('Invalid final payload');
           return null;
         }
-        const authUrl = process.env.AUTH_URL;
-        if (!authUrl) return null;
-        const expected = new URL(authUrl);
-        let signedUri: URL;
-        try { signedUri = new URL(result.siweMessageData.uri); } catch { return null; }
-        if (result.siweMessageData.domain !== expected.host
-          || signedUri.origin !== expected.origin
-          || result.siweMessageData.chain_id !== 480
-          || result.siweMessageData.version !== '1') return null;
+        if (!hasValidSiweBinding({
+          domain: result.siweMessageData.domain,
+          uri: result.siweMessageData.uri,
+          version: result.siweMessageData.version,
+          chainId: result.siweMessageData.chain_id,
+        }, process.env.AUTH_URL)) return null;
 
         const verifiedAddress = getAddress(result.siweMessageData.address);
         if (getAddress(finalPayload.address) !== verifiedAddress) return null;
@@ -95,8 +91,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           const userInfo = await MiniKit.getUserInfo(verifiedAddress);
           username = userInfo.username ?? '';
           profilePictureUrl = userInfo.profilePictureUrl ?? '';
-        } catch (error) {
-          console.warn('World profile lookup failed after wallet verification', error);
+        } catch {
+          console.warn('world_profile_lookup_failed');
         }
 
         return {
@@ -129,5 +125,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
       return session;
     },
+  },
+  pages: {
+    signIn: '/',
   },
 });

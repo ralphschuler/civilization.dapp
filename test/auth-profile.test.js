@@ -7,11 +7,11 @@ test('verified Wallet Auth survives an optional World profile lookup failure', a
   const consume = source.indexOf('consumeAuthChallenge(nonce)');
   const lookup = source.indexOf('await MiniKit.getUserInfo(verifiedAddress)');
   const fallback = source.indexOf("username = userInfo.username ?? ''");
-  const warning = source.indexOf('World profile lookup failed after wallet verification');
+  const fallbackCatch = source.indexOf('} catch {', fallback);
   const returnedAddress = source.indexOf('walletAddress: verifiedAddress', lookup);
 
   assert.ok(consume >= 0 && lookup > consume, 'profile lookup must happen only after one-time challenge consumption');
   assert.ok(fallback > lookup, 'missing profile fields must use safe defaults');
-  assert.ok(warning > fallback, 'profile lookup rejection must be caught');
-  assert.ok(returnedAddress > warning, 'verified address must still be returned after a profile lookup failure');
+  assert.ok(fallbackCatch > fallback, 'profile lookup rejection must be caught without logging sensitive error data');
+  assert.ok(returnedAddress > fallbackCatch, 'verified address must still be returned after a profile lookup failure');
 });
