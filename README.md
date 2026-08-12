@@ -1,6 +1,6 @@
 # Civilization DApp
 
-Civilization is a Next.js World Mini App. The current deployed production contract uses World ID v4. The source tree now supports IDKit v4 Proof of Human with the official v3 Orb fallback, direct on-chain verification for either proof version, explicit Wallet Auth through NextAuth, and a confirmed `playerState` read before game access.
+Civilization is a Next.js World Mini App. Production contract `0xfCdB50926c3c6b2CDF3ACE76B13c9383A2DC3199` supports IDKit v4 Proof of Human with official v3 Orb fallback and direct on-chain verification for either proof version. Wallet Auth uses NextAuth and game access requires a confirmed `playerState` read.
 
 GitHub Pages publishes a separate walletless Next static export from `apps/demo`. It uses the shared Civilization UI and game domain in explicit `demo` mode; it never calls production game APIs.
 
@@ -20,11 +20,11 @@ Production has no backend game-mutation API. UI reads `previewPlayerState`/`bala
 
 ## World ID v3/v4 deployment
 
-The checked-in `CivilizationGame` source is not bytecode-compatible with the currently deployed v4-only contract. Dual v3/v4 registration therefore requires a reviewed redeployment; this change does not deploy anything or alter Developer Portal configuration. Before deployment, copy `contracts/world-id-deployment.example.json` into the protected World ID deployment file used by `WORLDCHAIN_MAINNET_WORLD_ID_FILE` and provide:
+For a future reviewed redeployment, copy `contracts/world-id-deployment.example.json` into the protected World ID deployment file used by `WORLDCHAIN_MAINNET_WORLD_ID_FILE` and provide:
 
 - `worldActionId`, `worldRpId`, `worldIssuerSchemaId`, and the optional v4 credential genesis minimum;
 - a currently verified official World Chain v3 `WorldIDRouter` address as `worldIdLegacyRouterAddress`—the script deliberately has no fallback or guessed address;
 - `worldIdLegacyAppId` exactly equal to runtime `WORLD_ID_APP_ID`;
 - `worldIdLegacyActionId` exactly equal to both `worldActionId` and runtime `WORLD_ID_ACTION`.
 
-The deployment preflight derives and prints both protocol field hashes and verifies all immutable verifier/router values after deployment. After review and deployment, update the separately managed runtime contract address (including `LIVE_CONTRACT`, `CIVILIZATION_CONTRACT_ADDRESS`, and deployment templates) in one release. Until then, the published address remains v4-only. Do not enable a production rollout against mismatched app/action values: v3 proofs are bound to the constructor-derived external nullifier and will revert.
+The deployment preflight derives and prints both protocol field hashes and verifies all immutable verifier/router values after deployment. Runtime configuration currently points at the deployed dual-protocol address. Do not enable a production rollout against mismatched app/action values: v3 proofs are bound to the constructor-derived external nullifier and will revert.

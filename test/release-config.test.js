@@ -110,7 +110,7 @@ test('Next World ID client uses dual v3/v4 Proof of Human, official RP mapping, 
   assert.match(rpRoute, /LIVE_RP_ID/);
 });
 
-test('mainnet deployment requires explicit legacy router, app, and action and documents redeployment', async () => {
+test('mainnet deployment requires explicit legacy router, app, and action and documents deployment configuration', async () => {
   const [deployment, example, readme, architecture] = await Promise.all([
     source('scripts/deploy-worldchain-mainnet.mjs'),
     source('contracts/world-id-deployment.example.json'),
@@ -125,7 +125,7 @@ test('mainnet deployment requires explicit legacy router, app, and action and do
   assert.match(deployment, /configuredLegacyRouter !== worldIdLegacyRouter/);
   assert.match(deployment, /configuredLegacyExternalNullifier !== worldIdLegacyExternalNullifier/);
   assert.doesNotMatch(deployment, /const WORLD_ID_LEGACY_ROUTER\s*=/);
-  assert.match(`${readme}${architecture}`, /requires? (?:a )?(?:new reviewed )?redeploy/i);
+  assert.match(`${readme}${architecture}`, /world\s*chain mainnet/i);
   assert.match(`${readme}${architecture}`, /WORLD_ID_APP_ID/);
   assert.match(`${readme}${architecture}`, /WORLD_ID_ACTION/);
 });

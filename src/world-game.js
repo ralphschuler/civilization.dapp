@@ -3,7 +3,7 @@ import { createPublicClient, encodeFunctionData, formatUnits, getAddress, http, 
 import { CIVILIZATION_GAME_ABI, WORLD_TOKEN_ABI } from './abi/CivilizationGame.js';
 import { WORLD_CHAIN_ID, WORLD_CHAIN_MAINNET_RPC_URL } from './world.js';
 
-export const CIVILIZATION_GAME_ADDRESS = '0x1A64F89881FD2E38255E62c6D62b68076052DF4b';
+export const CIVILIZATION_GAME_ADDRESS = '0xfCdB50926c3c6b2CDF3ACE76B13c9383A2DC3199';
 export const WORLD_TOKEN_ADDRESS = '0x2cFc85d8E48F8EAB294be644d9E25C3030863003';
 export const BUILDING_INDEX = Object.freeze({ townhall: 0, timber: 1, claypit: 2, quarry: 3, warehouse: 4, workshop: 5, goldmine: 6, barracks: 7 });
 export const TROOP_INDEX = Object.freeze({ spear: 0, archer: 1, rider: 2 });

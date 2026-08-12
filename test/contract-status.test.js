@@ -4,15 +4,15 @@ import { readFile } from "node:fs/promises";
 import { CONTRACT_STATUS } from "../server/contract-status.js";
 
 test("contract status identifies the unaudited World Chain mainnet deployment without settlement", () => {
-  assert.equal(CONTRACT_STATUS.release, "mainnet_deployed_no_settlement");
-  assert.equal(CONTRACT_STATUS.deployment, "worldchain_mainnet_deployed");
+  assert.equal(CONTRACT_STATUS.release, "mainnet_dual_world_id_deployed_no_settlement");
+  assert.equal(CONTRACT_STATUS.deployment, "worldchain_mainnet_dual_world_id_deployed");
   assert.equal(CONTRACT_STATUS.independentlyAudited, false);
   assert.equal(CONTRACT_STATUS.settlementEnabled, false);
   assert.deepEqual(CONTRACT_STATUS.deployedContracts, [{
     name: "CivilizationGame",
-    address: "0x1A64F89881FD2E38255E62c6D62b68076052DF4b",
+    address: "0xfCdB50926c3c6b2CDF3ACE76B13c9383A2DC3199",
     chainId: 480,
-    status: "mainnet_deployed_not_independently_audited",
+    status: "mainnet_dual_world_id_deployed_not_independently_audited",
   }]);
   assert.equal(CONTRACT_STATUS.onChainActionsEnabled, true);
   assert.equal(CONTRACT_STATUS.custodyEnabled, false);

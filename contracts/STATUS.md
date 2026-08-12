@@ -1,12 +1,12 @@
 # Contract release status
 
-**Current status: `mainnet_deployed_no_settlement` / `dual_world_id_source_requires_redeploy`.** The existing v4-only `CivilizationGame` is deployed on World Chain mainnet (chain ID `480`) at `0x1A64F89881FD2E38255E62c6D62b68076052DF4b` by transaction [`0x2c99cf41434022231537e9d3077307ff24c07bfa797c68575c4774961b0d5123`](https://worldscan.org/tx/0x2c99cf41434022231537e9d3077307ff24c07bfa797c68575c4774961b0d5123) in block `33579795`. The checked-in source now adds v3/v4 registration but has not been deployed. Neither deployment has been independently audited. No WLD/CGOLD settlement, liquidity, redemption, withdrawal, fee routing, or custody is enabled by this release.
+**Current status: `mainnet_dual_world_id_deployed_no_settlement` / `worldchain_mainnet_dual_world_id_deployed`.** `CivilizationGame` is deployed on World Chain mainnet (chain ID `480`) at `0xfCdB50926c3c6b2CDF3ACE76B13c9383A2DC3199` by transaction [`0xbb4692b10f9255b84143405b03e63d2e14723e39eee920a177553d279e2b8e9a`](https://worldscan.org/tx/0xbb4692b10f9255b84143405b03e63d2e14723e39eee920a177553d279e2b8e9a) in block `33617329`. It supports direct World ID v4 and legacy v3 Orb registration. This deployment has not been independently audited. No WLD/CGOLD settlement, liquidity, redemption, withdrawal, fee routing, or custody is enabled by this release.
 
 `GET /api/contracts/status` exposes the same machine-readable release metadata from `server/contract-status.js`. It is intentionally descriptive only and cannot initiate an on-chain action.
 
 | Source | Status | Release boundary |
 | --- | --- | --- |
-| `src/CivilizationGame.sol` | Dual-v3/v4 source; redeploy required; not independently audited | The existing address remains v4-only. New source adds constructor-bound World ID v3 router/app/action verification and retains v4 verification, with shared wallet/nullifier/player protection. No backend game-mutation entrypoint or WLD custody. |
+| `src/CivilizationGame.sol` | Deployed on World Chain mainnet; not independently audited | Contract at `0xfCdB50926c3c6b2CDF3ACE76B13c9383A2DC3199`: constructor-bound World ID v3 router/app/action verification plus World ID v4 verifier, shared wallet/nullifier/player protection, and direct player-signed game state. No backend game-mutation entrypoint or WLD custody. |
 | `src/GameResourceToken.sol` | Draft, not deployed, superseded | Older standalone token draft; not used by CivilizationGame. |
 | `src/GoldSettlementRegistry.sol` | Draft, not deployed, allowlist only | Cannot custody assets or execute a swap. |
 
@@ -15,7 +15,7 @@ The `worldchain.tokens.example.json` addresses are reference data only, not an a
 ## Required before settlement or wider release
 
 1. Independent security review of final sources and deployment configuration.
-2. Review the official current v3 router address and Portal app/action, deploy the dual-protocol bytecode, verify every immutable, then update the runtime address; full MiniKit/World-ID integration testing must cover real v3 and v4 proofs.
+2. Full MiniKit/World-ID integration testing must cover real v3 and v4 proofs against the deployed address.
 3. Review World MiniKit approval/payment UX, WLD token address and immutable boost treasury before any wider WLD-boost release.
 4. Separate audited settlement adapter with independent pricing/slippage controls before any WLD purchase, redemption, fee, liquidity, or custody function.
 5. Monitoring, incident handling, and product/legal approval.

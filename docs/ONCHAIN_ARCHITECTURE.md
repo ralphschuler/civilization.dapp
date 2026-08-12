@@ -1,6 +1,6 @@
 # On-chain Civilization game-state draft
 
-The existing v4-only `CivilizationGame` deployment is on World Chain mainnet at `0x1A64F89881FD2E38255E62c6D62b68076052DF4b` by transaction [`0x2c99cf41434022231537e9d3077307ff24c07bfa797c68575c4774961b0d5123`](https://worldscan.org/tx/0x2c99cf41434022231537e9d3077307ff24c07bfa797c68575c4774961b0d5123) in block `33579795`. It has not been independently audited and has no settlement capability. The current source adds dual World ID v3/v4 registration and requires a new reviewed deployment; no deployment or live configuration change is part of this source change.
+`CivilizationGame` dual World ID v3/v4 deployment is on World Chain mainnet at `0xfCdB50926c3c6b2CDF3ACE76B13c9383A2DC3199` by transaction [`0xbb4692b10f9255b84143405b03e63d2e14723e39eee920a177553d279e2b8e9a`](https://worldscan.org/tx/0xbb4692b10f9255b84143405b03e63d2e14723e39eee920a177553d279e2b8e9a) in block `33617329`. It has not been independently audited and has no settlement capability. The previous v4-only deployment remains historical and must not be configured as the active runtime contract.
 
 ## Authority boundary
 
@@ -32,7 +32,7 @@ IDKit is requested with `CredentialRequest('proof_of_human', { signal: walletAdd
 
 `scripts/deploy-worldchain-mainnet.mjs` requires the v4 action/RP/schema/freshness inputs plus `worldIdLegacyRouterAddress`, `worldIdLegacyAppId`, and `worldIdLegacyActionId` from the protected World ID JSON. The legacy app ID must exactly match `WORLD_ID_APP_ID`; the legacy and v4 action must exactly match `WORLD_ID_ACTION`. The router address must be re-verified from the official [World on-chain verification documentation](https://docs.world.org/world-id/idkit/onchain-verification) immediately before deployment. It is intentionally not hard-coded. See `contracts/world-id-deployment.example.json` for the non-secret shape.
 
-Because all verifier settings are immutable constructor values and the existing mainnet bytecode has no legacy entrypoint, dual support requires redeployment and a coordinated runtime-address update. The current live contract address and Portal are unchanged by this work.
+All verifier settings are immutable constructor values. This dual-protocol address has been read back after deployment; a later configuration change requires another reviewed deployment and coordinated runtime-address update. The World Developer Portal configuration remains unchanged.
 
 The mainnet address and public World ID build configuration are included for the deployed game. No settlement adapter, Permit2 flow, withdrawal, redemption, fee routing, liquidity, custody, or World Portal change is included in this release. A direct WLD construction-time payment exists in the deployed contract, but no WLD/CGOLD settlement is enabled. CGOLD's ordinary ERC-20 movement remains governed by the deployed game rules.
 

@@ -16,7 +16,7 @@ services:
       WORLD_ID_ACTION: play
       WORLD_ID_PROOF_CONTEXT_URL: https://civilization.nyphon.de/api/rp-signature
       WORLD_ID_ENVIRONMENT: production
-      CIVILIZATION_CONTRACT_ADDRESS: "0x1A64F89881FD2E38255E62c6D62b68076052DF4b"
+      CIVILIZATION_CONTRACT_ADDRESS: "0xfCdB50926c3c6b2CDF3ACE76B13c9383A2DC3199"
       PGHOST: postgres
       PGPORT: "5432"
       PGDATABASE: civilization
