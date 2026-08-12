@@ -14,6 +14,7 @@ const deployment = {
   game: getAddress(process.env.CIVILIZATION_TESTNET_GAME ?? "0xfCdB50926c3c6b2CDF3ACE76B13c9383A2DC3199"),
   worldToken: getAddress(process.env.CIVILIZATION_TESTNET_WORLD_TOKEN ?? "0x29147C7BEAd901E8019d7911A7DC404447877C62"),
   worldIdVerifier: getAddress(process.env.CIVILIZATION_TESTNET_WORLD_ID_VERIFIER ?? "0x1A64F89881FD2E38255E62c6D62b68076052DF4b"),
+  worldIdLegacyRouter: getAddress(process.env.CIVILIZATION_TESTNET_WORLD_ID_LEGACY_ROUTER ?? process.env.CIVILIZATION_TESTNET_WORLD_ID_VERIFIER ?? "0x1A64F89881FD2E38255E62c6D62b68076052DF4b"),
   treasury: getAddress("0x4338aa98a8c969ca0675a8b0dcc7ed51f24ab886"),
 };
 const send = process.argv.includes("--send");
@@ -30,6 +31,7 @@ const buildings = [
 ];
 const gameAbi = [
   { type: "function", name: "worldIdVerifier", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
+  { type: "function", name: "worldIdLegacyRouter", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
   { type: "function", name: "worldToken", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
   { type: "function", name: "boostTreasury", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
   { type: "function", name: "registerWorldId", stateMutability: "nonpayable", inputs: [
@@ -85,14 +87,15 @@ async function writeContract(request) {
   return hash;
 }
 
-const [chainId, code, verifier, token, treasury, state, nativeBalance] = await Promise.all([
+const [chainId, code, verifier, legacyRouter, token, treasury, state, nativeBalance] = await Promise.all([
   publicClient.getChainId(), publicClient.getCode({ address: deployment.game }),
   publicClient.readContract({ address: deployment.game, abi: gameAbi, functionName: "worldIdVerifier" }),
+  publicClient.readContract({ address: deployment.game, abi: gameAbi, functionName: "worldIdLegacyRouter" }),
   publicClient.readContract({ address: deployment.game, abi: gameAbi, functionName: "worldToken" }),
   publicClient.readContract({ address: deployment.game, abi: gameAbi, functionName: "boostTreasury" }),
   readState(), publicClient.getBalance({ address: account.address }),
 ]);
-if (chainId !== worldchainSepolia.id || !code || verifier !== deployment.worldIdVerifier || token !== deployment.worldToken || treasury !== deployment.treasury) {
+if (chainId !== worldchainSepolia.id || !code || verifier !== deployment.worldIdVerifier || legacyRouter !== deployment.worldIdLegacyRouter || token !== deployment.worldToken || treasury !== deployment.treasury) {
   throw new Error("deployed testnet contract configuration does not match the expected manifest");
 }
 

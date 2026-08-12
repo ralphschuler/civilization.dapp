@@ -9,6 +9,7 @@ import {
   concatHex,
   decodeFunctionResult,
   encodeAbiParameters,
+  encodePacked,
   encodeFunctionData,
   keccak256,
   padHex,
@@ -49,6 +50,7 @@ async function compileContractsOnce() {
 
 const playerA = { address: `0x${"22".repeat(20)}` };
 const playerB = { address: `0x${"33".repeat(20)}` };
+const playerC = { address: `0x${"55".repeat(20)}` };
 const deployer = createAddressFromString(`0x${"44".repeat(20)}`);
 const EVM_GAS_LIMIT = 30_000_000n;
 const DAY = 86_400n;
@@ -117,6 +119,35 @@ function worldIdRegistration(game, player, nullifierHash = 1001n, timestamp = 1_
   ], timestamp);
 }
 
+function legacyWorldIdRegistration(game, player, nullifierHash = 3001n, timestamp = 1_840n, signalHash = BigInt(keccak256(player.address)) >> 8n) {
+  return evmCall(game, player.address, "registerWorldIdLegacy", [
+    4004n,
+    signalHash,
+    nullifierHash,
+    [21n, 22n, 23n, 24n, 25n, 26n, 27n, 28n],
+  ], timestamp);
+}
+
+function gameConstructorArgs(verifierAddress, worldTokenAddress, treasuryAddress = playerB.address) {
+  return [
+    verifierAddress,
+    "play",
+    123n,
+    1n,
+    0n,
+    verifierAddress,
+    "app_civilization",
+    "play",
+    worldTokenAddress,
+    treasuryAddress,
+  ];
+}
+
+function legacyExternalNullifier(appId = "app_civilization", action = "play") {
+  const appField = BigInt(keccak256(stringToHex(appId))) >> 8n;
+  return BigInt(keccak256(encodePacked(["uint256", "string"], [appField, action]))) >> 8n;
+}
+
 function playerStorageSlot(player, offset) {
   const mappingBase = BigInt(keccak256(encodeAbiParameters([
     { type: "address" },
@@ -144,14 +175,15 @@ test("all Solidity drafts compile deterministically with the pinned official sol
   assert.ok(game.evm.deployedBytecode.object.length / 2 <= 24_576, "runtime bytecode must fit the EIP-170 limit");
 });
 
-test("CivilizationGame exposes only player-driven game transitions and a World ID 4 registration gate", async () => {
+test("CivilizationGame exposes only player-driven game transitions and dual World ID registration gates", async () => {
   const output = await compileContracts();
   const abi = output.contracts["contracts/src/CivilizationGame.sol"].CivilizationGame.abi;
   const functions = new Map(abi.filter((item) => item.type === "function").map((item) => [item.name, item]));
-  for (const name of ["registerWorldId", "claim", "upgrade", "completeUpgrade", "boostConstruction", "train", "startRaid", "resolveRaid", "prestige", "playerState", "worldIdVerifier", "worldIdAction", "worldIdRpId", "worldToken", "boostTreasury", "name", "symbol", "decimals", "totalSupply", "balanceOf", "allowance", "approve", "transfer", "transferFrom"]) {
+  for (const name of ["registerWorldId", "registerWorldIdLegacy", "claim", "upgrade", "completeUpgrade", "boostConstruction", "train", "startRaid", "resolveRaid", "prestige", "playerState", "worldIdVerifier", "worldIdAction", "worldIdRpId", "worldIdLegacyRouter", "worldIdLegacyExternalNullifier", "worldToken", "boostTreasury", "name", "symbol", "decimals", "totalSupply", "balanceOf", "allowance", "approve", "transfer", "transferFrom"]) {
     assert.ok(functions.has(name), `${name} must be part of the auditable contract interface`);
   }
   assert.equal(functions.get("registerWorldId").stateMutability, "nonpayable");
+  assert.equal(functions.get("registerWorldIdLegacy").stateMutability, "nonpayable");
   for (const name of ["claim", "upgrade", "boostConstruction", "train", "startRaid", "resolveRaid", "approve", "transfer", "transferFrom"]) {
     assert.equal(functions.get(name).stateMutability, "nonpayable", `${name} must not accept funds`);
   }
@@ -162,11 +194,16 @@ test("CivilizationGame exposes only player-driven game transitions and a World I
   assert.equal(functions.get("prestigeMultiplierBps").stateMutability, "pure");
 });
 
-test("contract source verifies World ID 4 on-chain and protects replay paths", async () => {
+test("contract source verifies World ID 3 and 4 on-chain and protects shared replay paths", async () => {
   const source = await readFile(new URL("../contracts/src/CivilizationGame.sol", import.meta.url), "utf8");
   assert.match(source, /mapping\(uint256 => address\) public nullifierOwner/);
   assert.match(source, /IWorldIDVerifier public immutable worldIdVerifier/);
   assert.match(source, /worldIdVerifier\.verify\(/);
+  assert.match(source, /worldIdLegacyRouter\.verifyProof\(/);
+  assert.match(source, /WORLD_ID_LEGACY_GROUP_ID = 1/);
+  assert.match(source, /abi\.encodePacked\(_hashToField\(bytes\(worldIdLegacyAppId\)\), worldIdLegacyActionId\)/);
+  assert.match(source, /function _requireAvailableRegistration\(uint256 nullifierHash, uint256 signalHash\) private view/);
+  assert.match(source, /function _registerPlayer\(uint256 nullifierHash\) private/);
   assert.match(source, /signalHash != _hashToField\(abi\.encodePacked\(msg\.sender\)\)/);
   assert.match(source, /issuerSchemaId != worldIdIssuerSchemaId/);
   assert.match(source, /worldIdAction = _hashToField\(bytes\(worldActionId\)\)/);
@@ -191,24 +228,74 @@ test("contract source verifies World ID 4 on-chain and protects replay paths", a
   assert.doesNotMatch(source, /\bpayable\b/);
 });
 
-test("CivilizationGame constructor stores the World ID action as a SNARK field hash", async () => {
+test("CivilizationGame constructor stores v4 action and v3 app/action as protocol field hashes", async () => {
   const output = await compileContracts();
   const artifact = output.contracts["contracts/src/CivilizationGame.sol"].CivilizationGame;
   const vm = await createVM();
-  const game = await deployContract(vm, artifact.abi, artifact.evm.bytecode.object, [
-    playerA.address,
-    "play",
-    123n,
-    1n,
-    0n,
-    playerB.address,
-    deployer.toString(),
-  ]);
+  const game = await deployContract(vm, artifact.abi, artifact.evm.bytecode.object,
+    gameConstructorArgs(playerA.address, playerB.address, deployer.toString()));
 
   assert.equal(
     await readGame(game, "worldIdAction", [], 1_000n),
     BigInt(keccak256(stringToHex("play"))) >> 8n,
   );
+  assert.equal(
+    await readGame(game, "worldIdLegacyExternalNullifier", [], 1_000n),
+    legacyExternalNullifier(),
+  );
+});
+
+test("World ID v3 and v4 use exact verifier arguments and one shared registration boundary", async () => {
+  const output = await compileContracts();
+  const artifact = output.contracts["contracts/src/CivilizationGame.sol"].CivilizationGame;
+  const verifierArtifact = output.contracts["test/fixtures/MockWorldIdVerifier.sol"].MockWorldIdVerifier;
+  const vm = await createVM();
+  const verifier = await deployContract(vm, verifierArtifact.abi, verifierArtifact.evm.bytecode.object);
+  const game = await deployContract(vm, artifact.abi, artifact.evm.bytecode.object,
+    gameConstructorArgs(verifier.address.toString(), playerC.address));
+
+  const v4Signal = BigInt(keccak256(playerA.address)) >> 8n;
+  const v4Proof = [11n, 12n, 13n, 14n, 15n];
+  assertEvmSuccess(await evmCall(verifier, deployer.toString(), "expectV4", [
+    1001n,
+    BigInt(keccak256(stringToHex("play"))) >> 8n,
+    123n,
+    2002n,
+    v4Signal,
+    3_000n,
+    1n,
+    0n,
+    v4Proof,
+  ], 1_001n));
+  assertEvmSuccess(await worldIdRegistration(game, playerA, 1001n, 1_002n, v4Signal));
+
+  const sameWalletAcrossPaths = await legacyWorldIdRegistration(game, playerA, 3001n, 1_003n);
+  assert.ok(sameWalletAcrossPaths.execResult.exceptionError, "a v4-registered wallet cannot register again through v3");
+  const sameNullifierAcrossPaths = await legacyWorldIdRegistration(game, playerB, 1001n, 1_004n);
+  assert.ok(sameNullifierAcrossPaths.execResult.exceptionError, "the shared nullifier mapping rejects reuse across protocol paths");
+
+  const v3Signal = BigInt(keccak256(playerB.address)) >> 8n;
+  const v3Proof = [21n, 22n, 23n, 24n, 25n, 26n, 27n, 28n];
+  assertEvmSuccess(await evmCall(verifier, deployer.toString(), "expectLegacy", [
+    4004n,
+    1n,
+    v3Signal,
+    3001n,
+    legacyExternalNullifier(),
+    v3Proof,
+  ], 1_005n));
+  assertEvmSuccess(await legacyWorldIdRegistration(game, playerB, 3001n, 1_006n, v3Signal));
+  assert.equal((await readGame(game, "playerState", [playerB.address], 1_006n))[0], true);
+  assert.equal(await readGame(game, "nullifierOwner", [3001n], 1_006n), playerB.address);
+
+  const legacyWalletUsingV4 = await worldIdRegistration(game, playerB, 1002n, 1_007n);
+  assert.ok(legacyWalletUsingV4.execResult.exceptionError, "a v3-registered wallet cannot register again through v4");
+  const wrongLegacySignal = await legacyWorldIdRegistration(game, playerC, 3002n, 1_008n, 0n);
+  assert.ok(wrongLegacySignal.execResult.exceptionError, "legacy proofs remain bound to msg.sender");
+  assertEvmSuccess(await evmCall(verifier, deployer.toString(), "setRejectProof", [true], 1_009n));
+  const rejectedLegacyProof = await legacyWorldIdRegistration(game, playerC, 3002n, 1_010n);
+  assert.ok(rejectedLegacyProof.execResult.exceptionError, "legacy registration reverts when the router rejects its proof");
+  assert.equal((await readGame(game, "playerState", [playerC.address], 1_010n))[0], false, "a rejected legacy proof cannot persist player state");
 });
 
 test("CivilizationGame executes World registration, contract-derived production, claims, and replay protection on a local EVM", async () => {
@@ -219,7 +306,8 @@ test("CivilizationGame executes World registration, contract-derived production,
   const vm = await createVM();
   const verifier = await deployContract(vm, verifierArtifact.abi, verifierArtifact.evm.bytecode.object);
   const worldToken = await deployContract(vm, worldTokenArtifact.abi, worldTokenArtifact.evm.bytecode.object);
-  const game = await deployContract(vm, artifact.abi, artifact.evm.bytecode.object, [verifier.address.toString(), "play", 123n, 1n, 0n, worldToken.address.toString(), playerB.address]);
+  const game = await deployContract(vm, artifact.abi, artifact.evm.bytecode.object,
+    gameConstructorArgs(verifier.address.toString(), worldToken.address.toString()));
   const nullifier = 1001n;
   const registration = await worldIdRegistration(game, playerA, nullifier);
   assertEvmSuccess(registration);

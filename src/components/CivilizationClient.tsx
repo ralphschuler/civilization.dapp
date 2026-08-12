@@ -1,5 +1,5 @@
 'use client';
-/* eslint-disable @typescript-eslint/no-explicit-any -- IDKit v4 callback payloads are JSON values. */
+/* eslint-disable @typescript-eslint/no-explicit-any -- IDKit callback payloads are JSON values. */
 
 import { IDKitRequestWidget } from '@worldcoin/idkit';
 import { CredentialRequest } from '@worldcoin/idkit-core';
@@ -216,7 +216,7 @@ export default function CivilizationClient({
         app_id={config.appId as `app_${string}`}
         action={config.action}
         rp_context={request.rpContext}
-        allow_legacy_proofs={false}
+        allow_legacy_proofs={true}
         environment="production"
         constraints={CredentialRequest('proof_of_human', { signal: walletAddress })}
         onSuccess={verify}

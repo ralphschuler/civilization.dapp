@@ -92,19 +92,42 @@ test('official template Wallet Auth is retained and backed by one-time challenge
   assert.match(challenge, /UPDATE wallet_auth_challenges SET consumed_at/);
 });
 
-test('Next World ID client uses v4 proof, official RP signature mapping, and bounded confirmation', async () => {
+test('Next World ID client uses dual v3/v4 Proof of Human, official RP mapping, and bounded confirmation', async () => {
   const [client, world, rpRoute] = await Promise.all([
     source('src/components/CivilizationClient.tsx'), source('src/world.js'), source('src/app/api/rp-signature/route.ts'),
   ]);
-  assert.match(client, /allow_legacy_proofs=\{false\}/);
+  assert.match(client, /allow_legacy_proofs=\{true\}/);
   assert.match(client, /const ATTEMPTS = 21/);
   assert.match(client, /CredentialRequest\('proof_of_human', \{ signal: walletAddress \}\)/);
   assert.doesNotMatch(client, /proofOfHuman/);
   assert.match(client, /onSuccess=\{verify\}/);
   assert.doesNotMatch(client, /handleVerify=/);
   assert.doesNotMatch(client, /orbLegacy/);
+  assert.match(world, /result\.protocol_version === "3\.0"/);
+  assert.match(world, /functionName: "registerWorldIdLegacy"/);
+  assert.match(world, /decodeAbiParameters\(\[\{ type: "uint256\[8\]" \}\], response\.proof\)/);
   assert.match(world, /signature: rawContext\?\.signature \|\| rawContext\?\.sig/);
   assert.match(rpRoute, /LIVE_RP_ID/);
+});
+
+test('mainnet deployment requires explicit legacy router, app, and action and documents redeployment', async () => {
+  const [deployment, example, readme, architecture] = await Promise.all([
+    source('scripts/deploy-worldchain-mainnet.mjs'),
+    source('contracts/world-id-deployment.example.json'),
+    source('README.md'),
+    source('docs/ONCHAIN_ARCHITECTURE.md'),
+  ]);
+  for (const field of ['worldIdLegacyRouterAddress', 'worldIdLegacyAppId', 'worldIdLegacyActionId']) {
+    assert.match(deployment, new RegExp(`keys\\.${field}`));
+    assert.match(example, new RegExp(field));
+  }
+  assert.match(deployment, /keys\.worldIdLegacyActionId !== keys\.worldActionId/);
+  assert.match(deployment, /configuredLegacyRouter !== worldIdLegacyRouter/);
+  assert.match(deployment, /configuredLegacyExternalNullifier !== worldIdLegacyExternalNullifier/);
+  assert.doesNotMatch(deployment, /const WORLD_ID_LEGACY_ROUTER\s*=/);
+  assert.match(`${readme}${architecture}`, /requires? (?:a )?(?:new reviewed )?redeploy/i);
+  assert.match(`${readme}${architecture}`, /WORLD_ID_APP_ID/);
+  assert.match(`${readme}${architecture}`, /WORLD_ID_ACTION/);
 });
 
 test('static demo sets its Pages asset root before dynamically importing shared game UI', async () => {

@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { sanitizeWorldIdDiagnostic } from '../src/lib/world-id-diagnostic.js';
 
-test('World ID client requests only the strict v4 Proof of Human credential', async () => {
+test('World ID client requests Proof of Human with the SDK-supported v3 fallback', async () => {
   const client = await readFile(new URL('../src/components/CivilizationClient.tsx', import.meta.url), 'utf8');
   assert.match(client, /import \{ CredentialRequest \} from '@worldcoin\/idkit-core';/);
-  assert.match(client, /allow_legacy_proofs=\{false\}/);
+  assert.match(client, /allow_legacy_proofs=\{true\}/);
   assert.match(client, /constraints=\{CredentialRequest\('proof_of_human', \{ signal: walletAddress \}\)\}/);
   assert.doesNotMatch(client, /preset=/);
   assert.doesNotMatch(client, /proofOfHuman/);

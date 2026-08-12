@@ -18,7 +18,7 @@ export const CONTRACT_STATUS = Object.freeze({
   paymentsEnabled: false,
   withdrawalsEnabled: false,
   contracts: Object.freeze([
-    Object.freeze({ source: "contracts/src/CivilizationGame.sol", status: "mainnet_deployed_not_independently_audited" }),
+    Object.freeze({ source: "contracts/src/CivilizationGame.sol", status: "dual_world_id_source_not_deployed_not_independently_audited" }),
     Object.freeze({ source: "contracts/src/GameResourceToken.sol", status: "draft_not_deployed" }),
     Object.freeze({ source: "contracts/src/GoldSettlementRegistry.sol", status: "draft_not_deployed_allowlist_only" }),
   ]),

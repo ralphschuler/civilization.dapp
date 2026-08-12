@@ -3,10 +3,12 @@ import { homedir } from "node:os";
 import {
   createPublicClient,
   createWalletClient,
+  encodePacked,
   encodeDeployData,
   formatEther,
   getAddress,
   http,
+  isAddress,
   keccak256,
   stringToHex,
 } from "viem";
@@ -60,6 +62,8 @@ async function readDeployedConfiguration(publicClient, address, abi, attempts = 
         publicClient.readContract({ address, abi, functionName: "worldIdVerifier" }),
         publicClient.readContract({ address, abi, functionName: "worldIdRpId" }),
         publicClient.readContract({ address, abi, functionName: "worldIdIssuerSchemaId" }),
+        publicClient.readContract({ address, abi, functionName: "worldIdLegacyRouter" }),
+        publicClient.readContract({ address, abi, functionName: "worldIdLegacyExternalNullifier" }),
         publicClient.readContract({ address, abi, functionName: "worldToken" }),
         publicClient.readContract({ address, abi, functionName: "boostTreasury" }),
       ]);
@@ -80,6 +84,11 @@ const [source, keyText, worldIdText] = await Promise.all([
 const keys = { ...JSON.parse(keyText), ...JSON.parse(worldIdText) };
 if (!keys.receiverPrivateKey) throw new Error("mainnet key file lacks receiverPrivateKey");
 if (typeof keys.worldActionId !== "string" || !/^[a-z0-9][a-z0-9_-]{0,63}$/.test(keys.worldActionId)) throw new Error("mainnet key file lacks a valid World action ID");
+if (typeof keys.worldIdLegacyAppId !== "string" || !/^app_[A-Za-z0-9]+$/.test(keys.worldIdLegacyAppId)) throw new Error("World ID file lacks a valid worldIdLegacyAppId");
+if (typeof keys.worldIdLegacyActionId !== "string" || !/^[a-z0-9][a-z0-9_-]{0,63}$/.test(keys.worldIdLegacyActionId)) throw new Error("World ID file lacks a valid worldIdLegacyActionId");
+if (keys.worldIdLegacyActionId !== keys.worldActionId) throw new Error("World ID v3 and v4 action IDs must match the single IDKit request action");
+if (!isAddress(keys.worldIdLegacyRouterAddress) || /^0x0{40}$/i.test(keys.worldIdLegacyRouterAddress)) throw new Error("World ID file lacks a nonzero worldIdLegacyRouterAddress");
+const worldIdLegacyRouter = getAddress(keys.worldIdLegacyRouterAddress);
 const worldRpId = worldRpIdToUint64(keys.worldRpId);
 const worldIssuerSchemaId = decimalUint64(keys.worldIssuerSchemaId, "worldIssuerSchemaId");
 if (worldIssuerSchemaId === 0n) throw new Error("worldIssuerSchemaId must not be zero");
@@ -87,6 +96,11 @@ const worldCredentialGenesisIssuedAtMin = keys.worldCredentialGenesisIssuedAtMin
   ? 0n
   : decimalUint64(keys.worldCredentialGenesisIssuedAtMin, "worldCredentialGenesisIssuedAtMin");
 const worldIdActionField = BigInt(keccak256(stringToHex(keys.worldActionId))) >> 8n;
+const worldIdLegacyAppField = BigInt(keccak256(stringToHex(keys.worldIdLegacyAppId))) >> 8n;
+const worldIdLegacyExternalNullifier = BigInt(keccak256(encodePacked(
+  ["uint256", "string"],
+  [worldIdLegacyAppField, keys.worldIdLegacyActionId],
+))) >> 8n;
 
 const artifact = compileGame(source);
 const deployer = privateKeyToAccount(keys.receiverPrivateKey);
@@ -99,6 +113,9 @@ const data = encodeDeployData({
     worldRpId,
     worldIssuerSchemaId,
     worldCredentialGenesisIssuedAtMin,
+    worldIdLegacyRouter,
+    keys.worldIdLegacyAppId,
+    keys.worldIdLegacyActionId,
     WLD_TOKEN,
     BOOST_TREASURY,
   ],
@@ -122,6 +139,10 @@ const manifest = {
   worldRpId: worldRpId.toString(),
   worldIssuerSchemaId: worldIssuerSchemaId.toString(),
   worldCredentialGenesisIssuedAtMin: worldCredentialGenesisIssuedAtMin.toString(),
+  worldIdLegacyRouter,
+  worldIdLegacyAppId: keys.worldIdLegacyAppId,
+  worldIdLegacyActionId: keys.worldIdLegacyActionId,
+  worldIdLegacyExternalNullifier: worldIdLegacyExternalNullifier.toString(),
   worldToken: WLD_TOKEN,
   boostTreasury: BOOST_TREASURY,
   deployerNativeBalance: formatEther(balance),
@@ -147,6 +168,8 @@ const [
   configuredVerifier,
   configuredRpId,
   configuredIssuerSchemaId,
+  configuredLegacyRouter,
+  configuredLegacyExternalNullifier,
   configuredToken,
   configuredTreasury,
 ] = await readDeployedConfiguration(publicClient, deployedAddress, artifact.abi);
@@ -156,6 +179,8 @@ if (
   || configuredVerifier !== WORLD_ID_VERIFIER
   || configuredRpId !== worldRpId
   || configuredIssuerSchemaId !== worldIssuerSchemaId
+  || configuredLegacyRouter !== worldIdLegacyRouter
+  || configuredLegacyExternalNullifier !== worldIdLegacyExternalNullifier
   || configuredToken !== WLD_TOKEN
   || configuredTreasury !== BOOST_TREASURY
 ) {

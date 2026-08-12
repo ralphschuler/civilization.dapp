@@ -1,7 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { SendTransactionError } from "@worldcoin/minikit-js/commands";
+import { decodeFunctionData, encodeAbiParameters, keccak256, toFunctionSelector } from "viem";
 import { COLLECTION_COOLDOWN_MS, MARCH_DURATION_MS, createInitialState, gather, getRequirements, resolveRaidMarch, sendRaid, settle, startGathering, startRaidMarch, swapInternal, trainTroop, upgradeBuilding } from "../src/game.js";
+import { CIVILIZATION_WORLD_ID_REGISTRATION_ABI } from "../src/abi/CivilizationGame.js";
 import { buildTestnetRegistration, buildWorldIdRegistration, confirmWorldIdRegistration, getWorldIdConfig, isWorldAppBridgePresent, prepareWorldIdProofContext, submitWorldIdRegistration, WORLD_CHAIN_ID, WORLD_CHAIN_SEPOLIA_ID, WORLD_ID_REGISTRATION_READ_ATTEMPTS } from "../src/world.js";
 
 test("a WorldApp bridge remains a gated World runtime when MiniKit provider installation is false", () => {
@@ -87,10 +89,77 @@ test("World ID proof context is prepared by the RP before the React IDKit widget
   assert.deepEqual(result.rpContext, { rp_id: "rp_example", nonce: "0x1234", created_at: 1, expires_at: 2, signature: "0xsignature" });
 });
 
-test("World ID client does not create registration calldata from a non-v4 or incomplete proof", () => {
+test("World ID client routes exact v4 proof fields to registerWorldId", () => {
   const config = getWorldIdConfig(worldConfigEnv);
-  assert.throws(() => buildWorldIdRegistration({ config, walletAddress, result: { protocol_version: "3.0" } }), /world_id_v4_proof_required/);
-  assert.throws(() => buildWorldIdRegistration({ config, walletAddress, result: { protocol_version: "4.0", responses: [] } }), /incomplete_world_id_proof/);
+  const signalHash = BigInt(keccak256(walletAddress)) >> 8n;
+  const registration = buildWorldIdRegistration({
+    config,
+    walletAddress,
+    result: {
+      protocol_version: "4.0",
+      nonce: "0x1234",
+      action: "play",
+      environment: "production",
+      responses: [{
+        identifier: "proof_of_human",
+        nullifier: "0x1001",
+        signal_hash: `0x${signalHash.toString(16)}`,
+        expires_at_min: 3_000,
+        issuer_schema_id: 1,
+        proof: ["0x0b", "0x0c", "0x0d", "0x0e", "0x0f"],
+      }],
+    },
+  });
+  assert.equal(registration.protocolVersion, "4.0");
+  assert.equal(registration.data.slice(0, 10), toFunctionSelector("registerWorldId(uint256,uint256,uint256,uint64,uint64,uint256[5])"));
+  assert.deepEqual(
+    decodeFunctionData({ abi: CIVILIZATION_WORLD_ID_REGISTRATION_ABI, data: registration.data }),
+    {
+      functionName: "registerWorldId",
+      args: [0x1001n, 0x1234n, signalHash, 3_000n, 1n, [11n, 12n, 13n, 14n, 15n]],
+    },
+  );
+});
+
+test("World ID client decodes exact v3 IDKit proof bytes and routes legacy calldata", () => {
+  const config = getWorldIdConfig(worldConfigEnv);
+  const signalHash = BigInt(keccak256(walletAddress)) >> 8n;
+  const proof = [21n, 22n, 23n, 24n, 25n, 26n, 27n, 28n];
+  const encodedProof = encodeAbiParameters([{ type: "uint256[8]" }], [proof]);
+  const registration = buildWorldIdRegistration({
+    config,
+    walletAddress,
+    result: {
+      protocol_version: "3.0",
+      nonce: "0x1234",
+      action: "play",
+      environment: "production",
+      responses: [{
+        identifier: "orb",
+        nullifier: "0x3001",
+        signal_hash: `0x${signalHash.toString(16)}`,
+        merkle_root: "0x4004",
+        proof: encodedProof,
+      }],
+    },
+  });
+  assert.equal(registration.protocolVersion, "3.0");
+  assert.equal(registration.data.slice(0, 10), toFunctionSelector("registerWorldIdLegacy(uint256,uint256,uint256,uint256[8])"));
+  assert.deepEqual(
+    decodeFunctionData({ abi: CIVILIZATION_WORLD_ID_REGISTRATION_ABI, data: registration.data }),
+    {
+      functionName: "registerWorldIdLegacy",
+      args: [0x4004n, signalHash, 0x3001n, proof],
+    },
+  );
+});
+
+test("World ID client rejects unsupported, wrong-action, or incomplete proof shapes", () => {
+  const config = getWorldIdConfig(worldConfigEnv);
+  assert.throws(() => buildWorldIdRegistration({ config, walletAddress, result: { protocol_version: "3.0", action: "other", responses: [] } }), /unexpected_world_id_action/);
+  assert.throws(() => buildWorldIdRegistration({ config, walletAddress, result: { protocol_version: "3.0", action: "play", responses: [] } }), /incomplete_world_id_legacy_proof/);
+  assert.throws(() => buildWorldIdRegistration({ config, walletAddress, result: { protocol_version: "4.0", action: "play", responses: [] } }), /incomplete_world_id_proof/);
+  assert.throws(() => buildWorldIdRegistration({ config, walletAddress, result: { protocol_version: "2.0", action: "play", responses: [] } }), /unsupported_world_id_proof/);
 });
 
 test("World ID gate waits for World Chain playerState registration after MiniKit submission", async () => {

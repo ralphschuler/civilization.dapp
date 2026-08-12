@@ -32,7 +32,33 @@ const construction = [
   { name: 'completesAt', type: 'uint64' },
 ];
 
+export const CIVILIZATION_WORLD_ID_REGISTRATION_ABI = [
+  {
+    type: 'function', name: 'registerWorldId', stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'nullifierHash', type: 'uint256' },
+      { name: 'nonce', type: 'uint256' },
+      { name: 'signalHash', type: 'uint256' },
+      { name: 'expiresAtMin', type: 'uint64' },
+      { name: 'issuerSchemaId', type: 'uint64' },
+      { name: 'proof', type: 'uint256[5]' },
+    ],
+    outputs: [],
+  },
+  {
+    type: 'function', name: 'registerWorldIdLegacy', stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'root', type: 'uint256' },
+      { name: 'signalHash', type: 'uint256' },
+      { name: 'nullifierHash', type: 'uint256' },
+      { name: 'proof', type: 'uint256[8]' },
+    ],
+    outputs: [],
+  },
+];
+
 export const CIVILIZATION_GAME_ABI = [
+  ...CIVILIZATION_WORLD_ID_REGISTRATION_ABI,
   {
     type: 'function', name: 'previewPlayerState', stateMutability: 'view',
     inputs: [{ name: 'account', type: 'address' }],

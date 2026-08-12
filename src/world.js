@@ -1,6 +1,7 @@
 import { MiniKit } from "@worldcoin/minikit-js";
 import { createPublicClient, decodeAbiParameters, encodeFunctionData, getAddress, http, isAddress, keccak256, stringToHex } from "viem";
 import { worldchain } from "viem/chains";
+import { CIVILIZATION_WORLD_ID_REGISTRATION_ABI } from "./abi/CivilizationGame.js";
 
 // World App transacts only on World Chain mainnet. Sepolia is available for
 // direct EVM-wallet contract tests, never through MiniKit / World App.
@@ -22,18 +23,6 @@ const isHttpsUrl = (value) => {
 
 const isActionId = (value) => /^[a-z0-9][a-z0-9_-]{0,63}$/.test(value);
 const isDeployedAddress = (value) => isAddress(value) && getAddress(value) !== "0x0000000000000000000000000000000000000000";
-const testnetTransactionAbi = [{
-  type: "function", name: "registerWorldId", stateMutability: "nonpayable",
-  inputs: [
-    { name: "nullifierHash", type: "uint256" },
-    { name: "nonce", type: "uint256" },
-    { name: "signalHash", type: "uint256" },
-    { name: "expiresAtMin", type: "uint64" },
-    { name: "issuerSchemaId", type: "uint64" },
-    { name: "proof", type: "uint256[5]" },
-  ], outputs: [],
-}];
-
 const playerStateReadAbi = [{
   type: "function", name: "playerState", stateMutability: "view",
   inputs: [{ name: "account", type: "address" }], outputs: [],
@@ -92,7 +81,7 @@ export function buildTestnetRegistration({ config = getWorldIdConfig(), walletAd
     to: getAddress(config.contractAddress),
     value: "0x0",
     data: encodeFunctionData({
-      abi: testnetTransactionAbi,
+      abi: CIVILIZATION_WORLD_ID_REGISTRATION_ABI,
       functionName: "registerWorldId",
       args: [nullifierHash, 2002n, signalHash, 3000n, 1n, [11n, 12n, 13n, 14n, 15n]],
     }),
@@ -144,36 +133,50 @@ async function jsonResponse(response) {
 }
 
 /**
- * Converts a World ID 4.0 response to the exact CivilizationGame calldata.
- * The RP server signs context only; it never decides whether a player is human
- * and never authorizes game state. `registerWorldId` verifies the ZK proof on
- * the World Chain router.
+ * Converts an IDKit World ID 3.0 or 4.0 response to exact CivilizationGame
+ * calldata. The RP server signs context only; it never decides whether a
+ * player is human and never authorizes game state.
  */
 export function buildWorldIdRegistration({ config = getWorldIdConfig(), walletAddress, result } = {}) {
   if (!config.configured || !isAddress(walletAddress)) throw new Error("configuration_required");
-  if (result?.protocol_version !== "4.0") throw new Error("world_id_v4_proof_required");
-  if (result.action && result.action !== config.action) throw new Error("unexpected_world_id_action");
+  if (!result || result.action !== config.action) throw new Error("unexpected_world_id_action");
+  if (result.protocol_version === "3.0") {
+    const response = result.responses?.find((item) => item.identifier === "orb");
+    if (!response?.nullifier || !response.signal_hash || !response.proof || !response.merkle_root) {
+      throw new Error("incomplete_world_id_legacy_proof");
+    }
+    const proof = decodeAbiParameters([{ type: "uint256[8]" }], response.proof)[0];
+    return {
+      protocolVersion: "3.0",
+      chainId: WORLD_CHAIN_ID,
+      from: getAddress(walletAddress),
+      to: getAddress(config.contractAddress),
+      value: "0x0",
+      data: encodeFunctionData({
+        abi: CIVILIZATION_WORLD_ID_REGISTRATION_ABI,
+        functionName: "registerWorldIdLegacy",
+        args: [
+          BigInt(response.merkle_root),
+          BigInt(response.signal_hash),
+          BigInt(response.nullifier),
+          proof,
+        ],
+      }),
+    };
+  }
+  if (result.protocol_version !== "4.0" || "session_id" in result) throw new Error("unsupported_world_id_proof");
   const response = result.responses?.find((item) => item.identifier === "proof_of_human");
   if (!response?.nullifier || !response.signal_hash || !response.proof || !response.expires_at_min || !response.issuer_schema_id) throw new Error("incomplete_world_id_proof");
   const proof = response.proof.map((value) => BigInt(value));
   if (proof.length !== 5) throw new Error("invalid_world_id_proof");
   return {
+    protocolVersion: "4.0",
     chainId: WORLD_CHAIN_ID,
     from: getAddress(walletAddress),
     to: getAddress(config.contractAddress),
     value: "0x0",
     data: encodeFunctionData({
-      abi: [{
-        type: "function", name: "registerWorldId", stateMutability: "nonpayable",
-        inputs: [
-          { name: "nullifierHash", type: "uint256" },
-          { name: "nonce", type: "uint256" },
-          { name: "signalHash", type: "uint256" },
-          { name: "expiresAtMin", type: "uint64" },
-          { name: "issuerSchemaId", type: "uint64" },
-          { name: "proof", type: "uint256[5]" },
-        ], outputs: [],
-      }],
+      abi: CIVILIZATION_WORLD_ID_REGISTRATION_ABI,
       functionName: "registerWorldId",
       args: [
         BigInt(response.nullifier),

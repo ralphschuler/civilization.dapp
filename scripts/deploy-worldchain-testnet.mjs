@@ -84,6 +84,9 @@ const gameArgs = [
   1,
   1,
   0n,
+  placeholderVerifier,
+  "app_civilization_testnet",
+  "civilization-testnet",
   placeholderToken,
   BOOST_TREASURY,
 ];
@@ -108,6 +111,9 @@ const manifest = {
     worldActionId: "civilization-testnet",
     worldRpId: 1,
     worldIssuerSchemaId: 1,
+    worldIdLegacyRouter: "MockWorldIdVerifier; accepts test proofs only",
+    worldIdLegacyAppId: "app_civilization_testnet",
+    worldIdLegacyActionId: "civilization-testnet",
   },
   boostTreasury: BOOST_TREASURY,
   estimatedGas: {
@@ -134,16 +140,20 @@ const deployedGame = await deploy(walletClient, publicClient, account, deployDat
   1,
   1,
   0n,
+  deployedVerifier.address,
+  "app_civilization_testnet",
+  "civilization-testnet",
   deployedToken.address,
   BOOST_TREASURY,
 ]));
-const [code, configuredVerifier, configuredToken, configuredTreasury] = await Promise.all([
+const [code, configuredVerifier, configuredLegacyRouter, configuredToken, configuredTreasury] = await Promise.all([
   publicClient.getCode({ address: deployedGame.address }),
   publicClient.readContract({ address: deployedGame.address, abi: game.abi, functionName: "worldIdVerifier" }),
+  publicClient.readContract({ address: deployedGame.address, abi: game.abi, functionName: "worldIdLegacyRouter" }),
   publicClient.readContract({ address: deployedGame.address, abi: game.abi, functionName: "worldToken" }),
   publicClient.readContract({ address: deployedGame.address, abi: game.abi, functionName: "boostTreasury" }),
 ]);
-if (!code || configuredVerifier !== getAddress(deployedVerifier.address) || configuredToken !== getAddress(deployedToken.address) || configuredTreasury !== BOOST_TREASURY) {
+if (!code || configuredVerifier !== getAddress(deployedVerifier.address) || configuredLegacyRouter !== getAddress(deployedVerifier.address) || configuredToken !== getAddress(deployedToken.address) || configuredTreasury !== BOOST_TREASURY) {
   throw new Error("post-deployment contract configuration verification failed");
 }
 console.log(JSON.stringify({

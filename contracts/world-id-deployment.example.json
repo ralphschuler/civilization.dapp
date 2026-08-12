@@ -1,0 +1,9 @@
+{
+  "worldActionId": "play",
+  "worldRpId": "rp_REPLACE_WITH_PORTAL_RP_ID",
+  "worldIssuerSchemaId": "1",
+  "worldCredentialGenesisIssuedAtMin": "0",
+  "worldIdLegacyRouterAddress": "REPLACE_WITH_VERIFIED_WORLD_CHAIN_MAINNET_V3_ROUTER",
+  "worldIdLegacyAppId": "app_REPLACE_WITH_WORLD_ID_APP_ID",
+  "worldIdLegacyActionId": "play"
+}

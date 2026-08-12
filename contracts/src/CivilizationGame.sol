@@ -5,6 +5,18 @@ interface IWorldToken {
     function transferFrom(address from, address to, uint256 value) external returns (bool);
 }
 
+/// @dev Official legacy World ID 3 router interface.
+interface IWorldIDLegacyRouter {
+    function verifyProof(
+        uint256 root,
+        uint256 groupId,
+        uint256 signalHash,
+        uint256 nullifierHash,
+        uint256 externalNullifierHash,
+        uint256[8] calldata proof
+    ) external view;
+}
+
 /// @dev Official World ID 4 verifier interface deployed on World Chain mainnet.
 interface IWorldIDVerifier {
     function verify(
@@ -21,9 +33,9 @@ interface IWorldIDVerifier {
 }
 
 /// @title CivilizationGame
-/// @notice Source-only World Chain game-state draft with direct World ID 4.0
-/// verification. The backend can provide a World RP context, but cannot attest
-/// registrations or change a village.
+/// @notice Source-only World Chain game-state draft with direct World ID 3.0
+/// legacy and World ID 4.0 verification. The backend can provide a World RP
+/// context, but cannot attest registrations or change a village.
 /// @dev Wood, clay and stone are internal game units. Gold is an in-game ERC-20
 /// minted only by deterministic claim and raid rules. WLD can pay only to reduce
 /// construction time and is transferred directly to the immutable treasury.
@@ -40,6 +52,7 @@ contract CivilizationGame {
     uint256 private constant BASIS_POINTS = 10_000;
     uint256 private constant PRESTIGE_BONUS_BPS = 1_000;
     uint256 private constant FRACTION_SCALE = 1 days * BASIS_POINTS;
+    uint256 public constant WORLD_ID_LEGACY_GROUP_ID = 1;
 
     enum Building { Townhall, Timber, Claypit, Quarry, Warehouse, Workshop, Goldmine, Barracks }
     enum Troop { Spear, Archer, Rider }
@@ -86,6 +99,8 @@ contract CivilizationGame {
     uint64 public immutable worldIdRpId;
     uint64 public immutable worldIdIssuerSchemaId;
     uint256 public immutable worldIdCredentialGenesisIssuedAtMin;
+    IWorldIDLegacyRouter public immutable worldIdLegacyRouter;
+    uint256 public immutable worldIdLegacyExternalNullifier;
     address public immutable worldToken;
     address public immutable boostTreasury;
     mapping(address => Player) private players;
@@ -135,16 +150,34 @@ contract CivilizationGame {
         uint64 worldRpId,
         uint64 worldIssuerSchemaId,
         uint256 credentialGenesisIssuedAtMin,
+        address worldIdLegacyRouterAddress,
+        string memory worldIdLegacyAppId,
+        string memory worldIdLegacyActionId,
         address worldTokenAddress,
         address boostTreasuryAddress
     ) {
-        if (worldIdVerifierAddress == address(0) || worldTokenAddress == address(0) || boostTreasuryAddress == address(0)) revert ZeroAddress();
-        if (bytes(worldActionId).length == 0 || worldRpId == 0 || worldIssuerSchemaId == 0) revert InvalidWorldIdConfiguration();
+        if (
+            worldIdVerifierAddress == address(0)
+                || worldIdLegacyRouterAddress == address(0)
+                || worldTokenAddress == address(0)
+                || boostTreasuryAddress == address(0)
+        ) revert ZeroAddress();
+        if (
+            bytes(worldActionId).length == 0
+                || worldRpId == 0
+                || worldIssuerSchemaId == 0
+                || bytes(worldIdLegacyAppId).length == 0
+                || bytes(worldIdLegacyActionId).length == 0
+        ) revert InvalidWorldIdConfiguration();
         worldIdVerifier = IWorldIDVerifier(worldIdVerifierAddress);
         worldIdAction = _hashToField(bytes(worldActionId));
         worldIdRpId = worldRpId;
         worldIdIssuerSchemaId = worldIssuerSchemaId;
         worldIdCredentialGenesisIssuedAtMin = credentialGenesisIssuedAtMin;
+        worldIdLegacyRouter = IWorldIDLegacyRouter(worldIdLegacyRouterAddress);
+        worldIdLegacyExternalNullifier = _hashToField(
+            abi.encodePacked(_hashToField(bytes(worldIdLegacyAppId)), worldIdLegacyActionId)
+        );
         worldToken = worldTokenAddress;
         boostTreasury = boostTreasuryAddress;
     }
@@ -161,9 +194,7 @@ contract CivilizationGame {
         uint64 issuerSchemaId,
         uint256[5] calldata proof
     ) external {
-        if (players[msg.sender].registered) revert AlreadyRegistered();
-        if (nullifierOwner[nullifierHash] != address(0)) revert NullifierAlreadyUsed();
-        if (signalHash != _hashToField(abi.encodePacked(msg.sender))) revert InvalidWorldIdConfiguration();
+        _requireAvailableRegistration(nullifierHash, signalHash);
         if (issuerSchemaId != worldIdIssuerSchemaId) revert UnexpectedWorldIdCredential();
         worldIdVerifier.verify(
             nullifierHash,
@@ -176,6 +207,38 @@ contract CivilizationGame {
             worldIdCredentialGenesisIssuedAtMin,
             proof
         );
+        _registerPlayer(nullifierHash);
+    }
+
+    /// @notice Verifies an Orb World ID 3 proof and registers msg.sender once.
+    /// @dev The router, app ID and action are constructor-bound. Their official
+    /// legacy external nullifier is hashToField(hashToField(appId) || action).
+    /// The same player/nullifier state is shared with the World ID 4 path.
+    function registerWorldIdLegacy(
+        uint256 root,
+        uint256 signalHash,
+        uint256 nullifierHash,
+        uint256[8] calldata proof
+    ) external {
+        _requireAvailableRegistration(nullifierHash, signalHash);
+        worldIdLegacyRouter.verifyProof(
+            root,
+            WORLD_ID_LEGACY_GROUP_ID,
+            signalHash,
+            nullifierHash,
+            worldIdLegacyExternalNullifier,
+            proof
+        );
+        _registerPlayer(nullifierHash);
+    }
+
+    function _requireAvailableRegistration(uint256 nullifierHash, uint256 signalHash) private view {
+        if (players[msg.sender].registered) revert AlreadyRegistered();
+        if (nullifierOwner[nullifierHash] != address(0)) revert NullifierAlreadyUsed();
+        if (signalHash != _hashToField(abi.encodePacked(msg.sender))) revert InvalidWorldIdConfiguration();
+    }
+
+    function _registerPlayer(uint256 nullifierHash) private {
         nullifierOwner[nullifierHash] = msg.sender;
         Player storage player = players[msg.sender];
         player.registered = true;
