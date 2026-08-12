@@ -48,6 +48,9 @@ export default function CivilizationClient({
   const [registrationPending, setRegistrationPending] = useState(false);
   const [status, setStatus] = useState('World App wird geprüft …');
   const [request, setRequest] = useState<any>(null);
+  const [widgetOpen, setWidgetOpen] = useState(false);
+  const verificationInProgress = useRef(false);
+  const recoveryFromWidgetError = useRef(false);
 
   const pollReceipt = useCallback((userOpHash: string) => new Promise((resolve, reject) => {
     let finished = false;
@@ -84,6 +87,7 @@ export default function CivilizationClient({
     } as any);
     if (!result.ok) return false;
     setRequest(null);
+    setWidgetOpen(false);
     setRegistrationPending(false);
     setStatus('World ID bestätigt. On-chain-Dorf wird geladen …');
     setRegistered(true);
@@ -143,6 +147,8 @@ export default function CivilizationClient({
         return;
       }
       setRequest(prepared);
+      recoveryFromWidgetError.current = false;
+      setWidgetOpen(true);
       setStatus('Bestätige den World-ID-Nachweis in World App.');
     } catch (error) {
       setStatus(`Prüfung fehlgeschlagen: ${errorText(error)}.`);
@@ -152,6 +158,8 @@ export default function CivilizationClient({
   }, [busy, checkRegistration, config, registrationPending, walletAddress]);
 
   const verify = useCallback(async (result: IDKitResult) => {
+    verificationInProgress.current = true;
+    setWidgetOpen(false);
     setBusy(true);
     setStatus('World-ID-Transaktion wird an World Chain gesendet …');
     try {
@@ -161,14 +169,35 @@ export default function CivilizationClient({
       setRegistrationPending(true);
       setStatus('World Chain bestätigt deine Registrierung …');
       if (await checkRegistration(ATTEMPTS)) return;
-      setRequest(null);
       setStatus('Transaktion gesendet, aber noch nicht bestätigt. Warte kurz und prüfe erneut; kein neuer Proof nötig.');
     } catch (error) {
       setStatus(`World-ID-Verifizierung fehlgeschlagen: ${errorText(error)}.`);
     } finally {
+      verificationInProgress.current = false;
       setBusy(false);
     }
   }, [checkRegistration, config, walletAddress]);
+
+  const closeWidget = useCallback((open: boolean) => {
+    setWidgetOpen(open);
+    if (open) recoveryFromWidgetError.current = false;
+    if (!open && !verificationInProgress.current && !recoveryFromWidgetError.current) {
+      setBusy(false);
+      setStatus('World ID wurde geschlossen. Du kannst die Verifizierung erneut starten.');
+    }
+  }, []);
+
+  const handleWidgetError = useCallback((errorCode: unknown, debugReport?: IDKitDebugReport) => {
+    verificationInProgress.current = false;
+    recoveryFromWidgetError.current = true;
+    setWidgetOpen(false);
+    setBusy(false);
+    const diagnostic = sanitizeWorldIdDiagnostic(errorCode, debugReport);
+    const prefix = errorCode === 'user_rejected'
+      ? 'World ID wurde abgebrochen. Du kannst die Verifizierung erneut starten'
+      : `World ID meldet: ${formatWorldIdDiagnostic(diagnostic)}`;
+    setStatus(`${prefix}.`);
+  }, []);
 
   if (!bridge || !config.configured) {
     const title = config.configured ? 'World App erforderlich' : 'World-Konfiguration fehlt';
@@ -182,8 +211,8 @@ export default function CivilizationClient({
         {busy ? 'Bitte warten …' : registrationPending ? 'Registrierung erneut prüfen' : 'Mit World ID verifizieren'}
       </button>
       {request && <IDKitRequestWidget
-        open
-        onOpenChange={(open) => !open && setRequest(null)}
+        open={widgetOpen}
+        onOpenChange={closeWidget}
         app_id={config.appId as `app_${string}`}
         action={config.action}
         rp_context={request.rpContext}
@@ -191,10 +220,7 @@ export default function CivilizationClient({
         environment="production"
         constraints={CredentialRequest('proof_of_human', { signal: walletAddress })}
         onSuccess={verify}
-        onError={(errorCode, debugReport?: IDKitDebugReport) => {
-          const diagnostic = sanitizeWorldIdDiagnostic(errorCode, debugReport);
-          setStatus(`World ID meldet: ${formatWorldIdDiagnostic(diagnostic)}.`);
-        }}
+        onError={handleWidgetError}
       />}
     </div></main>;
   }
