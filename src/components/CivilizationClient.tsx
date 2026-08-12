@@ -1,8 +1,9 @@
 'use client';
 /* eslint-disable @typescript-eslint/no-explicit-any -- IDKit v4 callback payloads are JSON values. */
 
-import { IDKitRequestWidget, proofOfHuman } from '@worldcoin/idkit';
-import type { IDKitResult } from '@worldcoin/idkit-core';
+import { IDKitRequestWidget } from '@worldcoin/idkit';
+import { CredentialRequest } from '@worldcoin/idkit-core';
+import type { IDKitDebugReport, IDKitResult } from '@worldcoin/idkit-core';
 import { useUserOperationReceipt } from '@worldcoin/minikit-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { startCivilizationApp, stopCivilizationApp } from '@/app';
@@ -16,6 +17,7 @@ import {
   submitWorldIdRegistration,
 } from '@/world';
 import { createWorldGameAdapter, worldGameClient } from '@/world-game';
+import { formatWorldIdDiagnostic, sanitizeWorldIdDiagnostic } from '@/lib/world-id-diagnostic';
 
 const ATTEMPTS = 21;
 const RECEIPT_DEADLINE_MS = 60_000;
@@ -187,9 +189,12 @@ export default function CivilizationClient({
         rp_context={request.rpContext}
         allow_legacy_proofs={false}
         environment="production"
-        preset={proofOfHuman({ signal: walletAddress })}
+        constraints={CredentialRequest('proof_of_human', { signal: walletAddress })}
         onSuccess={verify}
-        onError={(error) => setStatus(`World ID meldet: ${errorText(error)}.`)}
+        onError={(errorCode, debugReport?: IDKitDebugReport) => {
+          const diagnostic = sanitizeWorldIdDiagnostic(errorCode, debugReport);
+          setStatus(`World ID meldet: ${formatWorldIdDiagnostic(diagnostic)}.`);
+        }}
       />}
     </div></main>;
   }
