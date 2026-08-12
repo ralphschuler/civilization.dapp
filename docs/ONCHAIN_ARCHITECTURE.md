@@ -1,6 +1,6 @@
 # On-chain Civilization game-state draft
 
-`contracts/src/CivilizationGame.sol` is deployed on World Chain mainnet at `0x29147c7bead901e8019d7911a7dc404447877c62`. The deployment has not been independently audited and has no settlement capability. It is deliberately independent of the running beta API and PostgreSQL state.
+`contracts/src/CivilizationGame.sol` is deployed on World Chain mainnet at `0x1A64F89881FD2E38255E62c6D62b68076052DF4b` by transaction [`0x2c99cf41434022231537e9d3077307ff24c07bfa797c68575c4774961b0d5123`](https://worldscan.org/tx/0x2c99cf41434022231537e9d3077307ff24c07bfa797c68575c4774961b0d5123) in block `33579795`. The deployment has not been independently audited and has no settlement capability. It is deliberately independent of the running beta API and PostgreSQL state.
 
 ## Authority boundary
 

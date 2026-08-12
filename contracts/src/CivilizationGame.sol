@@ -141,7 +141,7 @@ contract CivilizationGame {
         if (worldIdVerifierAddress == address(0) || worldTokenAddress == address(0) || boostTreasuryAddress == address(0)) revert ZeroAddress();
         if (bytes(worldActionId).length == 0 || worldRpId == 0 || worldIssuerSchemaId == 0) revert InvalidWorldIdConfiguration();
         worldIdVerifier = IWorldIDVerifier(worldIdVerifierAddress);
-        worldIdAction = uint256(keccak256(bytes(worldActionId)));
+        worldIdAction = _hashToField(bytes(worldActionId));
         worldIdRpId = worldRpId;
         worldIdIssuerSchemaId = worldIssuerSchemaId;
         worldIdCredentialGenesisIssuedAtMin = credentialGenesisIssuedAtMin;
