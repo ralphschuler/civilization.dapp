@@ -231,10 +231,16 @@ export async function submitWorldIdRegistration(registration, miniKit = MiniKit)
   if (!registration || registration.chainId !== WORLD_CHAIN_ID || !isAddress(registration.from) || !miniKit.isInstalled()) {
     return { ok: false, reason: "wallet_unavailable" };
   }
-  const response = await miniKit.sendTransaction({
-    chainId: WORLD_CHAIN_ID,
-    transactions: [{ to: registration.to, data: registration.data, value: registration.value }],
-  });
+  let response;
+  try {
+    response = await miniKit.sendTransaction({
+      chainId: WORLD_CHAIN_ID,
+      transactions: [{ to: registration.to, data: registration.data, value: registration.value }],
+    });
+  } catch (error) {
+    const reason = error?.code || error?.error_code;
+    return { ok: false, reason: typeof reason === "string" && reason ? reason : "transaction_rejected" };
+  }
   if (response?.executedWith !== "minikit" || response?.data?.status !== "success") {
     return { ok: false, reason: response?.data?.error_code || "transaction_rejected" };
   }

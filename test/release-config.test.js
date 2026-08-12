@@ -99,6 +99,8 @@ test('Next World ID client uses v4 proof, official RP signature mapping, and bou
   assert.match(client, /allow_legacy_proofs=\{false\}/);
   assert.match(client, /const ATTEMPTS = 21/);
   assert.match(client, /proofOfHuman/);
+  assert.match(client, /onSuccess=\{verify\}/);
+  assert.doesNotMatch(client, /handleVerify=/);
   assert.doesNotMatch(client, /orbLegacy/);
   assert.match(world, /signature: rawContext\?\.signature \|\| rawContext\?\.sig/);
   assert.match(rpRoute, /LIVE_RP_ID/);

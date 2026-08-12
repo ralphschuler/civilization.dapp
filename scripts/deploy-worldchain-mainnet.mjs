@@ -7,6 +7,8 @@ import {
   formatEther,
   getAddress,
   http,
+  keccak256,
+  stringToHex,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { worldchain } from "viem/chains";
@@ -62,6 +64,7 @@ if (worldIssuerSchemaId === 0n) throw new Error("worldIssuerSchemaId must not be
 const worldCredentialGenesisIssuedAtMin = keys.worldCredentialGenesisIssuedAtMin === undefined
   ? 0n
   : decimalUint64(keys.worldCredentialGenesisIssuedAtMin, "worldCredentialGenesisIssuedAtMin");
+const worldIdActionField = BigInt(keccak256(stringToHex(keys.worldActionId))) >> 8n;
 
 const artifact = compileGame(source);
 const deployer = privateKeyToAccount(keys.receiverPrivateKey);
@@ -93,6 +96,7 @@ const manifest = {
   deployer: deployer.address,
   worldIdVerifier: WORLD_ID_VERIFIER,
   worldActionId: keys.worldActionId,
+  worldIdActionField: worldIdActionField.toString(),
   worldRpId: worldRpId.toString(),
   worldIssuerSchemaId: worldIssuerSchemaId.toString(),
   worldCredentialGenesisIssuedAtMin: worldCredentialGenesisIssuedAtMin.toString(),
@@ -114,4 +118,39 @@ if (balance === 0n) throw new Error(`fund ${deployer.address} with World Chain n
 const hash = await walletClient.sendTransaction({ account: deployer, data, gas: (gas * 120n) / 100n });
 const receipt = await publicClient.waitForTransactionReceipt({ hash });
 if (receipt.status !== "success" || !receipt.contractAddress) throw new Error(`deployment failed: ${hash}`);
-console.log(JSON.stringify({ ...manifest, transactionHash: hash, contractAddress: receipt.contractAddress, blockNumber: receipt.blockNumber.toString() }, null, 2));
+const deployedAddress = getAddress(receipt.contractAddress);
+const [
+  code,
+  configuredAction,
+  configuredVerifier,
+  configuredRpId,
+  configuredIssuerSchemaId,
+  configuredToken,
+  configuredTreasury,
+] = await Promise.all([
+  publicClient.getCode({ address: deployedAddress }),
+  publicClient.readContract({ address: deployedAddress, abi: artifact.abi, functionName: "worldIdAction" }),
+  publicClient.readContract({ address: deployedAddress, abi: artifact.abi, functionName: "worldIdVerifier" }),
+  publicClient.readContract({ address: deployedAddress, abi: artifact.abi, functionName: "worldIdRpId" }),
+  publicClient.readContract({ address: deployedAddress, abi: artifact.abi, functionName: "worldIdIssuerSchemaId" }),
+  publicClient.readContract({ address: deployedAddress, abi: artifact.abi, functionName: "worldToken" }),
+  publicClient.readContract({ address: deployedAddress, abi: artifact.abi, functionName: "boostTreasury" }),
+]);
+if (
+  !code
+  || configuredAction !== worldIdActionField
+  || configuredVerifier !== WORLD_ID_VERIFIER
+  || configuredRpId !== worldRpId
+  || configuredIssuerSchemaId !== worldIssuerSchemaId
+  || configuredToken !== WLD_TOKEN
+  || configuredTreasury !== BOOST_TREASURY
+) {
+  throw new Error("post-deployment contract configuration verification failed");
+}
+console.log(JSON.stringify({
+  ...manifest,
+  transactionHash: hash,
+  contractAddress: deployedAddress,
+  blockNumber: receipt.blockNumber.toString(),
+  verified: true,
+}, null, 2));

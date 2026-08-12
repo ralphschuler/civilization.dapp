@@ -12,6 +12,7 @@ import {
   encodeFunctionData,
   keccak256,
   padHex,
+  stringToHex,
   toHex,
 } from "viem";
 
@@ -168,7 +169,8 @@ test("contract source verifies World ID 4 on-chain and protects replay paths", a
   assert.match(source, /worldIdVerifier\.verify\(/);
   assert.match(source, /signalHash != _hashToField\(abi\.encodePacked\(msg\.sender\)\)/);
   assert.match(source, /issuerSchemaId != worldIdIssuerSchemaId/);
-  assert.match(source, /worldIdAction = uint256\(keccak256\(bytes\(worldActionId\)\)\)/);
+  assert.match(source, /worldIdAction = _hashToField\(bytes\(worldActionId\)\)/);
+  assert.doesNotMatch(source, /worldIdAction = uint256\(keccak256\(bytes\(worldActionId\)\)\);/);
   assert.match(source, /function _accrue\(Player storage player\) private/);
   assert.match(source, /function claim\(\) external onlyRegistered/);
   assert.match(source, /function resolveRaid\(\) external onlyRegistered/);
@@ -187,6 +189,26 @@ test("contract source verifies World ID 4 on-chain and protects replay paths", a
   assert.doesNotMatch(source, /function .*onlyBackend/i);
   assert.doesNotMatch(source, /EIP712|backendAttestationSigner|attestation/i);
   assert.doesNotMatch(source, /\bpayable\b/);
+});
+
+test("CivilizationGame constructor stores the World ID action as a SNARK field hash", async () => {
+  const output = await compileContracts();
+  const artifact = output.contracts["contracts/src/CivilizationGame.sol"].CivilizationGame;
+  const vm = await createVM();
+  const game = await deployContract(vm, artifact.abi, artifact.evm.bytecode.object, [
+    playerA.address,
+    "play",
+    123n,
+    1n,
+    0n,
+    playerB.address,
+    deployer.toString(),
+  ]);
+
+  assert.equal(
+    await readGame(game, "worldIdAction", [], 1_000n),
+    BigInt(keccak256(stringToHex("play"))) >> 8n,
+  );
 });
 
 test("CivilizationGame executes World registration, contract-derived production, claims, and replay protection on a local EVM", async () => {

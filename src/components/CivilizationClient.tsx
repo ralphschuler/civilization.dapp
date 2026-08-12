@@ -2,6 +2,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- IDKit v4 callback payloads are JSON values. */
 
 import { IDKitRequestWidget, proofOfHuman } from '@worldcoin/idkit';
+import type { IDKitResult } from '@worldcoin/idkit-core';
 import { useUserOperationReceipt } from '@worldcoin/minikit-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { startCivilizationApp, stopCivilizationApp } from '@/app';
@@ -148,7 +149,7 @@ export default function CivilizationClient({
     }
   }, [busy, checkRegistration, config, registrationPending, walletAddress]);
 
-  const verify = useCallback(async (result: any) => {
+  const verify = useCallback(async (result: IDKitResult) => {
     setBusy(true);
     setStatus('World-ID-Transaktion wird an World Chain gesendet …');
     try {
@@ -162,7 +163,6 @@ export default function CivilizationClient({
       setStatus('Transaktion gesendet, aber noch nicht bestätigt. Warte kurz und prüfe erneut; kein neuer Proof nötig.');
     } catch (error) {
       setStatus(`World-ID-Verifizierung fehlgeschlagen: ${errorText(error)}.`);
-      throw error;
     } finally {
       setBusy(false);
     }
@@ -188,8 +188,7 @@ export default function CivilizationClient({
         allow_legacy_proofs={false}
         environment="production"
         preset={proofOfHuman({ signal: walletAddress })}
-        handleVerify={verify}
-        onSuccess={() => undefined}
+        onSuccess={verify}
         onError={(error) => setStatus(`World ID meldet: ${errorText(error)}.`)}
       />}
     </div></main>;

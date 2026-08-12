@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { SendTransactionError } from "@worldcoin/minikit-js/commands";
 import { COLLECTION_COOLDOWN_MS, MARCH_DURATION_MS, createInitialState, gather, getRequirements, resolveRaidMarch, sendRaid, settle, startGathering, startRaidMarch, swapInternal, trainTroop, upgradeBuilding } from "../src/game.js";
 import { buildTestnetRegistration, buildWorldIdRegistration, confirmWorldIdRegistration, getWorldIdConfig, isWorldAppBridgePresent, prepareWorldIdProofContext, submitWorldIdRegistration, WORLD_CHAIN_ID, WORLD_CHAIN_SEPOLIA_ID, WORLD_ID_REGISTRATION_READ_ATTEMPTS } from "../src/world.js";
 
@@ -14,6 +15,20 @@ test("MiniKit transaction preserves its user-operation hash for React receipt po
     { isInstalled: () => true, sendTransaction: async () => ({ executedWith: "minikit", data: { status: "success", userOpHash: "0xuserop", from: walletAddress } }) },
   );
   assert.deepEqual(result, { ok: true, transaction: { status: "success", userOpHash: "0xuserop", from: walletAddress }, userOpHash: "0xuserop" });
+});
+
+test("MiniKit transaction errors preserve their v2 reason without escaping the registration boundary", async () => {
+  const registration = { chainId: WORLD_CHAIN_ID, from: walletAddress, to: walletAddress, data: "0x", value: "0x0" };
+  const modern = await submitWorldIdRegistration(registration, {
+    isInstalled: () => true,
+    sendTransaction: async () => { throw new SendTransactionError("simulation_failed", { reason: "contract reverted" }); },
+  });
+  const compatible = await submitWorldIdRegistration(registration, {
+    isInstalled: () => true,
+    sendTransaction: async () => { throw { error_code: "invalid_contract" }; },
+  });
+  assert.deepEqual(modern, { ok: false, reason: "simulation_failed" });
+  assert.deepEqual(compatible, { ok: false, reason: "invalid_contract" });
 });
 
 const worldConfigEnv = {
