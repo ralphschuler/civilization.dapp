@@ -50,6 +50,28 @@ function compileGame(source) {
   return artifact;
 }
 
+async function readDeployedConfiguration(publicClient, address, abi, attempts = 20) {
+  let lastError;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      const values = await Promise.all([
+        publicClient.getCode({ address }),
+        publicClient.readContract({ address, abi, functionName: "worldIdAction" }),
+        publicClient.readContract({ address, abi, functionName: "worldIdVerifier" }),
+        publicClient.readContract({ address, abi, functionName: "worldIdRpId" }),
+        publicClient.readContract({ address, abi, functionName: "worldIdIssuerSchemaId" }),
+        publicClient.readContract({ address, abi, functionName: "worldToken" }),
+        publicClient.readContract({ address, abi, functionName: "boostTreasury" }),
+      ]);
+      if (values[0] && values[0] !== "0x") return values;
+    } catch (error) {
+      lastError = error;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1_500));
+  }
+  throw lastError ?? new Error("deployed contract code was not available before the verification deadline");
+}
+
 const [source, keyText, worldIdText] = await Promise.all([
   readFile(new URL("../contracts/src/CivilizationGame.sol", import.meta.url), "utf8"),
   readFile(KEY_FILE, "utf8"),
@@ -127,17 +149,9 @@ const [
   configuredIssuerSchemaId,
   configuredToken,
   configuredTreasury,
-] = await Promise.all([
-  publicClient.getCode({ address: deployedAddress }),
-  publicClient.readContract({ address: deployedAddress, abi: artifact.abi, functionName: "worldIdAction" }),
-  publicClient.readContract({ address: deployedAddress, abi: artifact.abi, functionName: "worldIdVerifier" }),
-  publicClient.readContract({ address: deployedAddress, abi: artifact.abi, functionName: "worldIdRpId" }),
-  publicClient.readContract({ address: deployedAddress, abi: artifact.abi, functionName: "worldIdIssuerSchemaId" }),
-  publicClient.readContract({ address: deployedAddress, abi: artifact.abi, functionName: "worldToken" }),
-  publicClient.readContract({ address: deployedAddress, abi: artifact.abi, functionName: "boostTreasury" }),
-]);
+] = await readDeployedConfiguration(publicClient, deployedAddress, artifact.abi);
 if (
-  !code
+  !code || code === "0x"
   || configuredAction !== worldIdActionField
   || configuredVerifier !== WORLD_ID_VERIFIER
   || configuredRpId !== worldRpId

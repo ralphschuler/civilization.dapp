@@ -8,7 +8,7 @@ export const CONTRACT_STATUS = Object.freeze({
   deployedContracts: Object.freeze([
     Object.freeze({
       name: "CivilizationGame",
-      address: "0x29147c7bead901e8019d7911a7dc404447877c62",
+      address: "0x1A64F89881FD2E38255E62c6D62b68076052DF4b",
       chainId: 480,
       status: "mainnet_deployed_not_independently_audited",
     }),
