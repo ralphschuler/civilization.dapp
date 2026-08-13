@@ -1,16 +1,10 @@
-import { AuthButton } from '../components/AuthButton';
-import { auth } from '@/auth';
-import { runtimeConfiguration } from '@/lib/runtime-config';
-import { redirect } from 'next/navigation';
+import { NativeWalletAuthDiagnostic } from '../components/NativeWalletAuthDiagnostic';
 
-export default async function Home() {
-  const session = await auth();
-  if (session?.user?.walletAddress) redirect('/game');
-  const { world } = runtimeConfiguration();
+export default function Home() {
   return (
     <main className="world-id-gate"><div className="world-id-gate-card">
-      <span className="world-id-gate-mark">CD</span><p>WORLD MINI APP</p><h1>Civilization</h1><span>Öffne Civilization in World App und melde dich ausdrücklich mit deiner Wallet an.</span>
-        <AuthButton worldAppId={world.worldAppId} />
+      <span className="world-id-gate-mark">CD</span><p>WORLD MINI APP · DIAGNOSE</p><h1>Native Wallet Auth</h1><span>Dieser temporäre Test ruft nur den nativen Wallet-Auth-Befehl auf und zeigt dessen Callback direkt an.</span>
+        <NativeWalletAuthDiagnostic />
       </div></main>
   );
 }
