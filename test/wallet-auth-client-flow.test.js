@@ -77,7 +77,7 @@ test('native Wallet Auth diagnostics retain only allowlisted reason codes', () =
   assert.equal(safeNativeWalletAuthReason(new Error('private detail')), undefined);
 });
 
-test('native Wallet Auth uses only nonce, statement and server expiration and confirms the session before navigation', async () => {
+test('legacy Wallet Auth helper remains narrow while Auth.js accepts only the post-verification ticket', async () => {
   const [wallet, authButton, auth] = await Promise.all([
     readFile(new URL('../src/auth/wallet/index.ts', import.meta.url), 'utf8'),
     readFile(new URL('../src/components/AuthButton/index.tsx', import.meta.url), 'utf8'),
@@ -96,8 +96,8 @@ test('native Wallet Auth uses only nonce, statement and server expiration and co
   assert.match(wallet, /WalletAuthClientError\('wallet_auth_unsupported'\)/);
   assert.doesNotMatch(wallet, /notBefore/);
   assert.doesNotMatch(wallet, /requestId/);
-  assert.match(auth, /verifySiweMessage\(finalPayload, nonce, challenge\.statement\)/);
-  assert.doesNotMatch(auth, /verifySiweMessage\(finalPayload, nonce, challenge\.statement, challenge\.requestId\)/);
+  assert.match(auth, /consumeWalletLoginTicket\(ticket\)/);
+  assert.doesNotMatch(auth, /verifySiweMessage|signedNonce|finalPayloadJson/);
   assert.match(wallet, /WalletAuthClientError\('credentials_rejected'\)/);
   assert.match(wallet, /try \{\s*signInResult = await signIn\('credentials'/);
   assert.match(wallet, /confirmWalletSession\(fetch, data\.address\)/);

@@ -72,7 +72,7 @@ test('health routes validate runtime configuration and the Wallet Auth challenge
   assert.doesNotMatch(`${healthz}${readyz}`, /game-store/);
 });
 
-test('official template Wallet Auth is retained and backed by one-time challenges', async () => {
+test('official template Wallet Auth remains available while Auth.js consumes one-time login tickets', async () => {
   const [button, wallet, auth, challenge] = await Promise.all([
     source('src/components/AuthButton/index.tsx'),
     source('src/auth/wallet/index.ts'),
@@ -85,7 +85,8 @@ test('official template Wallet Auth is retained and backed by one-time challenge
   assert.doesNotMatch(button, /useMiniKit/);
   assert.match(button, /MiniKit\.isInstalled\(\)/);
   assert.match(wallet, /MiniKit\.walletAuth/);
-  assert.match(auth, /verifySiweMessage/);
+  assert.match(auth, /consumeWalletLoginTicket\(ticket\)/);
+  assert.doesNotMatch(auth, /verifySiweMessage|signedNonce|finalPayloadJson/);
   assert.match(auth, /token\.walletAddress/);
   assert.doesNotMatch(auth, /token\.address/);
   assert.match(challenge, /consumed_at IS NULL/);
