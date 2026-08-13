@@ -8,6 +8,7 @@ import {
 } from '@/lib/native-wallet-auth-diagnostic';
 
 type Diagnostic = Record<string, unknown>;
+const statement = 'Bestätige deine World-Wallet für den Civilization-Spielzugang.';
 
 export const NativeWalletAuthDiagnostic = () => {
   const [diagnostic, setDiagnostic] = useState<Diagnostic | null>(null);
@@ -16,6 +17,7 @@ export const NativeWalletAuthDiagnostic = () => {
   const onClick = async () => {
     if (isPending) return;
     let nonce: string | undefined;
+    let nativeResult: ReturnType<typeof normalizeNativeWalletAuthResult> | undefined;
     setIsPending(true);
     try {
       const response = await fetch('/api/wallet-auth/nonce', {
@@ -40,10 +42,31 @@ export const NativeWalletAuthDiagnostic = () => {
 
       nonce = issuedNonce;
       const expirationTime = new Date(expires_at);
-      const result = await MiniKit.walletAuth({ nonce, statement: "Bestätige deine World-Wallet für den Civilization-Spielzugang.", expirationTime });
-      setDiagnostic({ nonce, result: normalizeNativeWalletAuthResult(result) });
+      const result = await MiniKit.walletAuth({ nonce, statement, expirationTime });
+      nativeResult = normalizeNativeWalletAuthResult(result);
+      const payload = result && typeof result === 'object' && 'data' in result ? result.data : undefined;
+      if (result.executedWith !== 'minikit'
+        || !payload || typeof payload !== 'object'
+        || typeof (payload as { address?: unknown }).address !== 'string'
+        || typeof (payload as { message?: unknown }).message !== 'string'
+        || typeof (payload as { signature?: unknown }).signature !== 'string') {
+        throw new Error('Native Wallet Auth wurde nicht erfolgreich abgeschlossen.');
+      }
+      const verification = await fetch('/api/wallet-auth/verify', {
+        method: 'POST',
+        credentials: 'same-origin',
+        cache: 'no-store',
+        headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+        body: JSON.stringify({ nonce, payload: result.data }),
+      });
+      const verificationResult: unknown = await verification.json().catch(() => ({ error: 'wallet_auth_verification_failed' }));
+      setDiagnostic({ nonce, result: nativeResult, verification: verificationResult });
     } catch (error) {
-      setDiagnostic({ ...(nonce ? { nonce } : {}), error: normalizeNativeWalletAuthError(error) });
+      setDiagnostic({
+        ...(nonce ? { nonce } : {}),
+        ...(nativeResult ? { result: nativeResult } : {}),
+        error: normalizeNativeWalletAuthError(error),
+      });
     } finally {
       setIsPending(false);
     }
@@ -51,7 +74,7 @@ export const NativeWalletAuthDiagnostic = () => {
 
   return (
     <section className="native-wallet-auth-diagnostic" aria-label="Native Wallet Auth Diagnose">
-      <p>Nur Diagnose: erstellt keine Sitzung und sendet keine Callback-Daten. Die Ausgabe enthält sensible Wallet-Daten und bleibt nur auf diesem Gerät sichtbar.</p>
+      <p>Nur Diagnose: Der native Callback wird ausschließlich zur SIWE-Prüfung an denselben Server gesendet. Es wird keine Sitzung erstellt; die Ausgabe bleibt lokal sichtbar.</p>
       <button type="button" onClick={onClick} disabled={isPending}>
         {isPending ? 'Native Auth wird getestet …' : 'Nur native Auth testen'}
       </button>
