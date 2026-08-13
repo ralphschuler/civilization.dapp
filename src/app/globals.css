@@ -18,3 +18,40 @@ body {
   color: var(--foreground);
   font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
+
+.native-wallet-auth-diagnostic {
+  width: 100%;
+  margin-top: 1rem;
+  overflow-wrap: anywhere;
+}
+
+.native-wallet-auth-diagnostic p {
+  margin: 0 0 0.5rem;
+  font-size: 0.875rem;
+}
+
+.native-wallet-auth-diagnostic button {
+  min-height: 44px;
+  max-width: 100%;
+  padding: 0.625rem 0.875rem;
+  border: 1px solid currentColor;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: inherit;
+}
+
+.native-wallet-auth-diagnostic-output {
+  display: block;
+  max-width: 100%;
+  max-height: 14rem;
+  margin-top: 0.5rem;
+  overflow: auto;
+}
+
+.native-wallet-auth-diagnostic-output pre {
+  width: max-content;
+  min-width: 100%;
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
