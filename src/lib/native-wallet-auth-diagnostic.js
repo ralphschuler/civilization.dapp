@@ -1,62 +1,48 @@
-const primitive = (value) => (
-  typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean' || value === null
-    ? value
-    : undefined
-);
+import { getAddress, isAddress } from 'viem';
 
-function primitiveDescriptorValue(candidate, field) {
-  const visited = new Set();
-  let current = candidate;
-  while (current && !visited.has(current)) {
-    visited.add(current);
-    let descriptor;
-    try {
-      descriptor = Object.getOwnPropertyDescriptor(current, field);
-    } catch {
-      return undefined;
-    }
-    if (descriptor) return 'value' in descriptor ? primitive(descriptor.value) : undefined;
-    try {
-      current = Object.getPrototypeOf(current);
-    } catch {
-      return undefined;
-    }
-  }
-  return undefined;
+/** Requires the fresh session to identify this exact wallet login, not just its wallet. */
+export function sessionMatchesWalletLogin(session, walletAddress, loginId) {
+  const sessionAddress = session?.user?.walletAddress;
+  const sessionLoginId = session?.user?.loginId;
+  if (typeof sessionAddress !== 'string' || typeof sessionLoginId !== 'string'
+    || typeof walletAddress !== 'string' || typeof loginId !== 'string'
+    || !isAddress(sessionAddress) || !isAddress(walletAddress)) return false;
+  return getAddress(sessionAddress) === getAddress(walletAddress) && sessionLoginId === loginId;
 }
 
-/** Copies the documented native result without invoking unknown getters. */
-export function normalizeNativeWalletAuthResult(result) {
-  if (!result || typeof result !== 'object') return { value: primitive(result) ?? String(result) };
-  const normalized = {};
-  const executedWith = primitiveDescriptorValue(result, 'executedWith');
-  if (executedWith !== undefined) normalized.executedWith = executedWith;
+const diagnosticErrorCodes = new Set([
+  'native_wallet_auth_failed',
+  'wallet_auth_verification_failed',
+  'session_creation_failed',
+  'session_identity_mismatch',
+  'wallet_auth_unavailable',
+]);
 
-  const dataDescriptor = Object.getOwnPropertyDescriptor(result, 'data');
-  const data = dataDescriptor && 'value' in dataDescriptor ? dataDescriptor.value : undefined;
-  if (data && typeof data === 'object') {
-    const normalizedData = {};
-    for (const field of ['status', 'version', 'address', 'message', 'signature', 'error_code', 'details']) {
-      const value = primitiveDescriptorValue(data, field);
-      if (value !== undefined) normalizedData[field] = value;
-    }
-    normalized.data = normalizedData;
-  } else if (data !== undefined) {
-    normalized.data = primitive(data) ?? String(data);
-  }
-  return normalized;
+export function safeDiagnosticErrorCode(code) {
+  return diagnosticErrorCodes.has(code) ? code : 'wallet_auth_unavailable';
 }
 
-/** Keeps useful, safe-to-render error metadata while deliberately excluding stacks. */
-export function normalizeNativeWalletAuthError(error) {
-  if (typeof error === 'string') return { name: 'Error', message: error };
-  if (!error || typeof error !== 'object') return { name: 'Error', message: String(error) };
-
-  const candidate = error;
-  const normalized = {};
-  for (const field of ['name', 'message', 'code', 'reason', 'details']) {
-    const value = primitiveDescriptorValue(candidate, field);
-    if (value !== undefined) normalized[field] = value;
+/**
+ * Completes the local Auth.js leg after SIWE has already succeeded. Its result
+ * deliberately contains no ticket, nonce, callback, or unmasked wallet.
+ */
+export async function createAndConfirmWalletSession({ signIn, getSession, signOut, walletAddress, loginId, ticket }) {
+  try {
+    const signInResult = await signIn('credentials', { redirect: false, redirectTo: '/', ticket });
+    if (!signInResult || !signInResult.ok || signInResult.error) {
+      return { sessionSuccess: false, error: 'session_creation_failed' };
+    }
+  } catch {
+    return { sessionSuccess: false, error: 'session_creation_failed' };
   }
-  return Object.keys(normalized).length > 0 ? normalized : { name: 'Error', message: 'Unknown error' };
+
+  try {
+    const session = await getSession({ broadcast: false });
+    if (sessionMatchesWalletLogin(session, walletAddress, loginId)) return { sessionSuccess: true };
+  } catch {
+    return { sessionSuccess: false, error: 'wallet_auth_unavailable' };
+  }
+
+  await signOut({ redirect: false }).catch(() => undefined);
+  return { sessionSuccess: false, error: 'session_identity_mismatch' };
 }

@@ -1,14 +1,22 @@
 'use client';
 
 import { MiniKit } from '@worldcoin/minikit-js';
+import { getSession, signIn, signOut } from 'next-auth/react';
 import { useState } from 'react';
-import {
-  normalizeNativeWalletAuthError,
-  normalizeNativeWalletAuthResult,
-} from '@/lib/native-wallet-auth-diagnostic';
+import { getAddress, isAddress } from 'viem';
+import { createAndConfirmWalletSession, safeDiagnosticErrorCode } from '@/lib/native-wallet-auth-diagnostic';
 
-type Diagnostic = Record<string, unknown>;
+type Diagnostic = {
+  nativeSuccess: boolean;
+  siweVerified: boolean;
+  sessionSuccess: boolean;
+  wallet?: string;
+  error?: 'session_creation_failed' | 'session_identity_mismatch' | 'wallet_auth_unavailable' | 'native_wallet_auth_failed' | 'wallet_auth_verification_failed';
+};
 const statement = 'Bestätige deine World-Wallet für den Civilization-Spielzugang.';
+const loginIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const maskWallet = (address: string) => `${address.slice(0, 6)}…${address.slice(-4)}`;
 
 export const NativeWalletAuthDiagnostic = () => {
   const [diagnostic, setDiagnostic] = useState<Diagnostic | null>(null);
@@ -16,8 +24,9 @@ export const NativeWalletAuthDiagnostic = () => {
 
   const onClick = async () => {
     if (isPending) return;
-    let nonce: string | undefined;
-    let nativeResult: ReturnType<typeof normalizeNativeWalletAuthResult> | undefined;
+    let nativeSuccess = false;
+    let siweVerified = false;
+    let failureCode: Diagnostic['error'] = 'wallet_auth_unavailable';
     setIsPending(true);
     try {
       const response = await fetch('/api/wallet-auth/nonce', {
@@ -40,18 +49,21 @@ export const NativeWalletAuthDiagnostic = () => {
         throw new Error('Nonce konnte nicht geladen werden.');
       }
 
-      nonce = issuedNonce;
+      const nonce = issuedNonce;
       const expirationTime = new Date(expires_at);
+      failureCode = 'native_wallet_auth_failed';
       const result = await MiniKit.walletAuth({ nonce, statement, expirationTime });
-      nativeResult = normalizeNativeWalletAuthResult(result);
       const payload = result && typeof result === 'object' && 'data' in result ? result.data : undefined;
       if (result.executedWith !== 'minikit'
         || !payload || typeof payload !== 'object'
         || typeof (payload as { address?: unknown }).address !== 'string'
         || typeof (payload as { message?: unknown }).message !== 'string'
         || typeof (payload as { signature?: unknown }).signature !== 'string') {
-        throw new Error('Native Wallet Auth wurde nicht erfolgreich abgeschlossen.');
+        failureCode = 'native_wallet_auth_failed';
+        throw new Error('native_wallet_auth_failed');
       }
+      nativeSuccess = true;
+      failureCode = 'wallet_auth_verification_failed';
       const verification = await fetch('/api/wallet-auth/verify', {
         method: 'POST',
         credentials: 'same-origin',
@@ -60,12 +72,35 @@ export const NativeWalletAuthDiagnostic = () => {
         body: JSON.stringify({ nonce, payload: result.data }),
       });
       const verificationResult: unknown = await verification.json().catch(() => ({ error: 'wallet_auth_verification_failed' }));
-      setDiagnostic({ nonce, result: nativeResult, verification: verificationResult });
-    } catch (error) {
+      const verified = verification.ok && verificationResult && typeof verificationResult === 'object'
+        ? verificationResult as Record<string, unknown> : null;
+      const address = verified?.address;
+      const ticket = verified?.ticket;
+      const loginId = verified?.loginId;
+      if (!verified || verified.isValid !== true || typeof address !== 'string' || !isAddress(address)
+        || typeof ticket !== 'string' || typeof loginId !== 'string' || !loginIdPattern.test(loginId)) {
+        setDiagnostic({ nativeSuccess, siweVerified: false, sessionSuccess: false, error: 'wallet_auth_verification_failed' });
+        return;
+      }
+
+      const walletAddress = getAddress(address);
+      siweVerified = true;
+      const sessionResult = await createAndConfirmWalletSession({
+        signIn, getSession, signOut, walletAddress, loginId, ticket,
+      });
       setDiagnostic({
-        ...(nonce ? { nonce } : {}),
-        ...(nativeResult ? { result: nativeResult } : {}),
-        error: normalizeNativeWalletAuthError(error),
+        nativeSuccess,
+        siweVerified,
+        sessionSuccess: sessionResult.sessionSuccess,
+        wallet: maskWallet(walletAddress),
+        ...(sessionResult.error ? { error: safeDiagnosticErrorCode(sessionResult.error) } : {}),
+      });
+    } catch {
+      setDiagnostic({
+        nativeSuccess,
+        siweVerified,
+        sessionSuccess: false,
+        error: safeDiagnosticErrorCode(failureCode),
       });
     } finally {
       setIsPending(false);
@@ -74,12 +109,18 @@ export const NativeWalletAuthDiagnostic = () => {
 
   return (
     <section className="native-wallet-auth-diagnostic" aria-label="Native Wallet Auth Diagnose">
-      <p>Nur Diagnose: Der native Callback wird ausschließlich zur SIWE-Prüfung an denselben Server gesendet. Es wird keine Sitzung erstellt; die Ausgabe bleibt lokal sichtbar.</p>
+      <p>Diagnose: Native Wallet Auth wird serverseitig per SIWE geprüft und erstellt anschließend eine lokale Auth.js-Sitzung. Es erfolgt keine Navigation.</p>
       <button type="button" onClick={onClick} disabled={isPending}>
         {isPending ? 'Native Auth wird getestet …' : 'Nur native Auth testen'}
       </button>
       <output className="native-wallet-auth-diagnostic-output" aria-live="polite">
-        {diagnostic ? <pre>{JSON.stringify(diagnostic, null, 2)}</pre> : null}
+        {diagnostic ? <>
+          <p>Native Wallet Auth: {diagnostic.nativeSuccess ? 'erfolgreich' : 'fehlgeschlagen'}</p>
+          <p>SIWE-Prüfung: {diagnostic.siweVerified ? 'erfolgreich' : 'fehlgeschlagen'}</p>
+          <p>Auth.js-Sitzung: {diagnostic.sessionSuccess ? 'erfolgreich' : 'fehlgeschlagen'}</p>
+          {diagnostic.wallet ? <p>Wallet: {diagnostic.wallet}</p> : null}
+          {diagnostic.error ? <p>Fehlercode: {diagnostic.error}</p> : null}
+        </> : null}
       </output>
     </section>
   );
