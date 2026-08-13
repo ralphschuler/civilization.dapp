@@ -1,17 +1,3 @@
-/**
- * Creates a nonce locally for the native Wallet Auth diagnostic.
- * This function intentionally uses the browser's cryptographic RNG and no API.
- */
-export function generateNativeWalletAuthNonce(byteLength = 32) {
-  if (!Number.isInteger(byteLength) || byteLength < 4) {
-    throw new RangeError('Nonce byte length must create at least 8 characters.');
-  }
-
-  const values = new Uint8Array(byteLength);
-  crypto.getRandomValues(values);
-  return Array.from(values, (value) => value.toString(16).padStart(2, '0')).join('');
-}
-
 const primitive = (value) => (
   typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean' || value === null
     ? value
