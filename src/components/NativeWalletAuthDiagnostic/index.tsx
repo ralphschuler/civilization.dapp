@@ -17,9 +17,10 @@ export const NativeWalletAuthDiagnostic = () => {
   const onClick = async () => {
     if (isPending) return;
     const nonce = generateNativeWalletAuthNonce();
+    const expirationTime = new Date(Date.now() + 5 * 60_000);
     setIsPending(true);
     try {
-      const result = await MiniKit.walletAuth({ nonce, statement: "Bestätige deine World-Wallet für den Civilization-Spielzugang." });
+      const result = await MiniKit.walletAuth({ nonce, statement: "Bestätige deine World-Wallet für den Civilization-Spielzugang.", expirationTime });
       setDiagnostic({ nonce, result: normalizeNativeWalletAuthResult(result) });
     } catch (error) {
       setDiagnostic({ nonce, error: normalizeNativeWalletAuthError(error) });
