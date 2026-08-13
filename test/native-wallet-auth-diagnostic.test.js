@@ -56,11 +56,14 @@ test('native Wallet Auth result keeps documented callback fields without invokin
   assert.equal(getterCalls, 0);
 });
 
-test('native Wallet Auth diagnostic fetches and validates the server nonce before its one native call', async () => {
-  const [component, page, route] = await Promise.all([
+test('Stage 5 diagnostic uses persistent challenge, one native call, then same-origin verification', async () => {
+  const [component, page, nonceRoute, verifyRoute, verifyCore, challenge] = await Promise.all([
     readFile(new URL('../src/components/NativeWalletAuthDiagnostic/index.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../src/app/page.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../src/app/api/wallet-auth/nonce/route.ts', import.meta.url), 'utf8'),
+    readFile(new URL('../src/app/api/wallet-auth/verify/route.ts', import.meta.url), 'utf8'),
+    readFile(new URL('../src/lib/wallet-auth-verify-core.js', import.meta.url), 'utf8'),
+    readFile(new URL('../src/lib/auth-challenge.js', import.meta.url), 'utf8'),
   ]);
 
   assert.match(component, /await fetch\('\/api\/wallet-auth\/nonce', \{\s*cache: 'no-store',\s*credentials: 'same-origin',\s*\}\)/);
@@ -70,13 +73,18 @@ test('native Wallet Auth diagnostic fetches and validates the server nonce befor
   assert.match(component, /typeof issuedNonce !== 'string'\s*\|\| !\/\^\[A-Za-z0-9\]\{8,\}\$\/.test\(issuedNonce\)\s*\|\| typeof expires_at !== 'number'\s*\|\| !Number\.isFinite\(expires_at\)\s*\|\| expires_at <= Date\.now\(\)/);
   assert.match(component, /nonce = issuedNonce;/);
   assert.match(component, /const expirationTime = new Date\(expires_at\);/);
-  assert.match(component, /await MiniKit\.walletAuth\(\{ nonce, statement: "Bestätige deine World-Wallet für den Civilization-Spielzugang\.", expirationTime \}\)/);
-  assert.match(component, /setDiagnostic\(\{ \.\.\.\(nonce \? \{ nonce \} : \{\}\), error: normalizeNativeWalletAuthError\(error\) \}\);/);
+  assert.match(component, /await MiniKit\.walletAuth\(\{ nonce, statement, expirationTime \}\)/);
+  assert.match(component, /result\.executedWith !== 'minikit'/);
+  assert.doesNotMatch(component, /payload as \{ status\?: unknown \}/);
+  assert.match(component, /typeof \(payload as \{ address\?: unknown \}\)\.address !== 'string'/);
+  assert.match(component, /await fetch\('\/api\/wallet-auth\/verify', \{\s*method: 'POST',\s*credentials: 'same-origin',\s*cache: 'no-store',\s*headers: \{ 'Content-Type': 'application\/json', 'Cache-Control': 'no-store' \},\s*body: JSON\.stringify\(\{ nonce, payload: result\.data \}\),/);
+  assert.ok(component.indexOf('MiniKit.walletAuth(') < component.indexOf("fetch('/api/wallet-auth/verify'"));
+  assert.match(component, /setDiagnostic\(\{ nonce, result: nativeResult, verification: verificationResult \}\);/);
   assert.equal((component.match(/MiniKit\.walletAuth\(/g) ?? []).length, 1);
   assert.doesNotMatch(component, /generateNativeWalletAuthNonce/);
   assert.doesNotMatch(component, /Date\.now\(\) \+ 5 \* 60_000/);
   assert.doesNotMatch(component, /\b(notBefore|requestId|fallback)\b/);
-  assert.doesNotMatch(component, /XMLHttpRequest|axios|\bsignIn\s*\(|\bverify\w*\s*\(|\bredirect\s*\(|location\.assign\s*\(|\/api\/auth\/|\b(useSession|AuthButton)\b|\bauth\s*\(/);
+  assert.doesNotMatch(component, /XMLHttpRequest|axios|\bsignIn\s*\(|\bredirect\s*\(|location\.assign\s*\(|\/api\/auth\/|\b(useSession|AuthButton)\b|\bauth\s*\(/);
   assert.doesNotMatch(component, /\b(cookie|cookies|session|localStorage|sessionStorage|analytics|track)\b|World\s*ID|\b(transaction|sendTransaction)\b/);
   assert.doesNotMatch(component, /MiniKit\.(install|isInstalled|isInWorldApp)|isCommandAvailable|useMiniKit|\b(readiness|ready|commandVersion|versionCheck)\b/);
   assert.doesNotMatch(component, /console\.(log|warn|error)/);
@@ -84,15 +92,32 @@ test('native Wallet Auth diagnostic fetches and validates the server nonce befor
   assert.match(page, /<NativeWalletAuthDiagnostic \/>/);
   assert.doesNotMatch(page, /AuthButton|\bauth\s*\(|\bredirect\s*\(/);
 
-  assert.match(route, /import \{ randomBytes \} from 'node:crypto';/);
-  assert.match(route, /export const runtime = 'nodejs';/);
-  assert.match(route, /export const dynamic = 'force-dynamic';/);
-  assert.match(route, /export function GET\(\)/);
-  assert.doesNotMatch(route, /export (async )?function (POST|PUT|PATCH|DELETE)/);
-  assert.match(route, /randomBytes\(32\)\.toString\('hex'\)/);
-  assert.match(route, /const expires_at = issuedAt \+ 5 \* 60_000;/);
-  assert.match(route, /Response\.json\(\{ nonce, expires_at \}, \{ headers: noStoreHeaders \}\)/);
-  assert.match(route, /const noStoreHeaders = \{ 'Cache-Control': 'no-store' \};/);
-  assert.match(route, /Response\.json\(\{ error: 'wallet_auth_unavailable' \}, \{\s*status: 503,\s*headers: noStoreHeaders,/);
-  assert.doesNotMatch(route, /createAuthChallenge|createHmac|HMAC|requestId|auth\b|session|cookie|redirect|proof|transaction|Map/);
+  assert.match(nonceRoute, /createLegacyWalletAuthChallenge/);
+  assert.match(nonceRoute, /export const runtime = 'nodejs';/);
+  assert.match(nonceRoute, /export const dynamic = 'force-dynamic';/);
+  assert.match(nonceRoute, /export async function GET\(\)/);
+  assert.match(nonceRoute, /Response\.json\(\{ nonce: challenge\.nonce, expires_at \}, \{ headers: noStoreHeaders \}\)/);
+  assert.match(nonceRoute, /const noStoreHeaders = \{ 'Cache-Control': 'no-store' \};/);
+  assert.match(nonceRoute, /wallet_auth_unavailable/);
+  assert.doesNotMatch(nonceRoute, /randomBytes|createHmac|HMAC|requestId|session|cookie|redirect|proof|transaction|Map/);
+
+  assert.match(challenge, /LEGACY_WALLET_AUTH_STATEMENT = 'Bestätige deine World-Wallet für den Civilization-Spielzugang\.'/);
+  assert.match(challenge, /LEGACY_WALLET_AUTH_TTL_MS = 5 \* 60 \* 1000/);
+  assert.match(challenge, /crypto\.randomBytes\(32\)\.toString\('hex'\)/);
+  assert.match(challenge, /nonce_hash/);
+  assert.match(challenge, /nonceHash\(nonce\)/);
+  assert.match(challenge, /UPDATE wallet_auth_challenges SET consumed_at = now\(\) WHERE nonce_hash = \$1 AND statement = \$2 AND consumed_at IS NULL AND expires_at > now\(\) RETURNING statement, expires_at/);
+  assert.doesNotMatch(challenge, /nonce[^\n]*INSERT INTO/);
+
+  assert.match(verifyRoute, /export const runtime = 'nodejs';/);
+  assert.match(verifyRoute, /export const dynamic = 'force-dynamic';/);
+  assert.match(verifyRoute, /invalid_wallet_auth_request/);
+  assert.match(verifyRoute, /wallet_auth_request_too_large/);
+  assert.match(verifyRoute, /invalid_or_expired_nonce/);
+  assert.match(verifyRoute, /wallet_auth_verification_failed/);
+  assert.match(verifyRoute, /Response\.json\(\{ isValid: true, address: result\.address \}/);
+  assert.match(verifyRoute, /verifyWalletAuthRequest/);
+  assert.match(verifyRoute, /readWalletAuthJson/);
+  assert.ok(verifyCore.indexOf('await take(nonce)') < verifyCore.indexOf('await verify(candidate.payload, nonce, challenge.statement)'));
+  assert.doesNotMatch(verifyRoute, /console\.|requestId|notBefore|session|cookie|redirect|proof|transaction|signIn|\/game/);
 });
