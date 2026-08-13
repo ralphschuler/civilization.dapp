@@ -3,13 +3,12 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { sanitizeWorldIdDiagnostic } from '../src/lib/world-id-diagnostic.js';
 
-test('World ID client requests Proof of Human with the SDK-supported v3 fallback', async () => {
+test('World ID client requests the Proof of Human preset with legacy and wallet signal support', async () => {
   const client = await readFile(new URL('../src/components/CivilizationClient.tsx', import.meta.url), 'utf8');
-  assert.match(client, /import \{ CredentialRequest \} from '@worldcoin\/idkit-core';/);
+  assert.match(client, /import \{ proofOfHuman \} from '@worldcoin\/idkit-core';/);
   assert.match(client, /allow_legacy_proofs=\{true\}/);
-  assert.match(client, /constraints=\{CredentialRequest\('proof_of_human', \{ signal: walletAddress \}\)\}/);
-  assert.doesNotMatch(client, /preset=/);
-  assert.doesNotMatch(client, /proofOfHuman/);
+  assert.match(client, /preset=\{proofOfHuman\(\{ signal: walletAddress \}\)\}/);
+  assert.doesNotMatch(client, /CredentialRequest/);
 });
 
 test('World ID recovery keeps the request widget mounted after close or rejection', async () => {

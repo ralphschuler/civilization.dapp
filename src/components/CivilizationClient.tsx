@@ -2,7 +2,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- IDKit callback payloads are JSON values. */
 
 import { IDKitRequestWidget } from '@worldcoin/idkit';
-import { CredentialRequest } from '@worldcoin/idkit-core';
+import { proofOfHuman } from '@worldcoin/idkit-core';
 import type { IDKitDebugReport, IDKitResult } from '@worldcoin/idkit-core';
 import { useUserOperationReceipt } from '@worldcoin/minikit-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -218,7 +218,7 @@ export default function CivilizationClient({
         rp_context={request.rpContext}
         allow_legacy_proofs={true}
         environment="production"
-        constraints={CredentialRequest('proof_of_human', { signal: walletAddress })}
+        preset={proofOfHuman({ signal: walletAddress })}
         onSuccess={verify}
         onError={handleWidgetError}
       />}

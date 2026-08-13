@@ -98,8 +98,8 @@ test('Next World ID client uses dual v3/v4 Proof of Human, official RP mapping, 
   ]);
   assert.match(client, /allow_legacy_proofs=\{true\}/);
   assert.match(client, /const ATTEMPTS = 21/);
-  assert.match(client, /CredentialRequest\('proof_of_human', \{ signal: walletAddress \}\)/);
-  assert.doesNotMatch(client, /proofOfHuman/);
+  assert.match(client, /proofOfHuman\(\{ signal: walletAddress \}\)/);
+  assert.doesNotMatch(client, /CredentialRequest/);
   assert.match(client, /onSuccess=\{verify\}/);
   assert.doesNotMatch(client, /handleVerify=/);
   assert.doesNotMatch(client, /orbLegacy/);
