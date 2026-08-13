@@ -69,7 +69,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           || !finalPayload.signature) return null;
         const challenge = await readAuthChallenge(nonce);
         if (!challenge) return null;
-        const result = await verifySiweMessage(finalPayload, nonce, challenge.statement, challenge.requestId);
+        const result = await verifySiweMessage(finalPayload, nonce, challenge.statement);
 
         if (!result.isValid || !result.siweMessageData.address || !isAddress(result.siweMessageData.address)) {
           return null;

@@ -79,11 +79,11 @@ test('official template Wallet Auth is retained and backed by one-time challenge
     source('src/auth/index.ts'),
     source('src/lib/auth-challenge.js'),
   ]);
-  assert.match(button, /useMiniKit/);
   assert.match(button, /MiniKit\.isInWorldApp\(\)/);
-  assert.match(button, /MiniKit\.isInstalled\(\)/);
   assert.match(button, /MiniKit\.install\(worldAppId\)/);
-  assert.doesNotMatch(button, /if \(!isInstalled/);
+  assert.match(button, /isCommandAvailable\(Command\.WalletAuth\)/);
+  assert.doesNotMatch(button, /useMiniKit/);
+  assert.match(button, /MiniKit\.isInstalled\(\)/);
   assert.match(wallet, /MiniKit\.walletAuth/);
   assert.match(auth, /verifySiweMessage/);
   assert.match(auth, /token\.walletAddress/);
