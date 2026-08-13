@@ -62,14 +62,15 @@ test('SIWE binding accepts configured host or HTTPS origin domains only', () => 
   }
 });
 
-test('failed credential sign-in is non-redirecting and cannot expose Auth.js default form', async () => {
+test('failed credential sign-in is non-redirecting and navigation follows session confirmation', async () => {
   const [wallet, auth] = await Promise.all([
     readFile(new URL('../src/auth/wallet/index.ts', import.meta.url), 'utf8'),
     readFile(new URL('../src/auth/index.ts', import.meta.url), 'utf8'),
   ]);
 
   assert.match(wallet, /signIn\('credentials',\s*\{\s*redirect: false,/);
-  assert.match(wallet, /if \(!signInResult \|\| !signInResult\.ok \|\| signInResult\.error\) throw new Error\('wallet_auth_sign_in_failed'\)/);
+  assert.match(wallet, /if \(!signInResult \|\| !signInResult\.ok \|\| signInResult\.error\) throw new WalletAuthClientError\('credentials_rejected'\)/);
+  assert.match(wallet, /WalletAuthClientError\('session_cookie_rejected'\)/);
   assert.match(wallet, /window\.location\.assign\('\/game'\)/);
   assert.doesNotMatch(wallet, /redirectTo:\s*['"]\/game/);
   assert.match(auth, /pages:\s*\{\s*signIn:\s*['"]\/['"]/);

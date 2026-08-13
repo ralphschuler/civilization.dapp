@@ -57,18 +57,17 @@ export async function createAuthChallenge() {
   );
   // Bounded housekeeping; challenge rows carry no wallet or signature data.
   await database().query("DELETE FROM wallet_auth_challenges WHERE expires_at < now() - interval '1 day'").catch(() => undefined);
-  return { nonce, requestId, statement: WALLET_AUTH_STATEMENT, expiresAt: expiresAt.toISOString() };
+  return { nonce, statement: WALLET_AUTH_STATEMENT, expiresAt: expiresAt.toISOString() };
 }
 
 export async function readAuthChallenge(nonce) {
   await ensureSchema();
   const result = await database().query(
-    'SELECT request_id, statement, expires_at FROM wallet_auth_challenges WHERE nonce_hash = $1 AND consumed_at IS NULL AND expires_at > now()',
+    'SELECT statement, expires_at FROM wallet_auth_challenges WHERE nonce_hash = $1 AND consumed_at IS NULL AND expires_at > now()',
     [nonceHash(nonce)],
   );
   if (!result.rowCount) return null;
   return {
-    requestId: result.rows[0].request_id,
     statement: result.rows[0].statement,
     expiresAt: new Date(result.rows[0].expires_at),
   };
