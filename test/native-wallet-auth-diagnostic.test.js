@@ -71,12 +71,13 @@ test('native Wallet Auth diagnostic contains only the minimal native command cal
     readFile(new URL('../src/app/page.tsx', import.meta.url), 'utf8'),
   ]);
 
-  assert.match(component, /await MiniKit\.walletAuth\(\{ nonce \}\)/);
+  assert.match(component, /await MiniKit\.walletAuth\(\{ nonce, statement: "Bestätige deine World-Wallet für den Civilization-Spielzugang\." \}\)/);
   assert.equal((component.match(/MiniKit\.walletAuth\(/g) ?? []).length, 1);
   assert.match(helper, /crypto\.getRandomValues\(values\)/);
-  assert.doesNotMatch(component, /\b(statement|expirationTime|notBefore|requestId|fallback)\b/);
-  assert.doesNotMatch(component, /\bfetch\s*\(|\bsignIn\s*\(|\bverify\w*\s*\(|\bredirect\s*\(|location\.assign\s*\(|\/api\/auth\/|\buseSession\b/);
-  assert.doesNotMatch(component, /MiniKit\.(install|isInstalled|isInWorldApp)|isCommandAvailable|useMiniKit/);
+  assert.doesNotMatch(component, /\b(expirationTime|notBefore|requestId|fallback)\b/);
+  assert.doesNotMatch(component, /\b(fetch|XMLHttpRequest|axios)\b|\bsignIn\s*\(|\bverify\w*\s*\(|\bredirect\s*\(|location\.assign\s*\(|\/api\/auth\/|\b(useSession|AuthButton)\b|\bauth\s*\(/);
+  assert.doesNotMatch(component, /\b(cookie|cookies|session|localStorage|sessionStorage|analytics|track)\b|World\s*ID|\b(transaction|sendTransaction)\b/);
+  assert.doesNotMatch(component, /MiniKit\.(install|isInstalled|isInWorldApp)|isCommandAvailable|useMiniKit|\b(readiness|ready|commandVersion|versionCheck)\b/);
   assert.doesNotMatch(component, /console\.(log|warn|error)/);
   assert.match(page, /<NativeWalletAuthDiagnostic \/>/);
   assert.doesNotMatch(page, /AuthButton|\bauth\s*\(|\bredirect\s*\(/);
