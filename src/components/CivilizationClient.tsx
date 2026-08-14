@@ -13,6 +13,7 @@ import {
   confirmWorldIdRegistration,
   getWorldIdConfig,
   isWorldAppBridgePresent,
+  needsWorldIdProof,
   prepareWorldIdProofContext,
   submitWorldIdRegistration,
 } from '@/world';
@@ -31,9 +32,12 @@ function errorText(error: unknown) {
 export default function CivilizationClient({
   walletAddress,
   worldConfiguration,
+  worldAppConfirmed = false,
 }: {
   walletAddress: string;
   worldConfiguration: PublicWorldRuntimeConfiguration;
+  /** WalletAuth has already established this render is inside World App. */
+  worldAppConfirmed?: boolean;
 }) {
   const root = useRef<HTMLDivElement>(null);
   const config = useMemo(() => getWorldIdConfig(worldConfiguration), [worldConfiguration]);
@@ -42,7 +46,7 @@ export default function CivilizationClient({
     confirmations: 1,
     timeout: 45_000,
   });
-  const [bridge, setBridge] = useState(false);
+  const [bridge, setBridge] = useState(worldAppConfirmed);
   const [registered, setRegistered] = useState(false);
   const [busy, setBusy] = useState(false);
   const [registrationPending, setRegistrationPending] = useState(false);
@@ -85,16 +89,20 @@ export default function CivilizationClient({
       attempts,
       retryDelayMs: attempts > 1 ? 1_500 : 0,
     } as any);
-    if (!result.ok) return false;
+    if (!result.ok) return result;
     setRequest(null);
     setWidgetOpen(false);
     setRegistrationPending(false);
     setStatus('World ID bestätigt. On-chain-Dorf wird geladen …');
     setRegistered(true);
-    return true;
+    return result;
   }, [config, walletAddress]);
 
   useEffect(() => {
+    if (worldAppConfirmed) {
+      setBridge(true);
+      return undefined;
+    }
     let checks = 0;
     const detect = () => {
       if (isWorldAppBridgePresent()) {
@@ -108,13 +116,16 @@ export default function CivilizationClient({
     if (detect()) return;
     const timer = window.setInterval(() => { if (detect()) window.clearInterval(timer); }, 250);
     return () => window.clearInterval(timer);
-  }, []);
+  }, [worldAppConfirmed]);
 
   useEffect(() => {
     if (!bridge || !config.configured) return;
     let active = true;
-    checkRegistration().then((ok) => {
-      if (active && !ok) setStatus('Bestätige einmalig deinen Proof of Human.');
+    checkRegistration().then((result) => {
+      if (!active || result.ok) return;
+      setStatus(needsWorldIdProof(result)
+        ? 'Bestätige einmalig deinen Proof of Human.'
+        : `Registrierungsstatus konnte nicht gelesen werden: ${result.reason}. Bitte erneut versuchen.`);
     });
     return () => { active = false; };
   }, [bridge, checkRegistration, config.configured]);
@@ -136,7 +147,12 @@ export default function CivilizationClient({
     setBusy(true);
     setStatus(registrationPending ? 'World-Chain-Registrierung wird erneut geprüft …' : 'Registrierungsstatus wird geprüft …');
     try {
-      if (await checkRegistration()) return;
+      const confirmation = await checkRegistration();
+      if (confirmation.ok) return;
+      if (!needsWorldIdProof(confirmation)) {
+        setStatus(`Registrierungsstatus konnte nicht gelesen werden: ${confirmation.reason}. Bitte erneut versuchen.`);
+        return;
+      }
       if (registrationPending) {
         setStatus('Transaktion ist noch nicht bestätigt. Warte kurz und prüfe erneut. Kein neuer Proof nötig.');
         return;
@@ -168,7 +184,7 @@ export default function CivilizationClient({
       if (!sent.ok) throw new Error(sent.reason);
       setRegistrationPending(true);
       setStatus('World Chain bestätigt deine Registrierung …');
-      if (await checkRegistration(ATTEMPTS)) return;
+      if ((await checkRegistration(ATTEMPTS)).ok) return;
       setStatus('Transaktion gesendet, aber noch nicht bestätigt. Warte kurz und prüfe erneut; kein neuer Proof nötig.');
     } catch (error) {
       setStatus(`World-ID-Verifizierung fehlgeschlagen: ${errorText(error)}.`);

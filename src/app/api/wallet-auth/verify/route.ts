@@ -1,5 +1,4 @@
-import { readWalletAuthJson } from '@/lib/wallet-auth-verify-core';
-import { verifyAndMintWalletLoginTicket } from '@/lib/wallet-auth-session-core';
+import { readWalletAuthJson, verifyWalletAuthRequest } from '@/lib/wallet-auth-verify-core';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -16,11 +15,11 @@ export async function POST(request: Request) {
   if (parsed.kind !== 'json') return malformed();
 
   try {
-    const result = await verifyAndMintWalletLoginTicket(parsed.value);
+    const result = await verifyWalletAuthRequest(parsed.value);
     if (result.kind === 'malformed') return malformed();
     if (result.kind === 'invalid_nonce') return invalidNonce();
     if (result.kind === 'verification_failed') return verificationFailed();
-    return Response.json({ isValid: true, address: result.address, ticket: result.ticket, loginId: result.loginId }, { headers: noStoreHeaders });
+    return Response.json({ isValid: true, address: result.address }, { headers: noStoreHeaders });
   } catch {
     return Response.json({ error: 'wallet_auth_unavailable' }, { status: 503, headers: noStoreHeaders });
   }

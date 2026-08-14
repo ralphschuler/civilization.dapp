@@ -231,7 +231,7 @@ export async function prepareWorldIdProofContext({
 
 /** Submits the already-encoded registration transaction through World App. */
 export async function submitWorldIdRegistration(registration, miniKit = MiniKit) {
-  if (!registration || registration.chainId !== WORLD_CHAIN_ID || !isAddress(registration.from) || !miniKit.isInstalled()) {
+  if (!registration || registration.chainId !== WORLD_CHAIN_ID || !isAddress(registration.from) || typeof miniKit?.sendTransaction !== "function") {
     return { ok: false, reason: "wallet_unavailable" };
   }
   let response;
@@ -257,6 +257,11 @@ function playerStateIsRegistered(playerState) {
   if (typeof playerState === "boolean") return playerState;
   if (Array.isArray(playerState)) return playerState[0] === true;
   return playerState?.registered === true;
+}
+
+/** Only an explicit negative on-chain read may start a new World ID proof. */
+export function needsWorldIdProof(confirmation) {
+  return confirmation?.ok !== true && confirmation?.reason === "registration_not_confirmed";
 }
 
 function wait(milliseconds) {
