@@ -120,6 +120,7 @@ export const NativeWalletAuthDiagnostic = () => {
           <p>Auth.js-Sitzung: {diagnostic.sessionSuccess ? 'erfolgreich' : 'fehlgeschlagen'}</p>
           {diagnostic.wallet ? <p>Wallet: {diagnostic.wallet}</p> : null}
           {diagnostic.error ? <p>Fehlercode: {diagnostic.error}</p> : null}
+          {diagnostic?.sessionSuccess ? <a className="native-wallet-auth-diagnostic-game-link" href="/game">Spiel öffnen</a> : null}
         </> : null}
       </output>
     </section>

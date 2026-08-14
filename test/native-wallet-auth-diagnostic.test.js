@@ -43,9 +43,10 @@ test('Auth.js diagnostic result never carries marker secrets supplied to its inp
   assert.doesNotMatch(visible, /11111111-1111-4111-8111-111111111111/);
 });
 
-test('Stage 7 diagnostic preserves SIWE order, then creates and reads an Auth.js session without navigation', async () => {
-  const [component, page, nonceRoute, verifyRoute, verifyCore, ticketStore, sessionCore, diagnosticCore] = await Promise.all([
+test('Stage 8.1 diagnostic preserves SIWE order, then offers a manual game anchor after Auth.js session success', async () => {
+  const [component, styles, page, nonceRoute, verifyRoute, verifyCore, ticketStore, sessionCore, diagnosticCore] = await Promise.all([
     readFile(new URL('../src/components/NativeWalletAuthDiagnostic/index.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/app/globals.css', import.meta.url), 'utf8'),
     readFile(new URL('../src/app/page.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../src/app/api/wallet-auth/nonce/route.ts', import.meta.url), 'utf8'),
     readFile(new URL('../src/app/api/wallet-auth/verify/route.ts', import.meta.url), 'utf8'),
@@ -78,10 +79,16 @@ test('Stage 7 diagnostic preserves SIWE order, then creates and reads an Auth.js
   assert.match(diagnosticCore, /signOut\(\{ redirect: false \}\)\.catch\(\(\) => undefined\)/);
   assert.match(diagnosticCore, /session_identity_mismatch/);
   assert.equal((component.match(/MiniKit\.walletAuth\(/g) ?? []).length, 1);
+  assert.match(component, /MiniKit\.walletAuth\(\{ nonce, statement, expirationTime \}\)/);
+  assert.match(component, /diagnostic\?\.sessionSuccess \? <a className="native-wallet-auth-diagnostic-game-link" href="\/game">Spiel öffnen<\/a> : null/);
+  assert.doesNotMatch(component, /window\.location|location\.(assign|replace|href)|router\.(push|replace)|\bredirect\s*\(|useEffect\s*\(/);
+  assert.match(styles, /\.native-wallet-auth-diagnostic-game-link \{[^}]*min-height: 44px;[^}]*\}/);
+  assert.match(styles, /\.native-wallet-auth-diagnostic-game-link:focus-visible \{[^}]*outline:/);
   assert.doesNotMatch(component, /generateNativeWalletAuthNonce/);
   assert.doesNotMatch(component, /Date\.now\(\) \+ 5 \* 60_000/);
-  assert.doesNotMatch(component, /\b(notBefore|requestId|fallback)\b/);
-  assert.doesNotMatch(component, /XMLHttpRequest|axios|location\.assign\s*\(|\/game|\b(useSession|AuthButton)\b/);
+  assert.doesNotMatch(component, /\b(notBefore|requestId|fallback|signedNonce|finalPayloadJson)\b/);
+  assert.doesNotMatch(component, /\/api\/auth\/wallet-nonce/);
+  assert.doesNotMatch(component, /XMLHttpRequest|axios|\b(useSession|AuthButton)\b/);
   assert.doesNotMatch(component, /localStorage|sessionStorage|analytics|track|console\.(log|warn|error)/);
   assert.doesNotMatch(component, /JSON\.stringify\(diagnostic|<pre/);
   assert.doesNotMatch(component, /MiniKit\.(install|isInstalled|isInWorldApp)|isCommandAvailable|useMiniKit|\b(readiness|ready|commandVersion|versionCheck)\b/);
