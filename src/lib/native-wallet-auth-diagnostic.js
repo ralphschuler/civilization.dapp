@@ -10,7 +10,7 @@ export function sessionMatchesWalletLogin(session, walletAddress, loginId) {
   return getAddress(sessionAddress) === getAddress(walletAddress) && sessionLoginId === loginId;
 }
 
-const loginErrorCodes = new Set([
+const diagnosticErrorCodes = new Set([
   'native_wallet_auth_failed',
   'wallet_auth_verification_failed',
   'session_creation_failed',
@@ -18,11 +18,14 @@ const loginErrorCodes = new Set([
   'wallet_auth_unavailable',
 ]);
 
-export function safeLoginErrorCode(code) {
-  return loginErrorCodes.has(code) ? code : 'wallet_auth_unavailable';
+export function safeDiagnosticErrorCode(code) {
+  return diagnosticErrorCodes.has(code) ? code : 'wallet_auth_unavailable';
 }
 
-/** Completes the local credentials-session leg without exposing authentication material. */
+/**
+ * Completes the local Auth.js leg after SIWE has already succeeded. Its result
+ * deliberately contains no ticket, nonce, callback, or unmasked wallet.
+ */
 export async function createAndConfirmWalletSession({ signIn, getSession, signOut, walletAddress, loginId, ticket }) {
   try {
     const signInResult = await signIn('credentials', { redirect: false, redirectTo: '/', ticket });
