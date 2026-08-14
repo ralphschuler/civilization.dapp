@@ -19,39 +19,19 @@ body {
   font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
 
-.native-wallet-auth-diagnostic {
-  width: 100%;
-  margin-top: 1rem;
-  overflow-wrap: anywhere;
-}
-
-.native-wallet-auth-diagnostic p {
-  margin: 0 0 0.5rem;
-  font-size: 0.875rem;
-}
-
-.native-wallet-auth-diagnostic button {
-  min-height: 44px;
-  max-width: 100%;
-  padding: 0.625rem 0.875rem;
-  border: 1px solid currentColor;
-  border-radius: 0.5rem;
-  background: transparent;
-  color: inherit;
-}
-
-.native-wallet-auth-diagnostic-output {
-  display: block;
-  max-width: 100%;
-  max-height: 14rem;
-  margin-top: 0.5rem;
-  overflow: auto;
-}
-
-.native-wallet-auth-diagnostic-output pre {
-  width: max-content;
-  min-width: 100%;
-  margin: 0;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
+.civilization-login-page { min-height: 100dvh; display: grid; place-items: center; padding: max(1.5rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) max(1.5rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left)); background: radial-gradient(circle at 50% 0%, #244834, #07100e 62%); }
+.civilization-login-card { width: min(100%, 27rem); box-sizing: border-box; padding: clamp(1.5rem, 7vw, 2.5rem); border: 1px solid #62876d; border-radius: 1.5rem; background: rgba(12, 31, 22, .92); box-shadow: 0 1.5rem 4rem rgba(0, 0, 0, .3); text-align: center; }
+.civilization-login-eyebrow { margin: 0; color: #b9d4a7; font-size: .75rem; font-weight: 700; letter-spacing: .13em; }
+.civilization-login-art { width: clamp(6rem, 28vw, 7.5rem); height: auto; margin: 1.25rem auto .75rem; image-rendering: auto; }
+.civilization-login-card h1 { margin: 0; font-size: clamp(2rem, 9vw, 3rem); line-height: 1.05; }
+.civilization-login-copy { margin: 1rem 0 1.5rem; color: #d7e2d0; font-size: clamp(1rem, 4.7vw, 1.2rem); line-height: 1.5; }
+.civilization-login { width: 100%; }
+.civilization-login-button { width: 100%; min-height: 52px; padding: .8rem 1rem; border: 1px solid #d8f2a9; border-radius: .85rem; background: #b9db74; color: #10220f; font: inherit; font-weight: 800; cursor: pointer; transition: transform .12s ease, background-color .12s ease; }
+.civilization-login-button:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+.civilization-login-button:active:not(:disabled) { transform: scale(.97); }
+.civilization-login-button:disabled { cursor: wait; opacity: .78; }
+.civilization-login-feedback { min-height: 1.5em; margin: 1rem 0 0; color: #d7e2d0; line-height: 1.45; overflow-wrap: anywhere; }
+.civilization-login-feedback.is-error { color: #ffd1c7; }
+@media (prefers-reduced-motion: reduce) { .civilization-login-button { transition: none; } }
+@media (prefers-reduced-transparency: reduce) { .civilization-login-card { background: #0c1f16; } }
+@media (prefers-contrast: more) { .civilization-login-card { border-width: 2px; } .civilization-login-button { border-width: 2px; } }
