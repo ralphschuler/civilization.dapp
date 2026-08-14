@@ -11,6 +11,25 @@ test('World ID client requests the Proof of Human preset with legacy and wallet 
   assert.doesNotMatch(client, /CredentialRequest/);
 });
 
+test('confirmed Stage-9 WalletAuth skips raw bridge probing and reaches registration checking', async () => {
+  const client = await readFile(new URL('../src/components/CivilizationClient.tsx', import.meta.url), 'utf8');
+  const stage9 = await readFile(new URL('../src/components/NativeWalletAuthDiagnostic/index.tsx', import.meta.url), 'utf8');
+  assert.match(client, /worldAppConfirmed = false/);
+  assert.match(client, /const \[bridge, setBridge\] = useState\(worldAppConfirmed\);/);
+  assert.match(client, /if \(worldAppConfirmed\) \{\s*setBridge\(true\);\s*return undefined;\s*\}/);
+  assert.match(client, /if \(!bridge \|\| !config\.configured\) return;/);
+  assert.match(client, /checkRegistration\(\)\.then/);
+  assert.match(stage9, /worldAppConfirmed=\{true\}/);
+});
+
+test('World ID client opens IDKit only for an explicit unregistered confirmation', async () => {
+  const client = await readFile(new URL('../src/components/CivilizationClient.tsx', import.meta.url), 'utf8');
+  assert.match(client, /if \(!needsWorldIdProof\(confirmation\)\) \{[\s\S]*?return;/);
+  assert.match(client, /prepareWorldIdProofContext/);
+  assert.match(client, /needsWorldIdProof\(result\)/);
+  assert.match(client, /if \(\(await checkRegistration\(ATTEMPTS\)\)\.ok\) return;/);
+});
+
 test('World ID recovery keeps the request widget mounted after close or rejection', async () => {
   const client = await readFile(new URL('../src/components/CivilizationClient.tsx', import.meta.url), 'utf8');
   assert.match(client, /const \[widgetOpen, setWidgetOpen\] = useState\(false\);/);

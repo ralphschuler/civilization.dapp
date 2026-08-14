@@ -1,4 +1,3 @@
-import { auth } from '@/auth';
 import { runtimeConfiguration } from '@/lib/runtime-config';
 import ClientProviders from '@/providers';
 import '@worldcoin/mini-apps-ui-kit-react/styles.css';
@@ -21,17 +20,16 @@ export const metadata: Metadata = {
   description: 'Civilization für World App',
 };
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const session = await auth();
   const { world } = runtimeConfiguration();
   return (
     <html lang="de">
       <body className={`${geistSans.variable} ${geistMono.variable} `}>
-        <ClientProviders session={session} worldAppId={world.worldAppId}>{children}</ClientProviders>
+        <ClientProviders worldAppId={world.worldAppId}>{children}</ClientProviders>
       </body>
     </html>
   );

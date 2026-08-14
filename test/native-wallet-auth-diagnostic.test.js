@@ -6,6 +6,7 @@ import {
   safeDiagnosticErrorCode,
   sessionMatchesWalletLogin,
 } from '../src/lib/native-wallet-auth-diagnostic.js';
+import { verifyWalletForDirectGame } from '../src/lib/direct-wallet-game-flow.js';
 
 test('fresh session readback fails when a stale cookie has the same wallet but a different login ID', () => {
   const wallet = '0x52908400098527886E0F7030069857D2E4169EE7';
@@ -43,10 +44,10 @@ test('Auth.js diagnostic result never carries marker secrets supplied to its inp
   assert.doesNotMatch(visible, /11111111-1111-4111-8111-111111111111/);
 });
 
-test('Stage 8.2 keeps the proven diagnostic and offers a plain server-page game anchor', async () => {
-  const [component, styles, page, nonceRoute, verifyRoute, verifyCore, ticketStore, sessionCore, diagnosticCore] = await Promise.all([
+test('Stage 9 sends nonce, native WalletAuth, then verification and renders the game in place', async () => {
+  const [component, flow, page, nonceRoute, verifyRoute, verifyCore, ticketStore, sessionCore, diagnosticCore] = await Promise.all([
     readFile(new URL('../src/components/NativeWalletAuthDiagnostic/index.tsx', import.meta.url), 'utf8'),
-    readFile(new URL('../src/app/globals.css', import.meta.url), 'utf8'),
+    readFile(new URL('../src/lib/direct-wallet-game-flow.js', import.meta.url), 'utf8'),
     readFile(new URL('../src/app/page.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../src/app/api/wallet-auth/nonce/route.ts', import.meta.url), 'utf8'),
     readFile(new URL('../src/app/api/wallet-auth/verify/route.ts', import.meta.url), 'utf8'),
@@ -56,46 +57,30 @@ test('Stage 8.2 keeps the proven diagnostic and offers a plain server-page game 
     readFile(new URL('../src/lib/native-wallet-auth-diagnostic.js', import.meta.url), 'utf8'),
   ]);
 
-  assert.match(component, /await fetch\('\/api\/wallet-auth\/nonce', \{\s*cache: 'no-store',\s*credentials: 'same-origin',\s*\}\)/);
-  assert.ok(component.indexOf("fetch('/api/wallet-auth/nonce'") < component.indexOf('MiniKit.walletAuth('));
-  assert.match(component, /if \(!response\.ok\) throw new Error\('Nonce konnte nicht geladen werden\.'\);/);
-  assert.match(component, /const challenge: unknown = await response\.json\(\);/);
-  assert.match(component, /typeof issuedNonce !== 'string'\s*\|\| !\/\^\[A-Za-z0-9\]\{8,\}\$\/.test\(issuedNonce\)\s*\|\| typeof expires_at !== 'number'\s*\|\| !Number\.isFinite\(expires_at\)\s*\|\| expires_at <= Date\.now\(\)/);
-  assert.match(component, /const nonce = issuedNonce;/);
-  assert.match(component, /const expirationTime = new Date\(expires_at\);/);
-  assert.match(component, /await MiniKit\.walletAuth\(\{ nonce, statement, expirationTime \}\)/);
-  assert.match(component, /result\.executedWith !== 'minikit'/);
-  assert.doesNotMatch(component, /payload as \{ status\?: unknown \}/);
-  assert.match(component, /typeof \(payload as \{ address\?: unknown \}\)\.address !== 'string'/);
-  assert.match(component, /await fetch\('\/api\/wallet-auth\/verify', \{\s*method: 'POST',\s*credentials: 'same-origin',\s*cache: 'no-store',\s*headers: \{ 'Content-Type': 'application\/json', 'Cache-Control': 'no-store' \},\s*body: JSON\.stringify\(\{ nonce, payload: result\.data \}\),/);
-  assert.ok(component.indexOf('MiniKit.walletAuth(') < component.indexOf("fetch('/api/wallet-auth/verify'"));
-  assert.match(component, /let siweVerified = false;/);
-  assert.match(component, /siweVerified = true;/);
-  assert.match(component, /createAndConfirmWalletSession/);
+  assert.match(component, /walletAuth: \(input: Parameters<typeof MiniKit\.walletAuth>\[0\]\) => MiniKit\.walletAuth\(input\)/);
+  assert.match(component, /if \(walletAddress\) return <CivilizationClient walletAddress=\{walletAddress\} worldConfiguration=\{worldConfiguration\} worldAppConfirmed=\{true\} \/>;/);
+  assert.equal((component.match(/MiniKit\.walletAuth/g) ?? []).length, 2);
+  assert.match(component, /dynamic\(\(\) => import\('\@\/components\/CivilizationClient'\), \{ ssr: false \}\)/);
+  assert.doesNotMatch(component, /import CivilizationClient from/);
+  assert.ok(component.indexOf('if (walletAddress) return <CivilizationClient') < component.indexOf('<main className="world-id-gate">'));
+  assert.ok(flow.indexOf("'/api/wallet-auth/nonce'") < flow.indexOf('walletAuth({ nonce, statement: walletAuthStatement, expirationTime })'));
+  assert.ok(flow.indexOf('walletAuth({ nonce, statement: walletAuthStatement, expirationTime })') < flow.indexOf("'/api/wallet-auth/verify'"));
+  assert.match(flow, /body: JSON\.stringify\(\{ nonce, payload: result\.data \}\)/);
+  assert.equal((flow.match(/walletAuth\(/g) ?? []).length, 1);
+  assert.match(flow, /result\.executedWith !== 'minikit'/);
+  assert.doesNotMatch(flow, /\bstatus\b/);
+  assert.doesNotMatch(flow, /notBefore|requestId|signedNonce|HMAC|\/api\/auth/);
   assert.match(diagnosticCore, /signIn\('credentials', \{ redirect: false, redirectTo: '\/', ticket \}\)/);
   assert.match(diagnosticCore, /!signInResult \|\| !signInResult\.ok \|\| signInResult\.error/);
   assert.match(diagnosticCore, /getSession\(\{ broadcast: false \}\)/);
   assert.match(diagnosticCore, /sessionMatchesWalletLogin\(session, walletAddress, loginId\)/);
   assert.match(diagnosticCore, /signOut\(\{ redirect: false \}\)\.catch\(\(\) => undefined\)/);
   assert.match(diagnosticCore, /session_identity_mismatch/);
-  assert.equal((component.match(/MiniKit\.walletAuth\(/g) ?? []).length, 1);
-  assert.match(component, /MiniKit\.walletAuth\(\{ nonce, statement, expirationTime \}\)/);
-  assert.doesNotMatch(component, /\/game/);
-  assert.doesNotMatch(component, /window\.location|location\.(assign|replace|href)|router\.(push|replace)|\bredirect\s*\(|useEffect\s*\(/);
-  assert.doesNotMatch(styles, /native-wallet-auth-diagnostic-game-link/);
-  assert.doesNotMatch(component, /generateNativeWalletAuthNonce/);
-  assert.doesNotMatch(component, /Date\.now\(\) \+ 5 \* 60_000/);
-  assert.doesNotMatch(component, /\b(notBefore|requestId|fallback|signedNonce|finalPayloadJson)\b/);
-  assert.doesNotMatch(component, /\/api\/auth\/wallet-nonce/);
-  assert.doesNotMatch(component, /XMLHttpRequest|axios|\b(useSession|AuthButton)\b/);
-  assert.doesNotMatch(component, /localStorage|sessionStorage|analytics|track|console\.(log|warn|error)/);
-  assert.doesNotMatch(component, /JSON\.stringify\(diagnostic|<pre/);
-  assert.doesNotMatch(component, /MiniKit\.(install|isInstalled|isInWorldApp)|isCommandAvailable|useMiniKit|\b(readiness|ready|commandVersion|versionCheck)\b/);
-  assert.doesNotMatch(component, /type Diagnostic \{[^}]*\b(nonce|ticket|address|message|signature|cookie)\b/);
-  assert.doesNotMatch(component, /setTimeout\s*\(/);
-  assert.match(page, /<NativeWalletAuthDiagnostic \/>\s*<a href="\/game">Spiel öffnen<\/a>/);
-  assert.ok(page.indexOf('<NativeWalletAuthDiagnostic />') < page.indexOf('<a href="/game">Spiel öffnen</a>'));
-  assert.equal((page.match(/href="\/game"/g) ?? []).length, 1);
+  assert.doesNotMatch(component, /signIn|getSession|signOut|\/api\/auth|\/game|window\.location|location\.|router\.|localStorage|sessionStorage|console\./);
+  assert.doesNotMatch(component, /MiniKit\.(install|isInstalled|isInWorldApp)|isCommandAvailable|useMiniKit|readiness|command|version/);
+  assert.doesNotMatch(flow, /localStorage|sessionStorage|console\.|window\.location|location\.|router\.|signIn|getSession|signOut/);
+  assert.match(page, /return <NativeWalletAuthDiagnostic worldConfiguration=\{world\} \/>;/);
+  assert.doesNotMatch(page, /world-id-gate-card|href="\/game"/);
   assert.doesNotMatch(page, /['"]use client['"]/);
   assert.doesNotMatch(page, /AuthButton|\bauth\s*\(|\b(getSession|useSession|signIn|signOut)\s*\(|\bredirect\s*\(|router\.(push|replace)|useEffect\s*\(|MiniKit\./);
 
@@ -124,8 +109,9 @@ test('Stage 8.2 keeps the proven diagnostic and offers a plain server-page game 
   assert.match(verifyRoute, /wallet_auth_request_too_large/);
   assert.match(verifyRoute, /invalid_or_expired_nonce/);
   assert.match(verifyRoute, /wallet_auth_verification_failed/);
-  assert.match(verifyRoute, /Response\.json\(\{ isValid: true, address: result\.address, ticket: result\.ticket, loginId: result\.loginId \}/);
-  assert.match(verifyRoute, /verifyAndMintWalletLoginTicket/);
+  assert.match(verifyRoute, /verifyWalletAuthRequest\(parsed\.value\)/);
+  assert.match(verifyRoute, /Response\.json\(\{ isValid: true, address: result\.address \}/);
+  assert.doesNotMatch(verifyRoute, /verifyAndMintWalletLoginTicket|wallet-auth-session-core|ticket|loginId/);
   assert.match(verifyRoute, /readWalletAuthJson/);
   assert.ok(verifyCore.indexOf('await take(nonce)') < verifyCore.indexOf('await verify(candidate.payload, nonce, challenge.statement)'));
   assert.match(sessionCore, /if \(result\.kind !== 'success'\) return result/);
@@ -133,4 +119,54 @@ test('Stage 8.2 keeps the proven diagnostic and offers a plain server-page game 
   assert.match(sessionCore, /return \{ kind: 'success', address: result\.address, ticket, loginId \};/);
   assert.doesNotMatch(sessionCore, /\.\.\.result|\.\.\.\(await mint/);
   assert.doesNotMatch(verifyRoute, /console\.|requestId|notBefore|cookie|redirect|proof|transaction|signIn|\/game/);
+});
+
+test('active root path has no Auth.js or session provider dependency', async () => {
+  const [layout, providers] = await Promise.all([
+    readFile(new URL('../src/app/layout.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/providers/index.tsx', import.meta.url), 'utf8'),
+  ]);
+  assert.doesNotMatch(layout, /from ['"]@\/auth['"]|\bauth\s*\(|\bsession\b/i);
+  assert.doesNotMatch(providers, /next-auth|SessionProvider|\bsession\b/);
+  assert.match(providers, /MiniKitProvider/);
+});
+
+test('direct game flow accepts a statusless native result only after server verification', async () => {
+  const callbackWallet = '0x52908400098527886E0F7030069857D2E4169EE7';
+  const verifiedWallet = '0x8ba1f109551bD432803012645Ac136ddd64DBA72';
+  const payload = { address: callbackWallet, message: 'private message', signature: 'private signature' };
+  const calls = [];
+  const address = await verifyWalletForDirectGame({
+    fetchImpl: async (url, options) => {
+      calls.push([url, options]);
+      if (url.endsWith('/nonce')) return { ok: true, json: async () => ({ nonce: 'abcdefgh', expires_at: Date.now() + 60_000 }) };
+      return { ok: true, json: async () => ({ isValid: true, address: verifiedWallet }) };
+    },
+    walletAuth: async (input) => { calls.push(['native', input]); return { executedWith: 'minikit', data: payload }; },
+  });
+  assert.equal(address, verifiedWallet);
+  assert.deepEqual(calls.map(([kind]) => kind), ['/api/wallet-auth/nonce', 'native', '/api/wallet-auth/verify']);
+  assert.deepEqual(JSON.parse(calls[2][1].body), { nonce: 'abcdefgh', payload });
+});
+
+test('direct game flow stops before verification on cancelled or malformed native results and on failed verification', async () => {
+  for (const walletAuth of [
+    async () => { throw new Error('cancelled'); },
+    async () => ({ executedWith: 'minikit', data: { address: 'x' } }),
+  ]) {
+    const calls = [];
+    await assert.rejects(verifyWalletForDirectGame({
+      fetchImpl: async (url) => { calls.push(url); return { ok: true, json: async () => ({ nonce: 'abcdefgh', expires_at: Date.now() + 60_000 }) }; },
+      walletAuth,
+    }));
+    assert.deepEqual(calls, ['/api/wallet-auth/nonce']);
+  }
+  const calls = [];
+  await assert.rejects(verifyWalletForDirectGame({
+    fetchImpl: async (url) => { calls.push(url); return url.endsWith('/nonce')
+      ? { ok: true, json: async () => ({ nonce: 'abcdefgh', expires_at: Date.now() + 60_000 }) }
+      : { ok: false, json: async () => ({ isValid: false }) }; },
+    walletAuth: async () => ({ executedWith: 'minikit', data: { address: '0x52908400098527886E0F7030069857D2E4169EE7', message: 'm', signature: 's' } }),
+  }));
+  assert.deepEqual(calls, ['/api/wallet-auth/nonce', '/api/wallet-auth/verify']);
 });

@@ -4,7 +4,7 @@ import { SendTransactionError } from "@worldcoin/minikit-js/commands";
 import { decodeFunctionData, encodeAbiParameters, keccak256, toFunctionSelector } from "viem";
 import { COLLECTION_COOLDOWN_MS, MARCH_DURATION_MS, createInitialState, gather, getRequirements, resolveRaidMarch, sendRaid, settle, startGathering, startRaidMarch, swapInternal, trainTroop, upgradeBuilding } from "../src/game.js";
 import { CIVILIZATION_WORLD_ID_REGISTRATION_ABI } from "../src/abi/CivilizationGame.js";
-import { buildTestnetRegistration, buildWorldIdRegistration, confirmWorldIdRegistration, getWorldIdConfig, isWorldAppBridgePresent, prepareWorldIdProofContext, submitWorldIdRegistration, WORLD_CHAIN_ID, WORLD_CHAIN_SEPOLIA_ID, WORLD_ID_REGISTRATION_READ_ATTEMPTS } from "../src/world.js";
+import { buildTestnetRegistration, buildWorldIdRegistration, confirmWorldIdRegistration, getWorldIdConfig, isWorldAppBridgePresent, needsWorldIdProof, prepareWorldIdProofContext, submitWorldIdRegistration, WORLD_CHAIN_ID, WORLD_CHAIN_SEPOLIA_ID, WORLD_ID_REGISTRATION_READ_ATTEMPTS } from "../src/world.js";
 
 test("a WorldApp bridge remains a gated World runtime when MiniKit provider installation is false", () => {
   assert.equal(isWorldAppBridgePresent({}), true);
@@ -17,6 +17,22 @@ test("MiniKit transaction preserves its user-operation hash for React receipt po
     { isInstalled: () => true, sendTransaction: async () => ({ executedWith: "minikit", data: { status: "success", userOpHash: "0xuserop", from: walletAddress } }) },
   );
   assert.deepEqual(result, { ok: true, transaction: { status: "success", userOpHash: "0xuserop", from: walletAddress }, userOpHash: "0xuserop" });
+});
+
+test("MiniKit registration sends when isInstalled has a false negative but sendTransaction is available", async () => {
+  let calls = 0;
+  const result = await submitWorldIdRegistration(
+    { chainId: WORLD_CHAIN_ID, from: walletAddress, to: walletAddress, data: "0x", value: "0x0" },
+    {
+      isInstalled: () => false,
+      sendTransaction: async () => {
+        calls += 1;
+        return { executedWith: "minikit", data: { status: "success", userOpHash: "0xuserop", from: walletAddress } };
+      },
+    },
+  );
+  assert.equal(calls, 1);
+  assert.equal(result.ok, true);
 });
 
 test("MiniKit transaction errors preserve their v2 reason without escaping the registration boundary", async () => {
@@ -194,6 +210,16 @@ test("World ID gate remains retryable when World Chain never confirms registrati
   assert.equal(WORLD_ID_REGISTRATION_READ_ATTEMPTS, 21);
   assert.equal(reads, 21);
   assert.deepEqual(confirmation, { ok: false, reason: "registration_not_confirmed", attempts: 21 });
+});
+
+test("World ID proof is offered only after an explicit unregistered read, never an RPC failure", async () => {
+  const rpcFailure = await confirmWorldIdRegistration({
+    config: getWorldIdConfig(worldConfigEnv), walletAddress, attempts: 1, retryDelayMs: 0,
+    readPlayerState: async () => { throw new Error("worldchain_rpc_unavailable"); }, sleep: async () => {},
+  });
+  assert.deepEqual(rpcFailure, { ok: false, reason: "worldchain_rpc_unavailable", attempts: 1 });
+  assert.equal(needsWorldIdProof(rpcFailure), false);
+  assert.equal(needsWorldIdProof({ ok: false, reason: "registration_not_confirmed" }), true);
 });
 
 test("resource buildings fill raidable field stock before collection", () => {
