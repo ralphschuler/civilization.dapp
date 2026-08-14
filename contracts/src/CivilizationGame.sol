@@ -33,9 +33,9 @@ interface IWorldIDVerifier {
 }
 
 /// @title CivilizationGame
-/// @notice Source-only World Chain game-state draft with direct World ID 3.0
-/// legacy and World ID 4.0 verification. The backend can provide a World RP
-/// context, but cannot attest registrations or change a village.
+/// @notice Source-only World Chain game-state draft with wallet registration.
+/// @dev The historical World ID entrypoints remain as dormant compatibility
+/// surface. New clients initialize their own wallet with registerWallet().
 /// @dev Wood, clay and stone are internal game units. Gold is an in-game ERC-20
 /// minted only by deterministic claim and raid rules. WLD can pay only to reduce
 /// construction time and is transferred directly to the immutable treasury.
@@ -107,6 +107,7 @@ contract CivilizationGame {
     mapping(uint256 => address) public nullifierOwner;
 
     event WorldIdRegistered(address indexed player, uint256 indexed nullifierHash);
+    event WalletRegistered(address indexed player);
     event ResourcesClaimed(address indexed player, uint256 wood, uint256 clay, uint256 stone, uint256 gold);
     event UpgradeStarted(address indexed player, Building indexed building, uint64 completesAt);
     event BuildingUpgraded(address indexed player, Building indexed building, uint256 newLevel);
@@ -182,6 +183,15 @@ contract CivilizationGame {
         boostTreasury = boostTreasuryAddress;
     }
 
+    /// @notice Initializes msg.sender's village once, without a proof or relayer.
+    /// @dev This is the active wallet-only registration path. It deliberately
+    /// accepts no address argument: a wallet can create only its own village.
+    function registerWallet() external {
+        if (players[msg.sender].registered) revert AlreadyRegistered();
+        _initializePlayer();
+        emit WalletRegistered(msg.sender);
+    }
+
     /// @notice Verifies a World ID 4 proof on World Chain and registers msg.sender once.
     /// @dev The wallet address is the proof signal, binding an otherwise valid
     /// proof to this account. The verifier enforces ZK proof validity and the
@@ -240,12 +250,16 @@ contract CivilizationGame {
 
     function _registerPlayer(uint256 nullifierHash) private {
         nullifierOwner[nullifierHash] = msg.sender;
+        _initializePlayer();
+        emit WorldIdRegistered(msg.sender, nullifierHash);
+    }
+
+    function _initializePlayer() private {
         Player storage player = players[msg.sender];
         player.registered = true;
         player.lastAccruedAt = uint64(block.timestamp);
         player.buildings = Buildings(0, 1, 1, 1, 1, 0, 0, 0);
         player.stored = Resources(80, 80, 80, 0);
-        emit WorldIdRegistered(msg.sender, nullifierHash);
     }
 
     function claim() external onlyRegistered {

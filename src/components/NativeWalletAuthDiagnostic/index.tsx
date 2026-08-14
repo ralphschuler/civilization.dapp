@@ -3,13 +3,12 @@
 import { MiniKit } from '@worldcoin/minikit-js';
 import dynamic from 'next/dynamic';
 import { useState } from 'react';
-import type { PublicWorldRuntimeConfiguration } from '@/lib/runtime-config';
 import { verifyWalletForDirectGame } from '@/lib/direct-wallet-game-flow';
 
-// The game imports IDKit and starts its runtime; do not load either before WalletAuth succeeds.
+// Do not load the game runtime before WalletAuth/SIWE succeeds.
 const CivilizationClient = dynamic(() => import('@/components/CivilizationClient'), { ssr: false });
 
-export const NativeWalletAuthDiagnostic = ({ worldConfiguration }: { worldConfiguration: PublicWorldRuntimeConfiguration }) => {
+export const NativeWalletAuthDiagnostic = ({ contractAddress }: { contractAddress: string }) => {
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [isPending, setIsPending] = useState(false);
@@ -31,7 +30,7 @@ export const NativeWalletAuthDiagnostic = ({ worldConfiguration }: { worldConfig
   };
 
   // This is deliberately outside the gate markup: a verified player gets the full game page.
-  if (walletAddress) return <CivilizationClient walletAddress={walletAddress} worldConfiguration={worldConfiguration} worldAppConfirmed={true} />;
+  if (walletAddress) return <CivilizationClient walletAddress={walletAddress} contractAddress={contractAddress} />;
 
   return (
     <main className="world-id-gate">

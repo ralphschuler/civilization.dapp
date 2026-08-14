@@ -3,41 +3,38 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { sanitizeWorldIdDiagnostic } from '../src/lib/world-id-diagnostic.js';
 
-test('World ID client requests the Proof of Human preset with legacy and wallet signal support', async () => {
+test('Civilization client uses only the WalletAuth-established wallet registration path', async () => {
   const client = await readFile(new URL('../src/components/CivilizationClient.tsx', import.meta.url), 'utf8');
-  assert.match(client, /import \{ proofOfHuman \} from '@worldcoin\/idkit-core';/);
-  assert.match(client, /allow_legacy_proofs=\{true\}/);
-  assert.match(client, /preset=\{proofOfHuman\(\{ signal: walletAddress \}\)\}/);
-  assert.doesNotMatch(client, /CredentialRequest/);
+  assert.match(client, /registerWalletWithMiniKit\(\{[\s\S]*?walletAddress,[\s\S]*?contractAddress,[\s\S]*?pollReceipt,[\s\S]*?pendingUserOpHash: pendingRegistrationHash\.current/);
+  assert.match(client, /readCivilizationState\(walletAddress, contractAddress\)/);
+  assert.match(client, /Dorf on-chain erstellen/);
+  assert.match(client, /registrationInFlight\.current/);
+  assert.match(client, /pendingRegistrationHash\.current = hash/);
+  assert.doesNotMatch(client, /errorText|\$\{error/);
+  assert.doesNotMatch(client, /@worldcoin\/idkit|IDKit|WorldId|World ID|rp_context|proofOfHuman/);
 });
 
-test('confirmed Stage-9 WalletAuth skips raw bridge probing and reaches registration checking', async () => {
+test('WalletAuth is completed before CivilizationClient is loaded', async () => {
   const client = await readFile(new URL('../src/components/CivilizationClient.tsx', import.meta.url), 'utf8');
   const stage9 = await readFile(new URL('../src/components/NativeWalletAuthDiagnostic/index.tsx', import.meta.url), 'utf8');
-  assert.match(client, /worldAppConfirmed = false/);
-  assert.match(client, /const \[bridge, setBridge\] = useState\(worldAppConfirmed\);/);
-  assert.match(client, /if \(worldAppConfirmed\) \{\s*setBridge\(true\);\s*return undefined;\s*\}/);
-  assert.match(client, /if \(!bridge \|\| !config\.configured\) return;/);
-  assert.match(client, /checkRegistration\(\)\.then/);
-  assert.match(stage9, /worldAppConfirmed=\{true\}/);
+  assert.match(stage9, /verifyWalletForDirectGame/);
+  assert.match(stage9, /if \(walletAddress\) return <CivilizationClient walletAddress=\{walletAddress\} contractAddress=\{contractAddress\} \/>;/);
+  assert.match(client, /server has verified WalletAuth\/SIWE/);
 });
 
-test('World ID client opens IDKit only for an explicit unregistered confirmation', async () => {
+test('wallet registration retry always rereads on-chain state before a new MiniKit transaction', async () => {
   const client = await readFile(new URL('../src/components/CivilizationClient.tsx', import.meta.url), 'utf8');
-  assert.match(client, /if \(!needsWorldIdProof\(confirmation\)\) \{[\s\S]*?return;/);
-  assert.match(client, /prepareWorldIdProofContext/);
-  assert.match(client, /needsWorldIdProof\(result\)/);
-  assert.match(client, /if \(\(await checkRegistration\(ATTEMPTS\)\)\.ok\) return;/);
+  assert.match(client, /registerWalletWithMiniKit always reads first, including every retry/);
+  assert.match(client, /Das Dorf wurde noch nicht bestätigt\.[\s\S]*?versuche es bei Bedarf erneut/);
 });
 
-test('World ID recovery keeps the request widget mounted after close or rejection', async () => {
-  const client = await readFile(new URL('../src/components/CivilizationClient.tsx', import.meta.url), 'utf8');
-  assert.match(client, /const \[widgetOpen, setWidgetOpen\] = useState\(false\);/);
-  assert.match(client, /open=\{widgetOpen\}/);
-  assert.match(client, /onOpenChange=\{closeWidget\}/);
-  assert.match(client, /onError=\{handleWidgetError\}/);
-  assert.match(client, /setWidgetOpen\(false\);[\s\S]*?setBusy\(false\);[\s\S]*?errorCode === 'user_rejected'/);
-  assert.doesNotMatch(client, /onOpenChange=\{\(open\) => !open && setRequest\(null\)\}/);
+test('legacy game URL returns to the same-page WalletAuth flow without Auth.js', async () => {
+  const [layout, page] = await Promise.all([
+    readFile(new URL('../src/app/(protected)/layout.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/app/(protected)/game/page.tsx', import.meta.url), 'utf8'),
+  ]);
+  assert.doesNotMatch(`${layout}${page}`, /from ['"]@\/auth['"]|\bauth\(\)|SessionProvider/);
+  assert.match(page, /redirect\('\/'\)/);
 });
 
 test('game route has a safe client error boundary with a retry action', async () => {

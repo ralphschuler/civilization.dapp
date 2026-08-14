@@ -25,8 +25,9 @@ test('production and Pages are pnpm-powered Next builds with runtime World IDs a
   assert.match(runtimeConfig, /process\.env\.WORLD_ID_APP_ID/);
   assert.match(providers, /worldAppId/);
   assert.doesNotMatch(providers, /process\.env/);
-  assert.match(gamePage, /worldConfiguration=\{world\}/);
-  assert.match(client, /getWorldIdConfig\(worldConfiguration\)/);
+  assert.match(gamePage, /redirect\('\/'\)/);
+  assert.doesNotMatch(gamePage, /@\/auth|CivilizationClient|walletAddress/);
+  assert.match(client, /registerWalletWithMiniKit/);
   assert.match(pages, /build:demo/);
   assert.match(pages, /apps\/demo\/out/);
   assert.match(rootPackage, /"packageManager": "pnpm@/);
@@ -57,6 +58,20 @@ test('Next deployment templates carry every Wallet Auth, RP, World, and challeng
   assert.match(truenas, /PGDATABASE: civilization/);
   assert.match(example, /PGDATABASE=civilization/);
   assert.doesNotMatch(`${compose}${truenas}${example}`, /WORLD_ID_RP_|VITE_|NEXT_PUBLIC_/);
+});
+
+test('wallet-registration mainnet address is consistent across runtime and deployment templates', async () => {
+  const address = '0x71564689Fa320bA010561A880CfE2896b6Dc8f8b';
+  const files = await Promise.all([
+    source('src/world-game.js'),
+    source('src/lib/runtime-config.ts'),
+    source('src/world.js'),
+    source('compose.yaml'),
+    source('deploy/truenas.yaml'),
+    source('.env.example'),
+    source('server/contract-status.js'),
+  ]);
+  for (const contents of files) assert.match(contents, new RegExp(address));
 });
 
 test('health routes validate runtime configuration and the Wallet Auth challenge store', async () => {
@@ -104,17 +119,13 @@ test('official template Wallet Auth remains available while Auth.js consumes one
   assert.match(challenge, /UPDATE wallet_auth_challenges SET consumed_at/);
 });
 
-test('Next World ID client uses dual v3/v4 Proof of Human, official RP mapping, and bounded confirmation', async () => {
+test('active client uses wallet registration while legacy World ID compatibility remains in the source and deployment preflight', async () => {
   const [client, world, rpRoute] = await Promise.all([
     source('src/components/CivilizationClient.tsx'), source('src/world.js'), source('src/app/api/rp-signature/route.ts'),
   ]);
-  assert.match(client, /allow_legacy_proofs=\{true\}/);
-  assert.match(client, /const ATTEMPTS = 21/);
-  assert.match(client, /proofOfHuman\(\{ signal: walletAddress \}\)/);
-  assert.doesNotMatch(client, /CredentialRequest/);
-  assert.match(client, /onSuccess=\{verify\}/);
-  assert.doesNotMatch(client, /handleVerify=/);
-  assert.doesNotMatch(client, /orbLegacy/);
+  assert.match(client, /registerWalletWithMiniKit/);
+  assert.match(client, /readCivilizationState\(walletAddress, contractAddress\)/);
+  assert.doesNotMatch(client, /@worldcoin\/idkit|IDKitRequestWidget|proofOfHuman|rp_context/);
   assert.match(world, /result\.protocol_version === "3\.0"/);
   assert.match(world, /functionName: "registerWorldIdLegacy"/);
   assert.match(world, /decodeAbiParameters\(\[\{ type: "uint256\[8\]" \}\], response\.proof\)/);

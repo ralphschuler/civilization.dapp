@@ -37,7 +37,7 @@ export function getWorldIdConfig(configuration = {}) {
     // the Mini App ID below.
     appId: configuration?.worldIdAppId || configuration?.worldAppId || "",
     action: configuration?.worldIdAction || "play",
-    contractAddress: configuration?.civilizationContractAddress || "0xfCdB50926c3c6b2CDF3ACE76B13c9383A2DC3199",
+    contractAddress: configuration?.civilizationContractAddress || "0x71564689Fa320bA010561A880CfE2896b6Dc8f8b",
     proofContextEndpoint: configuration?.worldIdProofContextUrl || "https://civilization.nyphon.de/api/rp-signature",
     environment: configuration?.worldIdEnvironment || "production",
     testnet,

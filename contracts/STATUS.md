@@ -1,12 +1,18 @@
 # Contract release status
 
-**Current status: `mainnet_dual_world_id_deployed_no_settlement` / `worldchain_mainnet_dual_world_id_deployed`.** `CivilizationGame` is deployed on World Chain mainnet (chain ID `480`) at `0xfCdB50926c3c6b2CDF3ACE76B13c9383A2DC3199` by transaction [`0xbb4692b10f9255b84143405b03e63d2e14723e39eee920a177553d279e2b8e9a`](https://worldscan.org/tx/0xbb4692b10f9255b84143405b03e63d2e14723e39eee920a177553d279e2b8e9a) in block `33617329`. It supports direct World ID v4 and legacy v3 Orb registration. This deployment has not been independently audited. No WLD/CGOLD settlement, liquidity, redemption, withdrawal, fee routing, or custody is enabled by this release.
+**Current status: `mainnet_wallet_registration_deployed_no_settlement` / `worldchain_mainnet_wallet_registration_deployed`.** `CivilizationGame` is deployed on World Chain mainnet (chain ID `480`) at `0x71564689Fa320bA010561A880CfE2896b6Dc8f8b` by transaction [`0xf9f5164392011c80cf5a510e055f255fbcfe2166e39f537d2e18cf8a48f0e750`](https://worldscan.org/tx/0xf9f5164392011c80cf5a510e055f255fbcfe2166e39f537d2e18cf8a48f0e750) in block `33697221`. It supports wallet-only `registerWallet()` and retains the older World ID entrypoints only as dormant compatibility surface. This deployment has not been independently audited. No WLD/CGOLD settlement, liquidity, redemption, withdrawal, fee routing, or custody is enabled by this release.
+
+## Wallet-only deployment
+
+The deployed source adds `registerWallet()` for one-time, `msg.sender`-only village initialization and emits `WalletRegistered`. The two World ID functions remain compiled only as dormant compatibility surface; the active frontend has no IDKit/RP proof flow and uses the WalletAuth/SIWE-verified wallet with MiniKit to call `registerWallet()`.
+
+The replaced non-upgradeable contract at `0xfCdB50926c3c6b2CDF3ACE76B13c9383A2DC3199` had zero events, zero registered wallets, and zero CGOLD supply before replacement, so no player state required migration. It remains permanently deployed as historical code.
 
 `GET /api/contracts/status` exposes the same machine-readable release metadata from `server/contract-status.js`. It is intentionally descriptive only and cannot initiate an on-chain action.
 
 | Source | Status | Release boundary |
 | --- | --- | --- |
-| `src/CivilizationGame.sol` | Deployed on World Chain mainnet; not independently audited | Contract at `0xfCdB50926c3c6b2CDF3ACE76B13c9383A2DC3199`: constructor-bound World ID v3 router/app/action verification plus World ID v4 verifier, shared wallet/nullifier/player protection, and direct player-signed game state. No backend game-mutation entrypoint or WLD custody. |
+| `src/CivilizationGame.sol` | Deployed on World Chain mainnet; not independently audited | Contract at `0x71564689Fa320bA010561A880CfE2896b6Dc8f8b`: wallet-only `registerWallet()`, dormant legacy World ID ABI compatibility, and direct player-signed game state. |
 | `src/GameResourceToken.sol` | Draft, not deployed, superseded | Older standalone token draft; not used by CivilizationGame. |
 | `src/GoldSettlementRegistry.sol` | Draft, not deployed, allowlist only | Cannot custody assets or execute a swap. |
 
