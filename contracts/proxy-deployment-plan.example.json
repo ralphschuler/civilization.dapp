@@ -1,0 +1,13 @@
+{
+  "timelockAdmin": "REPLACE_WITH_SAFE_MAINNET_ADMIN",
+  "proposer": "REPLACE_WITH_SAFE_MAINNET_PROPOSER",
+  "executor": "0x0000000000000000000000000000000000000000",
+  "minDelaySeconds": 259200,
+  "revenueDistribution": {
+    "recipients": [
+      "0x4338aa98a8C969CA0675A8B0DCC7Ed51F24aB886",
+      "0x5e1c313f446B33E47b97E118ab130C6f07A7971b"
+    ],
+    "bps": [5000, 5000]
+  }
+}

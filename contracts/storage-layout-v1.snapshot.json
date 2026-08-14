@@ -1,0 +1,18 @@
+{
+  "namespace": "civilization.game.storage.v1",
+  "slot": "0xb9c5fb29a19a4c3e9d391dc26eaefcdaaec2a4fc6362d4bd27f1470fa2592b00",
+  "enums": {
+    "Building": ["Townhall", "Timber", "Claypit", "Quarry", "Warehouse", "Workshop", "Goldmine", "Barracks"],
+    "Troop": ["Spear", "Archer", "Rider"],
+    "Resource": ["Wood", "Clay", "Stone", "Gold"]
+  },
+  "structs": {
+    "Resources": ["uint256 wood", "uint256 clay", "uint256 stone", "uint256 gold"],
+    "Buildings": ["uint256 townhall", "uint256 timber", "uint256 claypit", "uint256 quarry", "uint256 warehouse", "uint256 workshop", "uint256 goldmine", "uint256 barracks"],
+    "Troops": ["uint256 spear", "uint256 archer", "uint256 rider"],
+    "Construction": ["bool pending", "Building building", "uint64 completesAt"],
+    "Raid": ["address defender", "uint64 arrivesAt", "uint256 spear", "uint256 archer", "uint256 rider"],
+    "Player": ["bool registered", "uint64 lastAccruedAt", "uint64 lastClaimedAt", "Resources stored", "Resources field", "Resources accrualRemainder", "Buildings buildings", "Troops troops", "Raid pendingRaid", "Construction construction", "uint256 prestigeCount"],
+    "GameStorage": ["uint256 totalSupply", "mapping(address => uint256) balanceOf", "mapping(address => mapping(address => uint256)) allowance", "IWorldIDVerifier worldIdVerifier", "uint256 worldIdAction", "uint64 worldIdRpId", "uint64 worldIdIssuerSchemaId", "uint256 worldIdCredentialGenesisIssuedAtMin", "IWorldIDLegacyRouter worldIdLegacyRouter", "uint256 worldIdLegacyExternalNullifier", "address worldToken", "address revenueSplitter", "address timelock", "mapping(address => Player) players", "mapping(uint256 => address) nullifierOwner"]
+  }
+}

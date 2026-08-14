@@ -1,0 +1,14 @@
+{
+  "network": "testnet",
+  "chainId": 4801,
+  "deployer": "0x1000000000000000000000000000000000000001",
+  "deployerNonce": "17",
+  "protectedKeyRef": "kms://civilization/worldchain-testnet-deployer/v1",
+  "sourceCommit": "0x4d3c2b1a0099887766554433221100ffeeddccbbaa99887766554433221100ff",
+  "storageLayoutHash": "0xf24ad27069323b257641e9e4c83ed2154a1aa6985f4f36f9f8685b216ecce5cb",
+  "governance": { "timelockAdmin": "0x1000000000000000000000000000000000000002", "proposers": ["0x1000000000000000000000000000000000000003"], "executors": ["0x0000000000000000000000000000000000000000"], "minDelaySeconds": "259200" },
+  "world": { "verifier": "0x1000000000000000000000000000000000000005", "actionId": "civilization-play", "rpId": "1", "issuerSchemaId": "1", "credentialGenesisIssuedAtMin": "1", "legacyRouter": "0x1000000000000000000000000000000000000006", "legacyAppId": "app_civilization_reviewed_v1", "legacyActionId": "civilization-play", "token": "0x1000000000000000000000000000000000000007" },
+  "revenueDistribution": { "recipients": ["0x1000000000000000000000000000000000000008", "0x1000000000000000000000000000000000000009"], "bps": [5000, 5000] },
+  "claimCooldownSeconds": "60",
+  "claimFormula": { "maxOfflineSeconds": 86400, "fractionScale": 864000000, "woodPerHour": 300, "clayPerHour": 270, "stonePerHour": 240, "goldPerHour": 12, "prestigeBonusBps": 1000 }
+}

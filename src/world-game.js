@@ -10,6 +10,12 @@ export const TROOP_INDEX = Object.freeze({ spear: 0, archer: 1, rider: 2 });
 export const BUILDING_IDS = Object.freeze(Object.keys(BUILDING_INDEX));
 const TROOP_IDS = Object.freeze(Object.keys(TROOP_INDEX));
 const GOLD_UNIT = 10n ** 18n;
+const BASIS_POINTS = 10_000;
+const PRESTIGE_BONUS_BPS = 1_000;
+const FRACTION_SCALE = 86_400 * BASIS_POINTS;
+const MAX_OFFLINE_SECONDS = 86_400;
+const RESOURCE_BASE_DAILY_RATE = Object.freeze({ wood: 300, clay: 270, stone: 240, gold: 12 });
+const monotonicNow = () => globalThis.performance?.now?.() ?? 0;
 
 export const worldGameClient = createPublicClient({ transport: http(WORLD_CHAIN_MAINNET_RPC_URL) });
 
@@ -19,7 +25,7 @@ const resourceTuple = (value) => ({ wood: number(tuple(value, 'wood', 0)), clay:
 const buildingTuple = (value) => Object.fromEntries(BUILDING_IDS.map((id, index) => [id, number(tuple(value, id, index))]));
 const troopTuple = (value) => Object.fromEntries(TROOP_IDS.map((id, index) => [id, number(tuple(value, id, index))]));
 
-export function decodeCivilizationState(raw, goldBalance) {
+export function decodeCivilizationState(raw, goldBalance, accrual = null, chainTimestamp = null) {
   const registered = Boolean(raw?.[0]);
   const stored = resourceTuple(raw?.[3]);
   const field = resourceTuple(raw?.[4]);
@@ -53,22 +59,50 @@ export function decodeCivilizationState(raw, goldBalance) {
     },
     prestigeCount: number(raw?.[9]),
     last: number(raw?.[1]) * 1000,
+    // These anchors deliberately contain no wall-clock time.  A display frame
+    // advances chain `asOf` only by elapsed monotonic time after this read.
+    chainTimestamp: chainTimestamp === null ? null : number(chainTimestamp) * 1000,
+    performanceAnchor: monotonicNow(),
+    // This is display-only precision.  Transactions always use the contract.
+    accrual: accrual ? {
+      wholeField: resourceTuple(accrual?.[0]),
+      fractionalRemainder: resourceTuple(accrual?.[1]),
+      fractionScale: number(accrual?.[2]),
+      asOf: number(accrual?.[3]) * 1000,
+    } : { wholeField: field, fractionalRemainder: { wood: 0, clay: 0, stone: 0, gold: 0 }, fractionScale: FRACTION_SCALE, asOf: chainTimestamp === null ? number(raw?.[1]) * 1000 : number(chainTimestamp) * 1000 },
   };
 }
 
 async function readRawState(account, includeGold = true, contractAddress = CIVILIZATION_GAME_ADDRESS) {
   const address = getAddress(account);
   const game = getAddress(contractAddress);
-  const [raw, gold] = await Promise.all([
-    worldGameClient.readContract({ address: game, abi: CIVILIZATION_GAME_ABI, functionName: 'previewPlayerState', args: [address] }),
-    includeGold ? worldGameClient.readContract({ address: game, abi: CIVILIZATION_GAME_ABI, functionName: 'balanceOf', args: [address] }) : 0n,
+  // One block tag makes the player preview, CGOLD balance, and fractional
+  // production snapshot a coherent read rather than a mixed-block UI state.
+  const blockNumber = await worldGameClient.getBlockNumber();
+  const [raw, gold, accrual, block] = await Promise.all([
+    worldGameClient.readContract({ address: game, abi: CIVILIZATION_GAME_ABI, functionName: 'previewPlayerState', args: [address], blockNumber }),
+    includeGold ? worldGameClient.readContract({ address: game, abi: CIVILIZATION_GAME_ABI, functionName: 'balanceOf', args: [address], blockNumber }) : 0n,
+    // The existing live address intentionally does not expose this V1 proxy
+    // method yet.  A missing selector is therefore a compatibility fallback.
+    worldGameClient.readContract({ address: game, abi: CIVILIZATION_GAME_ABI, functionName: 'previewAccrual', args: [address], blockNumber }).catch(() => null),
+    worldGameClient.getBlock({ blockNumber }),
   ]);
-  return decodeCivilizationState(raw, gold);
+  return decodeCivilizationState(raw, gold, accrual, block.timestamp);
 }
 
 export async function readCivilizationState(account, contractAddress = CIVILIZATION_GAME_ADDRESS) {
   if (!isAddress(account)) throw new Error('invalid_wallet');
   return readRawState(account, true, contractAddress);
+}
+
+/** Reads the contract's exact upward-rounded construction duration. */
+export async function readContractBuildDuration(buildingId, nextLevel, contractAddress = CIVILIZATION_GAME_ADDRESS) {
+  if (!Object.hasOwn(BUILDING_INDEX, buildingId)) throw new Error('invalid_building');
+  if (!Number.isInteger(nextLevel) || nextLevel < 1 || nextLevel > 30) throw new Error('invalid_building_level');
+  return worldGameClient.readContract({
+    address: getAddress(contractAddress), abi: CIVILIZATION_GAME_ABI, functionName: 'buildDuration',
+    args: [BUILDING_INDEX[buildingId], BigInt(nextLevel)],
+  });
 }
 
 /** Encodes the sole wallet-only player initialization call. */
@@ -198,6 +232,50 @@ export function getContractProduction(state) {
   };
 }
 
+/**
+ * Display-only projection from a previewPlayerState snapshot.  The contract is
+ * still the authority: this never mutates the snapshot and all actions reread
+ * it after a confirmed receipt.  Each value is derived from the same anchor,
+ * so repeated animation frames cannot compound rounding drift.
+ */
+export function projectCivilizationState(snapshot, performanceNow = monotonicNow()) {
+  if (!snapshot?.registered || !Number.isFinite(snapshot.last)) return snapshot;
+  const elapsedMs = Math.max(0, performanceNow - (snapshot.performanceAnchor ?? performanceNow));
+  const elapsed = Math.min(MAX_OFFLINE_SECONDS, Math.floor(elapsedMs / 1000));
+  const capacity = getContractCapacity(snapshot);
+  const multiplierBps = BASIS_POINTS + (snapshot.prestigeCount || 0) * PRESTIGE_BONUS_BPS;
+  const unclaimed = Object.fromEntries(Object.keys(RESOURCE_BASE_DAILY_RATE).map((resource) => {
+    if (snapshot.accrual?.fractionScale) {
+      const whole = snapshot.accrual.wholeField?.[resource] || 0;
+      const remainder = snapshot.accrual.fractionalRemainder?.[resource] || 0;
+      const seconds = elapsed;
+      const building = ({ wood: 'timber', clay: 'claypit', stone: 'quarry', gold: 'goldmine' })[resource];
+      const rate = RESOURCE_BASE_DAILY_RATE[resource] * (snapshot.buildings?.[building] || 0) * multiplierBps;
+      return [resource, Math.min(capacity, whole + ((remainder + seconds * rate) / snapshot.accrual.fractionScale))];
+    }
+    const building = ({ wood: 'timber', clay: 'claypit', stone: 'quarry', gold: 'goldmine' })[resource];
+    const rate = RESOURCE_BASE_DAILY_RATE[resource] * (snapshot.buildings?.[building] || 0) * multiplierBps;
+    // previewPlayerState has already applied the contract's private remainder.
+    // It is intentionally unavailable to clients, so this is a conservative
+    // whole-unit continuation from that authoritative preview anchor.
+    const produced = Math.floor((elapsed * rate) / FRACTION_SCALE);
+    return [resource, Math.min(capacity, (snapshot.unclaimed?.[resource] || 0) + produced)];
+  }));
+  return { ...snapshot, unclaimed };
+}
+
+/** True only for a freshly block-anchored claim that can move whole units. */
+export function claimEligibility(state) {
+  if (!state?.registered || !Number.isFinite(state.chainTimestamp)) return false;
+  if (state.chainTimestamp < (state.gatherAvailableAt || 0)) return false;
+  const capacity = getContractCapacity(state);
+  const transferable = ['wood', 'clay', 'stone'].some((resource) =>
+    Math.min(state.unclaimed?.[resource] || 0, Math.max(0, capacity - (state.resources?.[resource] || 0))) >= 1,
+  );
+  // CGOLD has no warehouse limit and is independently claimable.
+  return transferable || (state.unclaimed?.gold || 0) >= 1;
+}
+
 const transaction = (to, data) => ({ to, data, value: '0x0' });
 
 export function encodeWorldGameAction(type, payload = {}, contractAddress = CIVILIZATION_GAME_ADDRESS) {
@@ -232,15 +310,95 @@ export function encodeWorldGameAction(type, payload = {}, contractAddress = CIVI
   throw new Error(type === 'swap' ? 'world_market_unavailable' : 'invalid_action');
 }
 
-export function createWorldGameAdapter({ walletAddress, contractAddress = CIVILIZATION_GAME_ADDRESS, pollReceipt }) {
+export function createWorldGameAdapter({ walletAddress, contractAddress = CIVILIZATION_GAME_ADDRESS, pollReceipt, miniKit = MiniKit, readState: suppliedReadState = undefined, readBuildDuration: suppliedBuildDuration = undefined }) {
   const wallet = getAddress(walletAddress);
   const game = getAddress(contractAddress);
   if (typeof pollReceipt !== 'function') throw new Error('receipt_poller_required');
   let lastRaid = null;
   const readState = async () => {
-    const current = await readCivilizationState(wallet, game);
+    const current = suppliedReadState ? await suppliedReadState(wallet, game) : await readCivilizationState(wallet, game);
     if (!current.registered) throw new Error('world_registration_required');
     return { ...current, lastRaid };
+  };
+  let actionInFlight = null;
+  const validUserOpHash = (hash) => typeof hash === 'string' && /^0x[0-9a-fA-F]{64}$/.test(hash);
+  const pendingStorageKey = `civilization:pending-user-op:${wallet.toLowerCase()}:${game.toLowerCase()}`;
+  const pendingStore = (() => { try { return globalThis.sessionStorage; } catch { return null; } })();
+  const readPending = () => {
+    try {
+      const record = JSON.parse(pendingStore?.getItem(pendingStorageKey) || 'null');
+      return record?.wallet?.toLowerCase() === wallet.toLowerCase() && record?.contract?.toLowerCase() === game.toLowerCase()
+        && typeof record.action === 'string' && validUserOpHash(record.userOpHash) ? record : null;
+    } catch { return null; }
+  };
+  const persistPending = (action, userOpHash) => {
+    if (!action || !userOpHash) { try { pendingStore?.removeItem(pendingStorageKey); } catch {} return; }
+    try { pendingStore?.setItem(pendingStorageKey, JSON.stringify({ wallet, contract: game, action, userOpHash })); } catch {}
+  };
+  const restoredPending = readPending();
+  let pendingUserOpHash = restoredPending?.userOpHash || null;
+  let pendingAction = restoredPending?.action || null;
+  // Keep the production default bound to MiniKit while allowing deterministic
+  // adapter tests to supply the same narrow transaction surface.
+  const sendTransaction = miniKit === MiniKit ? MiniKit.sendTransaction.bind(MiniKit) : miniKit.sendTransaction.bind(miniKit);
+  const executeAction = async (type, payload) => {
+    if (pendingUserOpHash && pendingAction !== type) throw new Error('transaction_pending');
+    if (type === 'claim' && !pendingUserOpHash) {
+      // Read immediately before MiniKit.  This avoids a wallet prompt for a
+      // zero/cooldown/full-storage claim and is never based on animated UI.
+      const preflight = await readState();
+      if (!claimEligibility(preflight)) throw new Error('claim_not_available');
+    }
+    const raidBefore = type === 'resolve_raid' && !pendingUserOpHash ? await readRawState(wallet, false, game) : null;
+    if (type === 'start_raid' && !pendingUserOpHash) {
+      const target = getAddress(payload.targetId);
+      if (target === wallet) throw new Error('self_raid');
+      if (!(await readRawState(target, false, game)).registered) throw new Error('target_not_registered');
+    }
+    let userOpHash = pendingUserOpHash;
+    if (!userOpHash) {
+      const response = await sendTransaction({ chainId: WORLD_CHAIN_ID, transactions: encodeWorldGameAction(type, payload, game) });
+      if (response.executedWith !== 'minikit') throw new Error('world_app_wallet_required');
+      if (response.data?.status !== 'success' || !validUserOpHash(response.data.userOpHash)) throw new Error(response.data?.error_code || 'transaction_rejected');
+      if (!isAddress(response.data.from) || getAddress(response.data.from) !== wallet) throw new Error('transaction_wallet_mismatch');
+      userOpHash = response.data.userOpHash;
+      pendingUserOpHash = userOpHash;
+      pendingAction = type;
+      persistPending(type, userOpHash);
+    }
+    let receipt;
+    try {
+      ({ receipt } = await pollReceipt(userOpHash));
+    } catch (error) {
+      if (error instanceof Error && error.message === 'receipt_timeout') return { state: await readState(), pending: true, userOpHash };
+      if (error instanceof Error && error.message === 'Transaction failed') {
+        pendingUserOpHash = null;
+        pendingAction = null;
+        persistPending(null, null);
+        throw new Error('transaction_failed');
+      }
+      throw error;
+    }
+    if (receipt?.status !== 'success') {
+      pendingUserOpHash = null;
+      pendingAction = null;
+      persistPending(null, null);
+      throw new Error('transaction_failed');
+    }
+    if (type === 'resolve_raid') {
+      const resolved = parseEventLogs({ abi: CIVILIZATION_GAME_ABI, eventName: 'RaidResolved', logs: receipt.logs, strict: false })
+        .find((event) => getAddress(event.args.attacker) === wallet);
+      if (resolved) {
+        const won = resolved.args.attackerWon;
+        const rate = won ? 8 : 38;
+        const casualties = Object.fromEntries(TROOP_IDS.map((id) => [id, Math.ceil((raidBefore?.pendingRaid?.army?.[id] || 0) * rate / 100)]));
+        lastRaid = { ok: won, target: getAddress(resolved.args.defender), attack: Number(resolved.args.attack), defense: Number(resolved.args.defense), casualties, stolen: { wood: Number(resolved.args.wood), clay: Number(resolved.args.clay), stone: Number(resolved.args.stone), gold: Number(resolved.args.gold) } };
+      }
+    }
+    pendingUserOpHash = null;
+    pendingAction = null;
+    persistPending(null, null);
+    return { state: await readState(), pending: false, userOpHash };
   };
   const adapter = {
     getBuildingCost: getContractBuildingCost,
@@ -248,9 +406,18 @@ export function createWorldGameAdapter({ walletAddress, contractAddress = CIVILI
     getTroopRequirements: getContractTroopRequirements,
     getCapacity: getContractCapacity,
     getProduction: getContractProduction,
+    projectState: projectCivilizationState,
+    claimEligibility,
+    readBuildDuration(buildingId, nextLevel) { return suppliedBuildDuration ? suppliedBuildDuration(buildingId, nextLevel, game) : readContractBuildDuration(buildingId, nextLevel, game); },
+    hasPending() { return Boolean(pendingUserOpHash && pendingAction); },
+    pending() { return pendingUserOpHash ? { wallet, contract: game, action: pendingAction, userOpHash: pendingUserOpHash } : null; },
+    async resumePending() {
+      if (!pendingUserOpHash || !pendingAction) return null;
+      return adapter.execute(pendingAction);
+    },
     readState,
     async pickOpponent() {
-      const result = await MiniKit.shareContacts({ isMultiSelectEnabled: false });
+      const result = await miniKit.shareContacts({ isMultiSelectEnabled: false });
       if (result.executedWith !== 'minikit' || !result.data?.contacts?.length) throw new Error('contact_not_selected');
       const contact = result.data.contacts[0];
       const address = getAddress(contact.walletAddress);
@@ -260,45 +427,13 @@ export function createWorldGameAdapter({ walletAddress, contractAddress = CIVILI
       return { address, username: contact.username || address };
     },
     async execute(type, payload = {}) {
-      const raidBefore = type === 'resolve_raid' ? await readRawState(wallet, false, game) : null;
-      if (type === 'start_raid') {
-        const target = getAddress(payload.targetId);
-        if (target === wallet) throw new Error('self_raid');
-        if (!(await readRawState(target, false, game)).registered) throw new Error('target_not_registered');
+      if (actionInFlight) {
+        if (pendingAction !== type && actionInFlight.type !== type) throw new Error('transaction_pending');
+        return actionInFlight.promise;
       }
-      const response = await MiniKit.sendTransaction({ chainId: WORLD_CHAIN_ID, transactions: encodeWorldGameAction(type, payload, game) });
-      if (response.executedWith !== 'minikit') throw new Error('world_app_wallet_required');
-      if (response.data?.status !== 'success' || !response.data.userOpHash) throw new Error(response.data?.error_code || 'transaction_rejected');
-      if (!isAddress(response.data.from) || getAddress(response.data.from) !== wallet) throw new Error('transaction_wallet_mismatch');
-      let pending = false;
-      try {
-        const { receipt } = await pollReceipt(response.data.userOpHash);
-        if (receipt.status !== 'success') throw new Error('transaction_failed');
-        if (type === 'resolve_raid') {
-          const resolved = parseEventLogs({ abi: CIVILIZATION_GAME_ABI, eventName: 'RaidResolved', logs: receipt.logs, strict: false })
-            .find((event) => getAddress(event.args.attacker) === wallet);
-          if (resolved) {
-            const won = resolved.args.attackerWon;
-            const rate = won ? 8 : 38;
-            const casualties = Object.fromEntries(TROOP_IDS.map((id) => [id, Math.ceil((raidBefore?.pendingRaid?.army?.[id] || 0) * rate / 100)]));
-            lastRaid = {
-              ok: won,
-              target: getAddress(resolved.args.defender),
-              attack: Number(resolved.args.attack),
-              defense: Number(resolved.args.defense),
-              casualties,
-              stolen: {
-                wood: Number(resolved.args.wood), clay: Number(resolved.args.clay),
-                stone: Number(resolved.args.stone), gold: Number(resolved.args.gold),
-              },
-            };
-          }
-        }
-      } catch (error) {
-        if (error instanceof Error && error.message === 'receipt_timeout') pending = true;
-        else throw error;
-      }
-      return { state: await readState(), pending, userOpHash: response.data.userOpHash };
+      const promise = executeAction(type, payload).finally(() => { actionInFlight = null; });
+      actionInFlight = { type, promise };
+      return promise;
     },
   };
   return adapter;

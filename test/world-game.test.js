@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { decodeFunctionData, getAddress, toFunctionSelector, zeroAddress } from 'viem';
+import { decodeFunctionData, encodeFunctionData, getAddress, toFunctionSelector, zeroAddress } from 'viem';
 import { CIVILIZATION_GAME_ABI, WORLD_TOKEN_ABI } from '../src/abi/CivilizationGame.js';
 import {
   BUILDING_INDEX,
@@ -10,6 +10,10 @@ import {
   decodeCivilizationState,
   encodeWalletRegistration,
   encodeWorldGameAction,
+  readContractBuildDuration,
+  createWorldGameAdapter,
+  claimEligibility,
+  projectCivilizationState,
   registerWalletWithMiniKit,
 } from '../src/world-game.js';
 
@@ -118,6 +122,31 @@ test('every single-call Civilization action uses its deployed ABI selector and a
     assert.equal(decoded.functionName, item.functionName);
     assert.deepEqual(decoded.args ?? [], item.expectedArgs ?? []);
   }
+});
+
+test('construction duration is exposed through the authoritative contract ABI', async () => {
+  const data = encodeFunctionData({
+    abi: CIVILIZATION_GAME_ABI, functionName: 'buildDuration', args: [BUILDING_INDEX.quarry, 30n],
+  });
+  assert.equal(data.slice(0, 10), functionSelector('buildDuration(uint8,uint256)'));
+  assert.deepEqual(decodeFunctionData({ abi: CIVILIZATION_GAME_ABI, data }), {
+    functionName: 'buildDuration', args: [BUILDING_INDEX.quarry, 30n],
+  });
+  await assert.rejects(readContractBuildDuration('market', 1), /invalid_building/);
+  await assert.rejects(readContractBuildDuration('quarry', 31), /invalid_building_level/);
+});
+
+test('adapter exposes the contract build-duration read before an upgrade prompt', async () => {
+  const wallet = '0x1111111111111111111111111111111111111111';
+  const calls = [];
+  const adapter = createWorldGameAdapter({
+    walletAddress: wallet,
+    contractAddress: alternateGame,
+    pollReceipt: async () => ({ receipt: { status: 'success' } }),
+    readBuildDuration: async (buildingId, level, contract) => { calls.push([buildingId, level, contract]); return 158n; },
+  });
+  assert.equal(await adapter.readBuildDuration('quarry', 2), 158n);
+  assert.deepEqual(calls, [['quarry', 2, getAddress(alternateGame)]]);
 });
 
 test('registered wallet skips registration transaction and unregistered wallet sends exactly registerWallet', async () => {
@@ -263,4 +292,158 @@ test('World contract adapter refuses local market swaps and malformed actions', 
   assert.throws(() => encodeWorldGameAction('boost', { hours: 0 }), /invalid_boost/);
   assert.throws(() => encodeWorldGameAction('upgrade', { building: 'market' }), /invalid_building/);
   assert.throws(() => encodeWorldGameAction('train', { troop: 'spear', amount: 1.5 }), /invalid_troop/);
+});
+
+function projectedSnapshot({ last = 1_000_000, registered = true, field = 0 } = {}) {
+  return {
+    registered,
+    last,
+    resources: { wood: 80, clay: 80, stone: 80, gold: 0 },
+    unclaimed: { wood: field, clay: field, stone: field, gold: field },
+    buildings: { townhall: 0, timber: 1, claypit: 1, quarry: 1, warehouse: 1, workshop: 0, goldmine: 0, barracks: 0 },
+    troops: { spear: 0, archer: 0, rider: 0 }, prestigeCount: 0,
+    chainTimestamp: last, performanceAnchor: last,
+  };
+}
+
+test('live field projection is monotonic, uses the contract hourly formula, caps, and never compounds', () => {
+  const snapshot = projectedSnapshot();
+  const atHour = projectCivilizationState(snapshot, snapshot.last + 3_600_000);
+  const later = projectCivilizationState(snapshot, snapshot.last + 7_200_000);
+  assert.equal(atHour.unclaimed.wood, 12, '300/day is exactly 12 whole wood per hour');
+  assert.equal(atHour.unclaimed.clay, 11, '270/day rounds down exactly like Solidity');
+  assert.equal(later.unclaimed.wood, 25);
+  assert.ok(later.unclaimed.wood >= atHour.unclaimed.wood);
+  assert.equal(projectCivilizationState(snapshot, snapshot.last + 3_600_000).unclaimed.wood, atHour.unclaimed.wood, 'frames must use the anchor, not prior display');
+  const reconciled = { ...snapshot, last: snapshot.last + 3_600_000, performanceAnchor: snapshot.last + 3_600_000, unclaimed: atHour.unclaimed };
+  assert.equal(projectCivilizationState(reconciled, snapshot.last + 7_200_000).unclaimed.wood, 24, 'authoritative reconciliation replaces rather than adds projected stock');
+  assert.equal(projectCivilizationState(projectedSnapshot({ field: 499 }), snapshot.last + 86_400_000).unclaimed.wood, 500, 'warehouse cap applies');
+  assert.equal(projectCivilizationState(snapshot, snapshot.last + 72 * 3_600_000).unclaimed.wood, 300, 'background jumps are capped at 24 hours');
+  assert.equal(projectCivilizationState(projectedSnapshot({ registered: false }), snapshot.last + 3_600_000).unclaimed.wood, 0, 'unregistered snapshots never tick');
+  assert.equal(projectCivilizationState(null, 1), null, 'RPC/error state never invents resources');
+});
+
+test('claim eligibility requires a fresh chain anchor, elapsed cooldown, whole transferable stock, and treats gold independently', () => {
+  const eligible = projectedSnapshot({ field: 1 });
+  assert.equal(claimEligibility(eligible), true);
+  assert.equal(claimEligibility({ ...eligible, chainTimestamp: null }), false, 'an unanchored display is never a transaction preflight');
+  assert.equal(claimEligibility({ ...eligible, gatherAvailableAt: eligible.chainTimestamp + 1 }), false, 'chain cooldown blocks claims');
+  const fullStorage = { ...eligible, resources: { ...eligible.resources, wood: 500, clay: 500, stone: 500 }, unclaimed: { wood: 1, clay: 1, stone: 1, gold: 0 } };
+  assert.equal(claimEligibility(fullStorage), false, 'full protected storage cannot burn a claim');
+  assert.equal(claimEligibility({ ...fullStorage, unclaimed: { ...fullStorage.unclaimed, gold: 1 } }), true, 'gold remains transferable without warehouse room');
+});
+
+test('zero claim is rejected before MiniKit and a pending claim rejects a different action', async () => {
+  const wallet = '0x1111111111111111111111111111111111111111';
+  let sends = 0;
+  const unavailable = createWorldGameAdapter({
+    walletAddress: wallet, contractAddress: alternateGame, readState: async () => projectedSnapshot(), pollReceipt: async () => ({ receipt: { status: 'success' } }),
+    miniKit: { sendTransaction: async () => { sends += 1; return {}; } },
+  });
+  await assert.rejects(unavailable.execute('claim'), /claim_not_available/);
+  assert.equal(sends, 0, 'no MiniKit prompt is opened for a zero claim');
+
+  const pending = createWorldGameAdapter({
+    walletAddress: wallet, contractAddress: alternateGame, readState: async () => projectedSnapshot({ field: 1 }), pollReceipt: async () => { throw new Error('receipt_timeout'); },
+    miniKit: { sendTransaction: async () => ({ executedWith: 'minikit', data: { status: 'success', userOpHash, from: wallet } }) },
+  });
+  await pending.execute('claim');
+  await assert.rejects(pending.execute('upgrade', { building: 'quarry' }), /transaction_pending/);
+});
+
+test('claim sends once, validates MiniKit identity, waits for receipt, and rereads authoritative state', async () => {
+  const wallet = '0x1111111111111111111111111111111111111111';
+  let sends = 0;
+  let reads = 0;
+  const order = [];
+  const adapter = createWorldGameAdapter({
+    walletAddress: wallet, contractAddress: alternateGame,
+    readState: async () => { order.push('read'); return { ...projectedSnapshot({ field: 1 }), registered: true, read: ++reads }; },
+    pollReceipt: async (hash) => { order.push('receipt'); return { receipt: { status: 'success', hash, logs: [] } }; },
+    miniKit: { sendTransaction: async () => {
+      sends += 1;
+      order.push('send');
+      return { executedWith: 'minikit', data: { status: 'success', userOpHash, from: wallet } };
+    } },
+  });
+  const [first, second] = await Promise.all([adapter.execute('claim'), adapter.execute('claim')]);
+  assert.equal(sends, 1, 'double tap shares one explicit user-operation');
+  assert.equal(first.userOpHash, userOpHash);
+  assert.equal(second.state.read, 2, 'the shared operation performs one preflight and one post-receipt readback');
+  assert.equal(reads, 2);
+  assert.deepEqual(order, ['read', 'send', 'receipt', 'read'], 'fresh preflight precedes MiniKit and receipt confirmation precedes readback');
+});
+
+test('claim timeout retries its existing hash, while failed receipts and mismatched senders allow safe recovery', async () => {
+  const wallet = '0x1111111111111111111111111111111111111111';
+  let sends = 0;
+  let polls = 0;
+  const adapter = createWorldGameAdapter({
+    walletAddress: wallet, contractAddress: alternateGame,
+    readState: async () => projectedSnapshot({ field: 1 }),
+    pollReceipt: async () => {
+      polls += 1;
+      if (polls === 1) throw new Error('receipt_timeout');
+      return { receipt: { status: 'success', logs: [] } };
+    },
+    miniKit: { sendTransaction: async () => {
+      sends += 1;
+      return { executedWith: 'minikit', data: { status: 'success', userOpHash, from: wallet } };
+    } },
+  });
+  const timedOut = await adapter.execute('claim');
+  assert.equal(timedOut.pending, true);
+  await adapter.execute('claim');
+  assert.equal(sends, 1, 'timeout polling must not open a duplicate claim');
+
+  let failedSends = 0;
+  let failedPolls = 0;
+  const retryAdapter = createWorldGameAdapter({
+    walletAddress: wallet, contractAddress: alternateGame, readState: async () => projectedSnapshot({ field: 1 }),
+    pollReceipt: async () => ({ receipt: { status: ++failedPolls === 1 ? 'reverted' : 'success', logs: [] } }),
+    miniKit: { sendTransaction: async () => { failedSends += 1; return { executedWith: 'minikit', data: { status: 'success', userOpHash, from: wallet } }; }, },
+  });
+  await assert.rejects(retryAdapter.execute('claim'), /transaction_failed/);
+  // A failed receipt cleared its hash, so a later explicit gesture is eligible to send again.
+  await retryAdapter.execute('claim');
+  assert.equal(failedSends, 2);
+
+  const mismatch = createWorldGameAdapter({ walletAddress: wallet, contractAddress: alternateGame, readState: async () => projectedSnapshot({ field: 1 }), pollReceipt: async () => ({ receipt: { status: 'success', logs: [] } }), miniKit: { sendTransaction: async () => ({ executedWith: 'minikit', data: { status: 'success', userOpHash, from: defender } }) } });
+  await assert.rejects(mismatch.execute('claim'), /transaction_wallet_mismatch/);
+
+  const cancelled = createWorldGameAdapter({ walletAddress: wallet, contractAddress: alternateGame, readState: async () => projectedSnapshot({ field: 1 }), pollReceipt: async () => { throw new Error('must_not_poll'); }, miniKit: { sendTransaction: async () => ({ executedWith: 'minikit', data: { status: 'error', error_code: 'user_rejected' } }) } });
+  await assert.rejects(cancelled.execute('claim'), /user_rejected/);
+});
+
+test('a timed-out UserOp survives adapter remount and resumes its scoped hash without a second MiniKit prompt', async () => {
+  const wallet = '0x1111111111111111111111111111111111111111';
+  const storage = new Map();
+  const priorStorage = globalThis.sessionStorage;
+  Object.defineProperty(globalThis, 'sessionStorage', { configurable: true, value: {
+    getItem: (key) => storage.get(key) || null,
+    setItem: (key, value) => storage.set(key, value),
+    removeItem: (key) => storage.delete(key),
+  } });
+  try {
+    let sends = 0;
+    const first = createWorldGameAdapter({
+      walletAddress: wallet, contractAddress: alternateGame, readState: async () => projectedSnapshot({ field: 1 }),
+      pollReceipt: async () => { throw new Error('receipt_timeout'); },
+      miniKit: { sendTransaction: async () => ({ executedWith: 'minikit', data: { status: 'success', userOpHash, from: wallet } }) },
+    });
+    await first.execute('claim');
+    const second = createWorldGameAdapter({
+      walletAddress: wallet, contractAddress: alternateGame, readState: async () => projectedSnapshot({ field: 1 }),
+      pollReceipt: async (hash) => { assert.equal(hash, userOpHash); return { receipt: { status: 'success', logs: [] } }; },
+      miniKit: { sendTransaction: async () => { sends += 1; throw new Error('must_not_send'); } },
+    });
+    assert.equal(second.hasPending(), true);
+    await assert.rejects(second.execute('upgrade', { building: 'quarry' }), /transaction_pending/);
+    const resumed = await second.resumePending();
+    assert.equal(resumed.pending, false);
+    assert.equal(sends, 0, 'the persisted hash is polled rather than prompting again');
+    assert.equal(second.hasPending(), false, 'success clears the scoped record');
+  } finally {
+    Object.defineProperty(globalThis, 'sessionStorage', { configurable: true, value: priorStorage });
+  }
 });

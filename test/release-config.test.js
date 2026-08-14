@@ -153,6 +153,17 @@ test('mainnet deployment requires explicit legacy router, app, and action and do
   assert.match(`${readme}${architecture}`, /WORLD_ID_ACTION/);
 });
 
+test('the example mainnet proxy plan starts with the requested equal revenue split', async () => {
+  const plan = JSON.parse(await source('contracts/proxy-deployment-plan.example.json'));
+  assert.deepEqual(plan.revenueDistribution, {
+    recipients: [
+      '0x4338aa98a8C969CA0675A8B0DCC7Ed51F24aB886',
+      '0x5e1c313f446B33E47b97E118ab130C6f07A7971b',
+    ],
+    bps: [5000, 5000],
+  });
+});
+
 test('static demo sets its Pages asset root before dynamically importing shared game UI', async () => {
   const demo = await source('apps/demo/src/demo-client.tsx');
   const base = demo.indexOf('__CIVILIZATION_ASSET_BASE__');
