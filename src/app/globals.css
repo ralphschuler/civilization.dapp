@@ -40,23 +40,6 @@ body {
   color: inherit;
 }
 
-.native-wallet-auth-diagnostic-game-link {
-  display: inline-flex;
-  align-items: center;
-  min-height: 44px;
-  margin-top: 0.5rem;
-  padding: 0.625rem 0.875rem;
-  border: 1px solid currentColor;
-  border-radius: 0.5rem;
-  color: inherit;
-  text-decoration: none;
-}
-
-.native-wallet-auth-diagnostic-game-link:focus-visible {
-  outline: 2px solid var(--foreground);
-  outline-offset: 2px;
-}
-
 .native-wallet-auth-diagnostic-output {
   display: block;
   max-width: 100%;
