@@ -1,5 +1,4 @@
 import { auth } from '@/auth';
-import { getAuthorizedWallet } from '@/lib/civilization-session-guard';
 import { redirect } from 'next/navigation';
 
 export default async function TabsLayout({
@@ -10,7 +9,7 @@ export default async function TabsLayout({
   const session = await auth();
 
   // If the user is not authenticated, redirect to the login page
-  if (!getAuthorizedWallet(session)) redirect('/');
+  if (!session?.user?.walletAddress) redirect('/');
 
   return children;
 }
