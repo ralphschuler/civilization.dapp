@@ -175,23 +175,45 @@ test("all Solidity drafts compile deterministically with the pinned official sol
   assert.ok(game.evm.deployedBytecode.object.length / 2 <= 24_576, "runtime bytecode must fit the EIP-170 limit");
 });
 
-test("CivilizationGame exposes only player-driven game transitions and dual World ID registration gates", async () => {
+test("CivilizationGame exposes only player-driven game transitions, wallet registration, and dormant World ID compatibility", async () => {
   const output = await compileContracts();
   const abi = output.contracts["contracts/src/CivilizationGame.sol"].CivilizationGame.abi;
   const functions = new Map(abi.filter((item) => item.type === "function").map((item) => [item.name, item]));
-  for (const name of ["registerWorldId", "registerWorldIdLegacy", "claim", "upgrade", "completeUpgrade", "boostConstruction", "train", "startRaid", "resolveRaid", "prestige", "playerState", "worldIdVerifier", "worldIdAction", "worldIdRpId", "worldIdLegacyRouter", "worldIdLegacyExternalNullifier", "worldToken", "boostTreasury", "name", "symbol", "decimals", "totalSupply", "balanceOf", "allowance", "approve", "transfer", "transferFrom"]) {
+  for (const name of ["registerWallet", "registerWorldId", "registerWorldIdLegacy", "claim", "upgrade", "completeUpgrade", "boostConstruction", "train", "startRaid", "resolveRaid", "prestige", "playerState", "worldIdVerifier", "worldIdAction", "worldIdRpId", "worldIdLegacyRouter", "worldIdLegacyExternalNullifier", "worldToken", "boostTreasury", "name", "symbol", "decimals", "totalSupply", "balanceOf", "allowance", "approve", "transfer", "transferFrom"]) {
     assert.ok(functions.has(name), `${name} must be part of the auditable contract interface`);
   }
   assert.equal(functions.get("registerWorldId").stateMutability, "nonpayable");
   assert.equal(functions.get("registerWorldIdLegacy").stateMutability, "nonpayable");
+  assert.equal(functions.get("registerWallet").inputs.length, 0, "wallet registration must never accept another address");
   for (const name of ["claim", "upgrade", "boostConstruction", "train", "startRaid", "resolveRaid", "approve", "transfer", "transferFrom"]) {
     assert.equal(functions.get(name).stateMutability, "nonpayable", `${name} must not accept funds`);
   }
   const events = new Set(abi.filter((item) => item.type === "event").map((item) => item.name));
-  for (const name of ["WorldIdRegistered", "ResourcesClaimed", "BuildingUpgraded", "TroopsTrained", "RaidStarted", "RaidResolved"]) assert.ok(events.has(name));
+  for (const name of ["WalletRegistered", "WorldIdRegistered", "ResourcesClaimed", "BuildingUpgraded", "TroopsTrained", "RaidStarted", "RaidResolved"]) assert.ok(events.has(name));
   assert.equal(functions.get("previewPlayerState").stateMutability, "view");
   assert.equal(functions.get("MAX_BUILDING_LEVEL").stateMutability, "view");
   assert.equal(functions.get("prestigeMultiplierBps").stateMutability, "pure");
+});
+
+test("wallet registration initializes only msg.sender once, isolates wallets, and keeps every game mutation gated", async () => {
+  const output = await compileContracts();
+  const artifact = output.contracts["contracts/src/CivilizationGame.sol"].CivilizationGame;
+  const vm = await createVM();
+  const game = await deployContract(vm, artifact.abi, artifact.evm.bytecode.object,
+    gameConstructorArgs(playerA.address, playerB.address));
+
+  for (const action of [["claim", []], ["upgrade", [0]], ["completeUpgrade", []], ["boostConstruction", [1]], ["train", [0, 1]], ["startRaid", [playerB.address, 0, 0, 0]], ["resolveRaid", []], ["prestige", []]]) {
+    const result = await evmCall(game, playerA.address, action[0], action[1], 1_001n);
+    assert.ok(result.execResult.exceptionError, `${action[0]} must reject an unregistered wallet`);
+  }
+  assertEvmSuccess(await evmCall(game, playerA.address, "registerWallet", [], 1_002n));
+  const initialized = await readGame(game, "playerState", [playerA.address], 1_002n);
+  assert.equal(initialized[0], true);
+  assert.equal(initialized[3].wood, 80n);
+  assert.equal(initialized[5].timber, 1n);
+  assert.equal((await readGame(game, "playerState", [playerB.address], 1_002n))[0], false, "a wallet cannot initialize another wallet");
+  const twice = await evmCall(game, playerA.address, "registerWallet", [], 1_003n);
+  assert.ok(twice.execResult.exceptionError, "wallet initialization is exactly once");
 });
 
 test("contract source verifies World ID 3 and 4 on-chain and protects shared replay paths", async () => {

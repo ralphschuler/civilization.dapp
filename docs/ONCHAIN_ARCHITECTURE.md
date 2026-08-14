@@ -1,6 +1,14 @@
 # On-chain Civilization game-state draft
 
-`CivilizationGame` dual World ID v3/v4 deployment is on World Chain mainnet at `0xfCdB50926c3c6b2CDF3ACE76B13c9383A2DC3199` by transaction [`0xbb4692b10f9255b84143405b03e63d2e14723e39eee920a177553d279e2b8e9a`](https://worldscan.org/tx/0xbb4692b10f9255b84143405b03e63d2e14723e39eee920a177553d279e2b8e9a) in block `33617329`. It has not been independently audited and has no settlement capability. The previous v4-only deployment remains historical and must not be configured as the active runtime contract.
+## Wallet-only revision and deployment boundary
+
+The current source introduces `registerWallet()`: a public, zero-argument function that initializes only `msg.sender` once with the standard starter village. It emits `WalletRegistered`. All gameplay mutations remain protected by `onlyRegistered`. `registerWorldId` and `registerWorldIdLegacy` remain available solely for ABI/state compatibility; the active Civilization client does not import, request, or gate on IDKit/RP proof handling.
+
+After server-side WalletAuth/SIWE has produced the checksum wallet, the client reads `previewPlayerState`. Registered wallets render the game immediately. Unregistered wallets submit exactly one MiniKit transaction for `registerWallet()`, require `executedWith === 'minikit'`, a successful status, `userOpHash`, and a checksum-equal `from`, then wait for a successful receipt and a registered readback before rendering the map. Any rejection, timeout, failed receipt, or false readback stays on the fixed retry UI; retries read state before another submission.
+
+This revision is deployed at `0x71564689Fa320bA010561A880CfE2896b6Dc8f8b` by transaction [`0xf9f5164392011c80cf5a510e055f255fbcfe2166e39f537d2e18cf8a48f0e750`](https://worldscan.org/tx/0xf9f5164392011c80cf5a510e055f255fbcfe2166e39f537d2e18cf8a48f0e750), block `33697221`. The deployed runtime is 16,276 bytes and `registerWallet()` was simulated successfully against World Chain mainnet after deployment.
+
+The replaced dual World ID v3/v4 deployment at `0xfCdB50926c3c6b2CDF3ACE76B13c9383A2DC3199` remains historical. It had zero events, zero registered wallets, and zero CGOLD supply before replacement; no player-state migration was needed. Neither deployment has been independently audited or enables settlement.
 
 ## Authority boundary
 

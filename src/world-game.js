@@ -3,7 +3,7 @@ import { createPublicClient, encodeFunctionData, formatUnits, getAddress, http, 
 import { CIVILIZATION_GAME_ABI, WORLD_TOKEN_ABI } from './abi/CivilizationGame.js';
 import { WORLD_CHAIN_ID, WORLD_CHAIN_MAINNET_RPC_URL } from './world.js';
 
-export const CIVILIZATION_GAME_ADDRESS = '0xfCdB50926c3c6b2CDF3ACE76B13c9383A2DC3199';
+export const CIVILIZATION_GAME_ADDRESS = '0x71564689Fa320bA010561A880CfE2896b6Dc8f8b';
 export const WORLD_TOKEN_ADDRESS = '0x2cFc85d8E48F8EAB294be644d9E25C3030863003';
 export const BUILDING_INDEX = Object.freeze({ townhall: 0, timber: 1, claypit: 2, quarry: 3, warehouse: 4, workshop: 5, goldmine: 6, barracks: 7 });
 export const TROOP_INDEX = Object.freeze({ spear: 0, archer: 1, rider: 2 });
@@ -56,18 +56,86 @@ export function decodeCivilizationState(raw, goldBalance) {
   };
 }
 
-async function readRawState(account, includeGold = true) {
+async function readRawState(account, includeGold = true, contractAddress = CIVILIZATION_GAME_ADDRESS) {
   const address = getAddress(account);
+  const game = getAddress(contractAddress);
   const [raw, gold] = await Promise.all([
-    worldGameClient.readContract({ address: CIVILIZATION_GAME_ADDRESS, abi: CIVILIZATION_GAME_ABI, functionName: 'previewPlayerState', args: [address] }),
-    includeGold ? worldGameClient.readContract({ address: CIVILIZATION_GAME_ADDRESS, abi: CIVILIZATION_GAME_ABI, functionName: 'balanceOf', args: [address] }) : 0n,
+    worldGameClient.readContract({ address: game, abi: CIVILIZATION_GAME_ABI, functionName: 'previewPlayerState', args: [address] }),
+    includeGold ? worldGameClient.readContract({ address: game, abi: CIVILIZATION_GAME_ABI, functionName: 'balanceOf', args: [address] }) : 0n,
   ]);
   return decodeCivilizationState(raw, gold);
 }
 
-export async function readCivilizationState(account) {
+export async function readCivilizationState(account, contractAddress = CIVILIZATION_GAME_ADDRESS) {
   if (!isAddress(account)) throw new Error('invalid_wallet');
-  return readRawState(account);
+  return readRawState(account, true, contractAddress);
+}
+
+/** Encodes the sole wallet-only player initialization call. */
+export function encodeWalletRegistration(contractAddress = CIVILIZATION_GAME_ADDRESS) {
+  return [transaction(getAddress(contractAddress), encodeFunctionData({ abi: CIVILIZATION_GAME_ABI, functionName: 'registerWallet' }))];
+}
+
+/**
+ * Reads before every send, binds MiniKit's response to the SIWE-verified
+ * checksum wallet, then requires both a successful receipt and readback.
+ */
+export async function registerWalletWithMiniKit({
+  walletAddress,
+  contractAddress = CIVILIZATION_GAME_ADDRESS,
+  pollReceipt,
+  readState = /** @type {((address: string) => Promise<{ registered: boolean, [key: string]: unknown }>) | undefined} */ (undefined),
+  pendingUserOpHash = /** @type {string | null} */ (null),
+  onPendingUserOpHash = /** @type {(hash: string | null) => void} */ (() => {}),
+  miniKit = MiniKit,
+}) {
+  const wallet = getAddress(walletAddress);
+  const game = getAddress(contractAddress);
+  if (typeof pollReceipt !== 'function') throw new Error('receipt_poller_required');
+  if (typeof onPendingUserOpHash !== 'function') throw new Error('pending_hash_handler_required');
+  const getState = typeof readState === 'function'
+    ? readState
+    : (address) => readCivilizationState(address, game);
+  const before = await getState(wallet);
+  if (before.registered) {
+    onPendingUserOpHash(null);
+    return { state: before, alreadyRegistered: true };
+  }
+
+  let userOpHash = pendingUserOpHash;
+  if (userOpHash !== null && !/^0x[0-9a-fA-F]{64}$/.test(userOpHash)) throw new Error('invalid_pending_user_op');
+  if (userOpHash === null) {
+    const response = await miniKit.sendTransaction({
+      chainId: WORLD_CHAIN_ID,
+      transactions: encodeWalletRegistration(game),
+    });
+    if (response.executedWith !== 'minikit') throw new Error('world_app_wallet_required');
+    if (response.data?.status !== 'success' || !/^0x[0-9a-fA-F]{64}$/.test(response.data.userOpHash || '')) {
+      throw new Error(response.data?.error_code || 'wallet_registration_rejected');
+    }
+    if (!isAddress(response.data.from) || getAddress(response.data.from) !== wallet) throw new Error('transaction_wallet_mismatch');
+    userOpHash = response.data.userOpHash;
+    onPendingUserOpHash(userOpHash);
+  }
+  let receiptResult;
+  try {
+    receiptResult = await pollReceipt(userOpHash);
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Transaction failed') {
+      onPendingUserOpHash(null);
+      throw new Error('transaction_failed');
+    }
+    throw error;
+  }
+  const { receipt } = receiptResult;
+  if (receipt?.status !== 'success') {
+    onPendingUserOpHash(null);
+    throw new Error('transaction_failed');
+  }
+  const after = await getState(wallet);
+  if (!after.registered) throw new Error('wallet_registration_not_confirmed');
+  onPendingUserOpHash(null);
+  return { state: after, alreadyRegistered: false, userOpHash };
 }
 
 const baseCosts = Object.freeze({
@@ -132,8 +200,8 @@ export function getContractProduction(state) {
 
 const transaction = (to, data) => ({ to, data, value: '0x0' });
 
-export function encodeWorldGameAction(type, payload = {}) {
-  const game = CIVILIZATION_GAME_ADDRESS;
+export function encodeWorldGameAction(type, payload = {}, contractAddress = CIVILIZATION_GAME_ADDRESS) {
+  const game = getAddress(contractAddress);
   if (type === 'claim') return [transaction(game, encodeFunctionData({ abi: CIVILIZATION_GAME_ABI, functionName: 'claim' }))];
   if (type === 'upgrade') {
     if (!Object.hasOwn(BUILDING_INDEX, payload.building)) throw new Error('invalid_building');
@@ -164,12 +232,13 @@ export function encodeWorldGameAction(type, payload = {}) {
   throw new Error(type === 'swap' ? 'world_market_unavailable' : 'invalid_action');
 }
 
-export function createWorldGameAdapter({ walletAddress, pollReceipt }) {
+export function createWorldGameAdapter({ walletAddress, contractAddress = CIVILIZATION_GAME_ADDRESS, pollReceipt }) {
   const wallet = getAddress(walletAddress);
+  const game = getAddress(contractAddress);
   if (typeof pollReceipt !== 'function') throw new Error('receipt_poller_required');
   let lastRaid = null;
   const readState = async () => {
-    const current = await readCivilizationState(wallet);
+    const current = await readCivilizationState(wallet, game);
     if (!current.registered) throw new Error('world_registration_required');
     return { ...current, lastRaid };
   };
@@ -186,18 +255,18 @@ export function createWorldGameAdapter({ walletAddress, pollReceipt }) {
       const contact = result.data.contacts[0];
       const address = getAddress(contact.walletAddress);
       if (address === wallet) throw new Error('self_raid');
-      const target = await readRawState(address, false);
+      const target = await readRawState(address, false, game);
       if (!target.registered) throw new Error('target_not_registered');
       return { address, username: contact.username || address };
     },
     async execute(type, payload = {}) {
-      const raidBefore = type === 'resolve_raid' ? await readRawState(wallet, false) : null;
+      const raidBefore = type === 'resolve_raid' ? await readRawState(wallet, false, game) : null;
       if (type === 'start_raid') {
         const target = getAddress(payload.targetId);
         if (target === wallet) throw new Error('self_raid');
-        if (!(await readRawState(target, false)).registered) throw new Error('target_not_registered');
+        if (!(await readRawState(target, false, game)).registered) throw new Error('target_not_registered');
       }
-      const response = await MiniKit.sendTransaction({ chainId: WORLD_CHAIN_ID, transactions: encodeWorldGameAction(type, payload) });
+      const response = await MiniKit.sendTransaction({ chainId: WORLD_CHAIN_ID, transactions: encodeWorldGameAction(type, payload, game) });
       if (response.executedWith !== 'minikit') throw new Error('world_app_wallet_required');
       if (response.data?.status !== 'success' || !response.data.userOpHash) throw new Error(response.data?.error_code || 'transaction_rejected');
       if (!isAddress(response.data.from) || getAddress(response.data.from) !== wallet) throw new Error('transaction_wallet_mismatch');

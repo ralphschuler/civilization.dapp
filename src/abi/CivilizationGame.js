@@ -60,6 +60,10 @@ export const CIVILIZATION_WORLD_ID_REGISTRATION_ABI = [
 export const CIVILIZATION_GAME_ABI = [
   ...CIVILIZATION_WORLD_ID_REGISTRATION_ABI,
   {
+    type: 'function', name: 'registerWallet', stateMutability: 'nonpayable',
+    inputs: [], outputs: [],
+  },
+  {
     type: 'function', name: 'previewPlayerState', stateMutability: 'view',
     inputs: [{ name: 'account', type: 'address' }],
     outputs: [
@@ -90,6 +94,10 @@ export const CIVILIZATION_GAME_ABI = [
   },
   { type: 'function', name: 'resolveRaid', stateMutability: 'nonpayable', inputs: [], outputs: [] },
   { type: 'function', name: 'prestige', stateMutability: 'nonpayable', inputs: [], outputs: [] },
+  {
+    type: 'event', name: 'WalletRegistered', anonymous: false,
+    inputs: [{ name: 'player', type: 'address', indexed: true }],
+  },
   {
     type: 'event', name: 'RaidResolved', anonymous: false,
     inputs: [

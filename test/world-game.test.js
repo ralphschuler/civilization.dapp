@@ -8,10 +8,14 @@ import {
   TROOP_INDEX,
   WORLD_TOKEN_ADDRESS,
   decodeCivilizationState,
+  encodeWalletRegistration,
   encodeWorldGameAction,
+  registerWalletWithMiniKit,
 } from '../src/world-game.js';
 
 const defender = '0x2222222222222222222222222222222222222222';
+const alternateGame = '0x3333333333333333333333333333333333333333';
+const userOpHash = `0x${'ab'.repeat(32)}`;
 
 function functionSelector(signature) {
   return toFunctionSelector(signature);
@@ -116,6 +120,109 @@ test('every single-call Civilization action uses its deployed ABI selector and a
   }
 });
 
+test('registered wallet skips registration transaction and unregistered wallet sends exactly registerWallet', async () => {
+  const wallet = '0x1111111111111111111111111111111111111111';
+  const sent = [];
+  const registered = await registerWalletWithMiniKit({
+    walletAddress: wallet,
+    readState: async () => ({ registered: true }),
+    pollReceipt: async () => { throw new Error('must_not_poll'); },
+    miniKit: { sendTransaction: async (request) => { sent.push(request); return {}; } },
+  });
+  assert.equal(registered.alreadyRegistered, true);
+  assert.equal(sent.length, 0);
+
+  let reads = 0;
+  const initialized = await registerWalletWithMiniKit({
+    walletAddress: wallet,
+    contractAddress: alternateGame,
+    readState: async () => ({ registered: ++reads === 2 }),
+    pollReceipt: async (hash) => ({ receipt: { status: 'success', hash } }),
+    miniKit: { sendTransaction: async (request) => {
+      sent.push(request);
+      return { executedWith: 'minikit', data: { status: 'success', userOpHash, from: wallet } };
+    } },
+  });
+  assert.equal(initialized.alreadyRegistered, false);
+  assert.equal(reads, 2, 'must read before send and after receipt');
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].transactions.length, 1);
+  assert.deepEqual(sent[0].transactions, encodeWalletRegistration(alternateGame));
+  assert.equal(getAddress(sent[0].transactions[0].to), getAddress(alternateGame));
+  assert.equal(decodeFunctionData({ abi: CIVILIZATION_GAME_ABI, data: sent[0].transactions[0].data }).functionName, 'registerWallet');
+});
+
+test('wallet registration requires the exact WalletAuth checksum address, receipt, and registered readback', async () => {
+  const wallet = '0x1111111111111111111111111111111111111111';
+  const base = {
+    walletAddress: wallet,
+    readState: async () => ({ registered: false }),
+    pollReceipt: async () => ({ receipt: { status: 'success' } }),
+  };
+  await assert.rejects(registerWalletWithMiniKit({ ...base, miniKit: { sendTransaction: async () => ({
+    executedWith: 'minikit', data: { status: 'success', userOpHash, from: defender },
+  }) } }), /transaction_wallet_mismatch/);
+  await assert.rejects(registerWalletWithMiniKit({ ...base, miniKit: { sendTransaction: async () => ({
+    executedWith: 'minikit', data: { status: 'success', userOpHash, from: wallet },
+  }) } }), /wallet_registration_not_confirmed/);
+  await assert.rejects(registerWalletWithMiniKit({ ...base, miniKit: { sendTransaction: async () => ({
+    executedWith: 'minikit', data: { status: 'error', error_code: 'user_rejected' },
+  }) } }), /user_rejected/);
+  await assert.rejects(registerWalletWithMiniKit({ ...base, pollReceipt: async () => { throw new Error('receipt_timeout'); }, miniKit: { sendTransaction: async () => ({
+    executedWith: 'minikit', data: { status: 'success', userOpHash, from: wallet },
+  }) } }), /receipt_timeout/);
+  await assert.rejects(registerWalletWithMiniKit({ ...base, miniKit: { sendTransaction: async () => ({
+    executedWith: 'minikit', data: { status: 'success', userOpHash: '0x1234', from: wallet },
+  }) } }), /wallet_registration_rejected/);
+});
+
+test('wallet registration retry polls one pending user operation instead of sending a duplicate', async () => {
+  const wallet = '0x1111111111111111111111111111111111111111';
+  let pending = null;
+  let sends = 0;
+  let polls = 0;
+  let reads = 0;
+  const options = {
+    walletAddress: wallet,
+    readState: async () => ({ registered: ++reads >= 3 }),
+    pollReceipt: async (hash) => {
+      polls += 1;
+      assert.equal(hash, userOpHash);
+      if (polls === 1) throw new Error('receipt_timeout');
+      return { receipt: { status: 'success' } };
+    },
+    onPendingUserOpHash: (hash) => { pending = hash; },
+    miniKit: { sendTransaction: async () => {
+      sends += 1;
+      return { executedWith: 'minikit', data: { status: 'success', userOpHash, from: wallet } };
+    } },
+  };
+
+  await assert.rejects(registerWalletWithMiniKit({ ...options, pendingUserOpHash: pending }), /receipt_timeout/);
+  assert.equal(pending, userOpHash, 'timeout must retain the submitted operation hash');
+  const result = await registerWalletWithMiniKit({ ...options, pendingUserOpHash: pending });
+  assert.equal(result.alreadyRegistered, false);
+  assert.equal(pending, null, 'confirmed readback clears the pending operation');
+  assert.equal(sends, 1, 'retry must not open a second transaction prompt');
+  assert.equal(polls, 2);
+});
+
+test('terminally failed wallet registration clears pending operation before a new send', async () => {
+  const wallet = '0x1111111111111111111111111111111111111111';
+  let pending = userOpHash;
+  let sends = 0;
+  await assert.rejects(registerWalletWithMiniKit({
+    walletAddress: wallet,
+    pendingUserOpHash: pending,
+    onPendingUserOpHash: (hash) => { pending = hash; },
+    readState: async () => ({ registered: false }),
+    pollReceipt: async () => { throw new Error('Transaction failed'); },
+    miniKit: { sendTransaction: async () => { sends += 1; return {}; } },
+  }), /transaction_failed/);
+  assert.equal(pending, null);
+  assert.equal(sends, 0);
+});
+
 test('construction boost batches exact WLD approval before boostConstruction', () => {
   const transactions = encodeWorldGameAction('boost', { hours: 2 });
   const amount = 2n * 10n ** 18n;
@@ -135,6 +242,18 @@ test('construction boost batches exact WLD approval before boostConstruction', (
   assert.deepEqual(
     decodeFunctionData({ abi: CIVILIZATION_GAME_ABI, data: transactions[1].data }),
     { functionName: 'boostConstruction', args: [2n] },
+  );
+});
+
+test('runtime contract address drives registration and every game transaction target', () => {
+  const claim = encodeWorldGameAction('claim', {}, alternateGame);
+  const boost = encodeWorldGameAction('boost', { hours: 1 }, alternateGame);
+
+  assert.equal(getAddress(claim[0].to), getAddress(alternateGame));
+  assert.equal(getAddress(boost[1].to), getAddress(alternateGame));
+  assert.deepEqual(
+    decodeFunctionData({ abi: WORLD_TOKEN_ABI, data: boost[0].data }).args,
+    [getAddress(alternateGame), 10n ** 18n],
   );
 });
 

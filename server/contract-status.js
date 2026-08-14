@@ -1,16 +1,16 @@
 // This is public release metadata, not a transaction interface or credential
 // configuration.
 export const CONTRACT_STATUS = Object.freeze({
-  release: "mainnet_dual_world_id_deployed_no_settlement",
-  deployment: "worldchain_mainnet_dual_world_id_deployed",
+  release: "mainnet_wallet_registration_deployed_no_settlement",
+  deployment: "worldchain_mainnet_wallet_registration_deployed",
   independentlyAudited: false,
   settlementEnabled: false,
   deployedContracts: Object.freeze([
     Object.freeze({
       name: "CivilizationGame",
-      address: "0xfCdB50926c3c6b2CDF3ACE76B13c9383A2DC3199",
+      address: "0x71564689Fa320bA010561A880CfE2896b6Dc8f8b",
       chainId: 480,
-      status: "mainnet_dual_world_id_deployed_not_independently_audited",
+      status: "mainnet_wallet_registration_deployed_not_independently_audited",
     }),
   ]),
   onChainActionsEnabled: true,
@@ -18,7 +18,7 @@ export const CONTRACT_STATUS = Object.freeze({
   paymentsEnabled: false,
   withdrawalsEnabled: false,
   contracts: Object.freeze([
-    Object.freeze({ source: "contracts/src/CivilizationGame.sol", status: "mainnet_dual_world_id_deployed_not_independently_audited" }),
+    Object.freeze({ source: "contracts/src/CivilizationGame.sol", status: "mainnet_wallet_registration_deployed_not_independently_audited" }),
     Object.freeze({ source: "contracts/src/GameResourceToken.sol", status: "draft_not_deployed" }),
     Object.freeze({ source: "contracts/src/GoldSettlementRegistry.sol", status: "draft_not_deployed_allowlist_only" }),
   ]),

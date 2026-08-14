@@ -58,7 +58,7 @@ test('Stage 9 sends nonce, native WalletAuth, then verification and renders the 
   ]);
 
   assert.match(component, /walletAuth: \(input: Parameters<typeof MiniKit\.walletAuth>\[0\]\) => MiniKit\.walletAuth\(input\)/);
-  assert.match(component, /if \(walletAddress\) return <CivilizationClient walletAddress=\{walletAddress\} worldConfiguration=\{worldConfiguration\} worldAppConfirmed=\{true\} \/>;/);
+  assert.match(component, /if \(walletAddress\) return <CivilizationClient walletAddress=\{walletAddress\} contractAddress=\{contractAddress\} \/>;/);
   assert.equal((component.match(/MiniKit\.walletAuth/g) ?? []).length, 2);
   assert.match(component, /dynamic\(\(\) => import\('\@\/components\/CivilizationClient'\), \{ ssr: false \}\)/);
   assert.doesNotMatch(component, /import CivilizationClient from/);
@@ -79,7 +79,7 @@ test('Stage 9 sends nonce, native WalletAuth, then verification and renders the 
   assert.doesNotMatch(component, /signIn|getSession|signOut|\/api\/auth|\/game|window\.location|location\.|router\.|localStorage|sessionStorage|console\./);
   assert.doesNotMatch(component, /MiniKit\.(install|isInstalled|isInWorldApp)|isCommandAvailable|useMiniKit|readiness|command|version/);
   assert.doesNotMatch(flow, /localStorage|sessionStorage|console\.|window\.location|location\.|router\.|signIn|getSession|signOut/);
-  assert.match(page, /return <NativeWalletAuthDiagnostic worldConfiguration=\{world\} \/>;/);
+  assert.match(page, /return <NativeWalletAuthDiagnostic contractAddress=\{world\.civilizationContractAddress\} \/>;/);
   assert.doesNotMatch(page, /world-id-gate-card|href="\/game"/);
   assert.doesNotMatch(page, /['"]use client['"]/);
   assert.doesNotMatch(page, /AuthButton|\bauth\s*\(|\b(getSession|useSession|signIn|signOut)\s*\(|\bredirect\s*\(|router\.(push|replace)|useEffect\s*\(|MiniKit\./);
