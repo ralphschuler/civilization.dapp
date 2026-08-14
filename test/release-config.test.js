@@ -72,6 +72,17 @@ test('health routes validate runtime configuration and the Wallet Auth challenge
   assert.doesNotMatch(`${healthz}${readyz}`, /game-store/);
 });
 
+test('RootLayout opts into request-time World configuration without an auth/session dependency', async () => {
+  const layout = await source('src/app/layout.tsx');
+  assert.match(layout, /import\s+\{\s*connection\s*\}\s+from\s+['"]next\/server['"]/);
+  assert.match(layout, /export\s+default\s+async\s+function\s+RootLayout/);
+  const connectionIndex = layout.indexOf('await connection()');
+  const runtimeConfigurationIndex = layout.indexOf('runtimeConfiguration()');
+  assert.ok(connectionIndex >= 0 && connectionIndex < runtimeConfigurationIndex);
+  assert.doesNotMatch(layout, /\b(auth|session)\s*\(/);
+  assert.doesNotMatch(layout, /from\s+['"]@\/auth['"]/);
+});
+
 test('official template Wallet Auth remains available while Auth.js consumes one-time login tickets', async () => {
   const [button, wallet, auth, challenge] = await Promise.all([
     source('src/components/AuthButton/index.tsx'),

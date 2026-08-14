@@ -2,6 +2,7 @@ import { runtimeConfiguration } from '@/lib/runtime-config';
 import ClientProviders from '@/providers';
 import '@worldcoin/mini-apps-ui-kit-react/styles.css';
 import type { Metadata } from 'next';
+import { connection } from 'next/server';
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 
@@ -20,11 +21,12 @@ export const metadata: Metadata = {
   description: 'Civilization für World App',
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  await connection();
   const { world } = runtimeConfiguration();
   return (
     <html lang="de">
