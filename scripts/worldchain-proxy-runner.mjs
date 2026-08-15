@@ -32,6 +32,8 @@ export const RUNTIME_CODE_POLL_ATTEMPTS = 6;
 export const RUNTIME_CODE_POLL_INTERVAL_MS = 1_000;
 const EIP1967_ADMIN_SLOT =
   "0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103";
+const EIP1967_IMPLEMENTATION_SLOT =
+  "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc";
 const FORMULA = Object.freeze({
   maxOfflineSeconds: 86_400,
   fractionScale: 864_000_000,
@@ -93,6 +95,14 @@ const same = (actual, expected, name) => {
   if (String(actual).toLowerCase() !== String(expected).toLowerCase())
     throw new Error(`post-deploy verification failed: ${name}`);
 };
+const REGISTRY_RECORD_FIELDS = Object.freeze([
+  "proxy",
+  "version",
+  "implementation",
+  "implementationCodehash",
+  "sourceCommit",
+  "storageLayoutHash",
+]);
 const json = (value) =>
   JSON.stringify(value, (_, item) =>
     typeof item === "bigint" ? item.toString() : item,
@@ -259,6 +269,25 @@ export function assertCompilerAbiPreflight(artifacts) {
   }
 }
 
+/**
+ * Verify the compiler ABI's named Release record without accepting tuple
+ * positions. A malformed decoder result must fail closed before a resume can
+ * be reported as successfully verified.
+ */
+export function assertRegistryRecord(record, expected) {
+  if (!record || typeof record !== "object" || Array.isArray(record))
+    throw new Error(
+      "post-deploy verification failed: registry record must be a named object",
+    );
+  for (const field of REGISTRY_RECORD_FIELDS) {
+    if (!Object.hasOwn(record, field))
+      throw new Error(
+        `post-deploy verification failed: registry record ${field} is missing`,
+      );
+    same(record[field], expected[field], `registry record ${field}`);
+  }
+}
+
 const hasRuntimeCode = (code) => typeof code === "string" && code !== "0x";
 const delay = (milliseconds) =>
   new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -286,7 +315,18 @@ const immutableRuntimeGroups = (artifact, compiledRuntimeCode, step) => {
   const runtimeLength = (compiledRuntimeCode.length - 2) / 2;
   const groups = [];
   const ranges = [];
-  for (const offsets of Object.values(references)) {
+  const names = artifact?.immutableReferenceNames;
+  if (!names || typeof names !== "object" || Array.isArray(names))
+    throw new Error(`${step} compiler immutable AST names are malformed`);
+  const referenceIds = Object.keys(references);
+  if (
+    Object.keys(names).length !== referenceIds.length ||
+    referenceIds.some((id) => typeof names[id] !== "string" || !names[id])
+  )
+    throw new Error(
+      `${step} compiler immutable AST names do not match references`,
+    );
+  for (const [id, offsets] of Object.entries(references)) {
     if (!Array.isArray(offsets))
       throw new Error(`${step} compiler immutableReferences are malformed`);
     const group = [];
@@ -313,7 +353,7 @@ const immutableRuntimeGroups = (artifact, compiledRuntimeCode, step) => {
       throw new Error(
         `${step} compiler immutableReferences group contains differing lengths`,
       );
-    groups.push(group);
+    groups.push({ id, name: names[id], ranges: group });
   }
   ranges.sort((left, right) => left.start - right.start);
   for (let index = 1; index < ranges.length; index += 1) {
@@ -353,7 +393,11 @@ export function assertProxyAdminImmutableReferences({
       "proxy runtime bytecode length does not match the compiled artifact",
     );
   const groups = immutableRuntimeGroups(artifact, compiledRuntimeCode, "proxy");
-  if (groups.length !== 1 || groups[0].length === 0)
+  if (
+    groups.length !== 1 ||
+    groups[0].name !== "_admin" ||
+    groups[0].ranges.length === 0
+  )
     throw new Error(
       "proxy compiler immutableReferences must contain exactly one nonempty group",
     );
@@ -361,7 +405,7 @@ export function assertProxyAdminImmutableReferences({
     .slice(2)
     .padStart(64, "0")
     .toLowerCase();
-  for (const range of groups[0]) {
+  for (const range of groups[0].ranges) {
     if (
       range.length !== 32 ||
       immutableRangeValue(actualRuntimeCode, range) !== expected
@@ -372,51 +416,131 @@ export function assertProxyAdminImmutableReferences({
   }
 }
 
+/** Resolve compiler immutable-reference IDs through source ASTs, never IDs. */
+export function resolveImmutableReferenceNames({ artifact, sourceAsts, step }) {
+  const references = artifact?.evm?.deployedBytecode?.immutableReferences;
+  if (
+    !references ||
+    typeof references !== "object" ||
+    Array.isArray(references)
+  )
+    throw new Error(`${step} compiler immutableReferences are malformed`);
+  const declarations = new Map();
+  const visit = (node) => {
+    if (!node || typeof node !== "object") return;
+    if (node.nodeType === "VariableDeclaration" && Number.isInteger(node.id)) {
+      const existing = declarations.get(String(node.id)) ?? [];
+      existing.push(node);
+      declarations.set(String(node.id), existing);
+    }
+    for (const value of Object.values(node)) {
+      if (Array.isArray(value)) value.forEach(visit);
+      else if (value && typeof value === "object") visit(value);
+    }
+  };
+  if (!sourceAsts || typeof sourceAsts !== "object")
+    throw new Error(`${step} compiler source ASTs are malformed`);
+  Object.values(sourceAsts).forEach((source) => visit(source?.ast ?? source));
+  return Object.fromEntries(
+    Object.keys(references).map((id) => {
+      const matches = declarations.get(id) ?? [];
+      if (matches.length !== 1)
+        throw new Error(
+          `${step} immutable reference ${id} has ambiguous AST declaration`,
+        );
+      const declaration = matches[0];
+      if (
+        declaration.mutability !== "immutable" ||
+        typeof declaration.name !== "string" ||
+        !declaration.name
+      )
+        throw new Error(
+          `${step} immutable reference ${id} is not a named immutable VariableDeclaration`,
+        );
+      return [id, declaration.name];
+    }),
+  );
+}
+
 /**
- * Canonicalize only exact compiler-declared immutable byte ranges. Runtime
- * length must exactly match the compiled artifact, so appended/truncated code
- * and malformed metadata fail closed before a resume can adopt an address.
+ * Materialize compiler runtime bytecode using precisely the reviewed immutable
+ * values. This intentionally does not inspect on-chain code: callers compare
+ * that code byte-for-byte with this expected result.
  */
-export function normalizeRuntimeBytecode({ artifact, runtimeCode, step }) {
+export function materializeRuntimeBytecode({
+  artifact,
+  expectedImmutables,
+  step,
+}) {
   const compiledRuntimeCode = runtimeBytecode(
     `0x${artifact?.evm?.deployedBytecode?.object ?? ""}`,
     `${step} compiled runtime bytecode`,
   );
-  const actualRuntimeCode = runtimeBytecode(
-    runtimeCode,
-    `${step} runtime bytecode`,
-  );
-  if (actualRuntimeCode.length !== compiledRuntimeCode.length)
-    throw new Error(
-      `${step} runtime bytecode length does not match the compiled artifact`,
-    );
   const groups = immutableRuntimeGroups(artifact, compiledRuntimeCode, step);
+  if (
+    !expectedImmutables ||
+    typeof expectedImmutables !== "object" ||
+    Array.isArray(expectedImmutables)
+  )
+    throw new Error(`${step} expected immutables are malformed`);
+  const expectedNames = groups.map(({ name }) => name).sort();
+  if (new Set(expectedNames).size !== expectedNames.length)
+    throw new Error(`${step} compiler immutable AST names are ambiguous`);
+  const suppliedNames = Object.keys(expectedImmutables).sort();
+  if (expectedNames.join("\0") !== suppliedNames.join("\0"))
+    throw new Error(
+      `${step} expected immutable names do not exactly match compiler references`,
+    );
+  let materialized = compiledRuntimeCode;
   for (const group of groups) {
-    const firstValue = immutableRangeValue(actualRuntimeCode, group[0]);
+    const expected = expectedImmutables[group.name];
     if (
-      group.some(
-        (range) => immutableRangeValue(actualRuntimeCode, range) !== firstValue,
-      )
+      !/^[0-9a-f]*$/i.test(expected ?? "") ||
+      expected.length !== group.ranges[0].length * 2
     )
       throw new Error(
-        `${step} runtime immutableReferences group contains differing values`,
+        `${step} expected immutable ${group.name} has wrong hex width`,
       );
-  }
-  let normalized = actualRuntimeCode;
-  for (const group of groups) {
-    for (const { start, length } of group) {
+    for (const { start, length } of group.ranges) {
       const offset = 2 + start * 2;
-      normalized =
-        normalized.slice(0, offset) +
-        compiledRuntimeCode.slice(offset, offset + length * 2) +
-        normalized.slice(offset + length * 2);
+      materialized =
+        materialized.slice(0, offset) +
+        expected.toLowerCase() +
+        materialized.slice(offset + length * 2);
     }
   }
-  return normalized;
+  return materialized;
 }
 
-export const normalizedRuntimeCodehash = ({ artifact, runtimeCode, step }) =>
-  keccak256(normalizeRuntimeBytecode({ artifact, runtimeCode, step }));
+export const materializedRuntimeCodehash = (input) =>
+  keccak256(materializeRuntimeBytecode(input));
+
+const assertExactRuntimeBytecode = ({
+  actual,
+  expected,
+  step,
+  address: address_,
+}) => {
+  const actualCode = runtimeBytecode(actual, `${step} runtime bytecode`);
+  const expectedCode = runtimeBytecode(
+    expected,
+    `${step} expected runtime bytecode`,
+  );
+  if (actualCode !== expectedCode)
+    throw new Error(
+      `runtime bytecode mismatch for ${step} at ${address_}: expected ${keccak256(expectedCode)}, got ${keccak256(actualCode)}`,
+    );
+};
+
+const addressWord = (value) =>
+  getAddress(value).slice(2).padStart(64, "0").toLowerCase();
+export const assertAddressStorageWord = (value, expected, name) => {
+  if (typeof value !== "string" || !/^0x[0-9a-f]{64}$/i.test(value))
+    throw new Error(
+      `post-deploy verification failed: ${name} is missing or malformed`,
+    );
+  same(value, `0x${addressWord(expected)}`, name);
+};
 
 /**
  * Some RPC replicas briefly report empty code immediately after a successful
@@ -454,7 +578,7 @@ export async function recoverDeploymentPrefix({
   plannedNonce,
   addresses,
   expectedRuntimeCodehashes,
-  runtimeArtifacts,
+  expectedRuntimeCodes,
   getCode,
   steps = DEPLOYMENT_STEPS,
 }) {
@@ -473,22 +597,25 @@ export async function recoverDeploymentPrefix({
           `resume gap: consumed ${step} nonce has no runtime bytecode at ${addresses[step]}`,
         );
       const actualCodehash = keccak256(code);
-      const expectedCodehash = expectedRuntimeCodehashes[step];
-      if (!runtimeArtifacts?.[step])
+      const expectedCodehash = expectedRuntimeCodehashes?.[step];
+      const expectedRuntimeCode = expectedRuntimeCodes?.[step];
+      if (!expectedRuntimeCode)
         throw new Error(
-          `resume runtime artifact is absent for recovered ${step}`,
+          `resume expected runtime bytecode is absent for recovered ${step}`,
         );
-      const normalizedCodehash = normalizedRuntimeCodehash({
-        artifact: runtimeArtifacts[step],
-        runtimeCode: code,
+      assertExactRuntimeBytecode({
+        actual: code,
+        expected: expectedRuntimeCode,
         step,
+        address: addresses[step],
       });
       if (
         !expectedCodehash ||
-        normalizedCodehash.toLowerCase() !== expectedCodehash.toLowerCase()
+        expectedCodehash.toLowerCase() !==
+          keccak256(expectedRuntimeCode).toLowerCase()
       )
         throw new Error(
-          `resume codehash mismatch for ${step} at ${addresses[step]}: expected normalized ${expectedCodehash}, got ${normalizedCodehash} (on-chain ${actualCodehash})`,
+          `resume expected runtime codehash is absent or inconsistent for ${step}`,
         );
       recovered.push({
         step,
@@ -561,7 +688,7 @@ async function loadProtectedDeployerAccount(
   return account;
 }
 
-async function compile() {
+export async function compileWorldchainArtifacts() {
   const names = (
     await readdir(new URL("../contracts/src/", import.meta.url))
   ).filter((name) => name.endsWith(".sol"));
@@ -591,6 +718,7 @@ async function compile() {
           optimizer: { enabled: true, runs: 200 },
           outputSelection: {
             "*": {
+              "": ["ast"],
               "*": [
                 "abi",
                 "evm.bytecode.object",
@@ -626,7 +754,14 @@ async function compile() {
     const found = result.contracts?.[file]?.[name];
     if (!found?.evm?.bytecode?.object)
       throw new Error(`compiler did not produce ${file}:${name}`);
-    return found;
+    return {
+      ...found,
+      immutableReferenceNames: resolveImmutableReferenceNames({
+        artifact: found,
+        sourceAsts: result.sources,
+        step: name,
+      }),
+    };
   };
   return {
     game: artifact("contracts/src/CivilizationGame.sol", "CivilizationGame"),
@@ -772,10 +907,8 @@ export async function runWorldChainDeployment(
   const storageLayoutHash = keccak256(toBytes(JSON.stringify(snapshot)));
   if (hash(plan.storageLayoutHash, "storageLayoutHash") !== storageLayoutHash)
     fail(`storageLayoutHash must match frozen V1 schema ${storageLayoutHash}`);
-  const artifacts = await compile();
+  const artifacts = await compileWorldchainArtifacts();
   assertCompilerAbiPreflight(artifacts);
-  const runtimeHash = (artifact) =>
-    keccak256(`0x${artifact.evm.deployedBytecode.object}`);
   const bytecode = (artifact) => `0x${artifact.evm.bytecode.object}`;
   const addresses = Object.fromEntries(
     DEPLOYMENT_STEPS.map((name, index) => [
@@ -790,6 +923,41 @@ export async function runWorldChainDeployment(
     from: addresses.proxy,
     nonce: 1n,
   });
+  const runtimeArtifacts = {
+    implementation: artifacts.game,
+    timelock: artifacts.timelock,
+    splitter: artifacts.splitter,
+    proxy: artifacts.proxy,
+    registry: artifacts.registry,
+    proxyAdmin: artifacts.proxyAdmin,
+  };
+  const expectedImmutables = {
+    implementation: {},
+    timelock: {},
+    splitter: {
+      token: addressWord(p.world.token),
+      timelock: addressWord(addresses.timelock),
+    },
+    proxy: { _admin: addressWord(expectedProxyAdmin) },
+    registry: { owner: addressWord(addresses.timelock) },
+    proxyAdmin: {},
+  };
+  const expectedRuntimeCodes = Object.fromEntries(
+    Object.entries(runtimeArtifacts).map(([step, artifact]) => [
+      step,
+      materializeRuntimeBytecode({
+        artifact,
+        expectedImmutables: expectedImmutables[step],
+        step,
+      }),
+    ]),
+  );
+  const expectedRuntimeCodehashes = Object.fromEntries(
+    Object.entries(expectedRuntimeCodes).map(([step, code]) => [
+      step,
+      keccak256(code),
+    ]),
+  );
   const initConfig = {
     worldIdVerifier: p.world.verifier,
     worldActionId: p.world.actionId,
@@ -815,11 +983,7 @@ export async function runWorldChainDeployment(
     deployer: p.deployer,
     deployerNonce: p.deployerNonce,
     addresses,
-    compiledRuntimeCodehashes: {
-      implementation: runtimeHash(artifacts.game),
-      splitter: runtimeHash(artifacts.splitter),
-      registry: runtimeHash(artifacts.registry),
-    },
+    expectedRuntimeCodehashes,
     distribution: p.revenueDistribution,
     claimCooldownSeconds: 60,
     claimFormula: FORMULA,
@@ -860,20 +1024,6 @@ export async function runWorldChainDeployment(
     plannedNonce: p.deployerNonce,
     resuming,
   });
-  const expectedRuntimeCodehashes = {
-    implementation: runtimeHash(artifacts.game),
-    timelock: runtimeHash(artifacts.timelock),
-    splitter: runtimeHash(artifacts.splitter),
-    proxy: runtimeHash(artifacts.proxy),
-    registry: runtimeHash(artifacts.registry),
-  };
-  const runtimeArtifacts = {
-    implementation: artifacts.game,
-    timelock: artifacts.timelock,
-    splitter: artifacts.splitter,
-    proxy: artifacts.proxy,
-    registry: artifacts.registry,
-  };
   if (resuming) {
     manifest.transactions.push(
       ...(await recoverDeploymentPrefix({
@@ -881,7 +1031,7 @@ export async function runWorldChainDeployment(
         plannedNonce: p.deployerNonce,
         addresses,
         expectedRuntimeCodehashes,
-        runtimeArtifacts,
+        expectedRuntimeCodes,
         getCode: (request) => publicClient.getCode(request),
       })),
     );
@@ -897,7 +1047,7 @@ export async function runWorldChainDeployment(
     chain,
     transport: http(rpcUrl),
   });
-  const send = async (step, data, expectedAddress, runtimeArtifact) => {
+  const send = async (step, data, expectedAddress) => {
     if (isRecoveredStep(manifest.transactions, step)) return;
     const nonce = p.deployerNonce + BigInt(manifest.transactions.length);
     if (getContractAddress({ from: p.deployer, nonce }) !== expectedAddress)
@@ -916,16 +1066,12 @@ export async function runWorldChainDeployment(
       address: expectedAddress,
       step,
     });
-    if (runtimeArtifact)
-      same(
-        normalizedRuntimeCodehash({
-          artifact: runtimeArtifact,
-          runtimeCode: code,
-          step,
-        }),
-        runtimeHash(runtimeArtifact),
-        `${step} runtime bytecode hash`,
-      );
+    assertExactRuntimeBytecode({
+      actual: code,
+      expected: expectedRuntimeCodes[step],
+      step,
+      address: expectedAddress,
+    });
     manifest.transactions.push({
       step,
       hash: txHash,
@@ -941,7 +1087,6 @@ export async function runWorldChainDeployment(
     "implementation",
     bytecode(artifacts.game),
     addresses.implementation,
-    artifacts.game,
   );
   await send(
     "timelock",
@@ -952,7 +1097,6 @@ export async function runWorldChainDeployment(
       p.governance.timelockAdmin,
     ]),
     addresses.timelock,
-    artifacts.timelock,
   );
   const proposerRole = keccak256(stringToHex("PROPOSER_ROLE"));
   const executorRole = keccak256(stringToHex("EXECUTOR_ROLE"));
@@ -985,7 +1129,6 @@ export async function runWorldChainDeployment(
       p.revenueDistribution.bps,
     ]),
     addresses.splitter,
-    artifacts.splitter,
   );
   const splitterBeforeProxy = await Promise.all([
     read(addresses.splitter, artifacts.splitter.abi, "token"),
@@ -1019,7 +1162,6 @@ export async function runWorldChainDeployment(
       initializeData,
     ]),
     addresses.proxy,
-    artifacts.proxy,
   );
   const proxyBeforeRegistry = await Promise.all([
     read(addresses.proxy, artifacts.game.abi, "revenueSplitter"),
@@ -1028,6 +1170,10 @@ export async function runWorldChainDeployment(
     publicClient.getStorageAt({
       address: addresses.proxy,
       slot: EIP1967_ADMIN_SLOT,
+    }),
+    publicClient.getStorageAt({
+      address: addresses.proxy,
+      slot: EIP1967_IMPLEMENTATION_SLOT,
     }),
   ]);
   same(
@@ -1041,14 +1187,15 @@ export async function runWorldChainDeployment(
     "proxy timelock before registry",
   );
   same(proxyBeforeRegistry[2], 60n, "proxy claim cooldown before registry");
-  if (!proxyBeforeRegistry[3])
-    throw new Error(
-      "post-deploy verification failed: proxy EIP-1967 admin slot before registry",
-    );
-  same(
-    getAddress(`0x${proxyBeforeRegistry[3].slice(-40)}`),
+  assertAddressStorageWord(
+    proxyBeforeRegistry[3],
     expectedProxyAdmin,
     "proxy EIP-1967 admin slot before registry",
+  );
+  assertAddressStorageWord(
+    proxyBeforeRegistry[4],
+    addresses.implementation,
+    "proxy EIP-1967 implementation slot before registry",
   );
   const proxyCodeBeforeRegistry = await waitForRuntimeBytecode({
     getCode: (request) => publicClient.getCode(request),
@@ -1066,9 +1213,9 @@ export async function runWorldChainDeployment(
     step: "expected ProxyAdmin child",
   });
   same(
-    keccak256(proxyAdminCodeBeforeRegistry),
-    runtimeHash(artifacts.proxyAdmin),
-    "expected ProxyAdmin runtime bytecode hash before registry",
+    proxyAdminCodeBeforeRegistry,
+    expectedRuntimeCodes.proxyAdmin,
+    "expected ProxyAdmin runtime bytecode before registry",
   );
   same(
     await read(expectedProxyAdmin, artifacts.proxyAdmin.abi, "owner"),
@@ -1083,13 +1230,12 @@ export async function runWorldChainDeployment(
         addresses.proxy,
         1n,
         addresses.implementation,
-        runtimeHash(artifacts.game),
+        expectedRuntimeCodehashes.implementation,
         p.sourceCommit,
         storageLayoutHash,
       ],
     ]),
     addresses.registry,
-    artifacts.registry,
   );
   const action = BigInt(keccak256(stringToHex(p.world.actionId))) >> 8n;
   const legacyApp = BigInt(keccak256(stringToHex(p.world.legacyAppId))) >> 8n;
@@ -1106,8 +1252,21 @@ export async function runWorldChainDeployment(
     address: addresses.proxy,
     slot: EIP1967_ADMIN_SLOT,
   });
-  if (!adminSlot) throw new Error("proxy EIP-1967 admin slot is empty");
-  const proxyAdmin = getAddress(`0x${adminSlot.slice(-40)}`);
+  assertAddressStorageWord(
+    adminSlot,
+    expectedProxyAdmin,
+    "proxy EIP-1967 admin slot",
+  );
+  const implementationSlot = await publicClient.getStorageAt({
+    address: addresses.proxy,
+    slot: EIP1967_IMPLEMENTATION_SLOT,
+  });
+  assertAddressStorageWord(
+    implementationSlot,
+    addresses.implementation,
+    "proxy EIP-1967 implementation slot",
+  );
+  const proxyAdmin = expectedProxyAdmin;
   const [
     adminOwner,
     registryOwner,
@@ -1158,21 +1317,14 @@ export async function runWorldChainDeployment(
   same(adminOwner, addresses.timelock, "ProxyAdmin owner");
   same(registryOwner, addresses.timelock, "registry owner");
   same(releaseCount, 1n, "registry initial record count");
-  [release[0], release[2], release[3], release[4], release[5]].forEach(
-    (actual, index) =>
-      same(
-        actual,
-        [
-          addresses.proxy,
-          addresses.implementation,
-          runtimeHash(artifacts.game),
-          p.sourceCommit,
-          storageLayoutHash,
-        ][index],
-        `registry record field ${index}`,
-      ),
-  );
-  same(release[1], 1n, "registry version");
+  assertRegistryRecord(release, {
+    proxy: addresses.proxy,
+    version: 1n,
+    implementation: addresses.implementation,
+    implementationCodehash: expectedRuntimeCodehashes.implementation,
+    sourceCommit: p.sourceCommit,
+    storageLayoutHash,
+  });
   [
     splitterToken,
     splitterTimelock,
