@@ -34,7 +34,7 @@
     "@types/react-dom": "^19.0.0",
     "eruda": "^3.4.1",
     "eslint": "^9.0.0",
-    "eslint-config-next": "15.5.9",
+    "eslint-config-next": "16.3.0",
     "eslint-plugin-react": "^7.37.5",
     "solc": "0.8.30",
     "typescript": "^5.0.0"
