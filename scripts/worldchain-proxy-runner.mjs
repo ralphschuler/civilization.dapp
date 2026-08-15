@@ -21,6 +21,15 @@ import solc from "solc";
 
 const require = createRequire(import.meta.url);
 const ZERO_HASH = `0x${"00".repeat(32)}`;
+export const DEPLOYMENT_STEPS = Object.freeze([
+  "implementation",
+  "timelock",
+  "splitter",
+  "proxy",
+  "registry",
+]);
+export const RUNTIME_CODE_POLL_ATTEMPTS = 6;
+export const RUNTIME_CODE_POLL_INTERVAL_MS = 1_000;
 const EIP1967_ADMIN_SLOT =
   "0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103";
 const FORMULA = Object.freeze({
@@ -239,6 +248,269 @@ const json = (value) =>
     typeof item === "bigint" ? item.toString() : item,
   );
 
+const hasRuntimeCode = (code) => typeof code === "string" && code !== "0x";
+const delay = (milliseconds) =>
+  new Promise((resolve) => setTimeout(resolve, milliseconds));
+
+const runtimeBytecode = (value, name) => {
+  if (typeof value !== "string" || !/^0x(?:[0-9a-f]{2})*$/i.test(value))
+    throw new Error(`${name} must be even-length hexadecimal runtime bytecode`);
+  return value.toLowerCase();
+};
+
+/**
+ * Return compiler-declared immutable-reference groups, rejecting malformed
+ * compiler metadata rather than risking a comparison that masks arbitrary
+ * bytecode. Solidity uses one group for each immutable: every occurrence in a
+ * group must carry the same value in deployed code.
+ */
+const immutableRuntimeGroups = (artifact, compiledRuntimeCode, step) => {
+  const references = artifact?.evm?.deployedBytecode?.immutableReferences;
+  if (
+    !references ||
+    typeof references !== "object" ||
+    Array.isArray(references)
+  )
+    throw new Error(`${step} compiler immutableReferences are malformed`);
+  const runtimeLength = (compiledRuntimeCode.length - 2) / 2;
+  const groups = [];
+  const ranges = [];
+  for (const offsets of Object.values(references)) {
+    if (!Array.isArray(offsets))
+      throw new Error(`${step} compiler immutableReferences are malformed`);
+    const group = [];
+    for (const range of offsets) {
+      if (
+        !range ||
+        !Number.isSafeInteger(range.start) ||
+        !Number.isSafeInteger(range.length) ||
+        range.start < 0 ||
+        range.length < 1 ||
+        range.start + range.length > runtimeLength
+      )
+        throw new Error(
+          `${step} compiler immutableReferences contain an invalid range`,
+        );
+      group.push(range);
+      ranges.push(range);
+    }
+    if (group.length === 0)
+      throw new Error(
+        `${step} compiler immutableReferences contain an empty group`,
+      );
+    if (group.some((range) => range.length !== group[0]?.length))
+      throw new Error(
+        `${step} compiler immutableReferences group contains differing lengths`,
+      );
+    groups.push(group);
+  }
+  ranges.sort((left, right) => left.start - right.start);
+  for (let index = 1; index < ranges.length; index += 1) {
+    if (
+      ranges[index - 1].start + ranges[index - 1].length >
+      ranges[index].start
+    )
+      throw new Error(
+        `${step} compiler immutableReferences contain overlapping ranges`,
+      );
+  }
+  return groups;
+};
+
+const immutableRangeValue = (runtimeCode, { start, length }) =>
+  runtimeCode.slice(2 + start * 2, 2 + (start + length) * 2);
+
+/**
+ * TransparentUpgradeableProxy creates its ProxyAdmin as its first child
+ * creation. Its single immutable is the child address, repeated in runtime.
+ */
+export function assertProxyAdminImmutableReferences({
+  artifact,
+  runtimeCode,
+  expectedProxyAdmin,
+}) {
+  const compiledRuntimeCode = runtimeBytecode(
+    `0x${artifact?.evm?.deployedBytecode?.object ?? ""}`,
+    "proxy compiled runtime bytecode",
+  );
+  const actualRuntimeCode = runtimeBytecode(
+    runtimeCode,
+    "proxy runtime bytecode",
+  );
+  if (actualRuntimeCode.length !== compiledRuntimeCode.length)
+    throw new Error(
+      "proxy runtime bytecode length does not match the compiled artifact",
+    );
+  const groups = immutableRuntimeGroups(artifact, compiledRuntimeCode, "proxy");
+  if (groups.length !== 1 || groups[0].length === 0)
+    throw new Error(
+      "proxy compiler immutableReferences must contain exactly one nonempty group",
+    );
+  const expected = getAddress(expectedProxyAdmin)
+    .slice(2)
+    .padStart(64, "0")
+    .toLowerCase();
+  for (const range of groups[0]) {
+    if (
+      range.length !== 32 ||
+      immutableRangeValue(actualRuntimeCode, range) !== expected
+    )
+      throw new Error(
+        "post-deploy verification failed: proxy immutable ProxyAdmin reference",
+      );
+  }
+}
+
+/**
+ * Canonicalize only exact compiler-declared immutable byte ranges. Runtime
+ * length must exactly match the compiled artifact, so appended/truncated code
+ * and malformed metadata fail closed before a resume can adopt an address.
+ */
+export function normalizeRuntimeBytecode({ artifact, runtimeCode, step }) {
+  const compiledRuntimeCode = runtimeBytecode(
+    `0x${artifact?.evm?.deployedBytecode?.object ?? ""}`,
+    `${step} compiled runtime bytecode`,
+  );
+  const actualRuntimeCode = runtimeBytecode(
+    runtimeCode,
+    `${step} runtime bytecode`,
+  );
+  if (actualRuntimeCode.length !== compiledRuntimeCode.length)
+    throw new Error(
+      `${step} runtime bytecode length does not match the compiled artifact`,
+    );
+  const groups = immutableRuntimeGroups(artifact, compiledRuntimeCode, step);
+  for (const group of groups) {
+    const firstValue = immutableRangeValue(actualRuntimeCode, group[0]);
+    if (
+      group.some(
+        (range) => immutableRangeValue(actualRuntimeCode, range) !== firstValue,
+      )
+    )
+      throw new Error(
+        `${step} runtime immutableReferences group contains differing values`,
+      );
+  }
+  let normalized = actualRuntimeCode;
+  for (const group of groups) {
+    for (const { start, length } of group) {
+      const offset = 2 + start * 2;
+      normalized =
+        normalized.slice(0, offset) +
+        compiledRuntimeCode.slice(offset, offset + length * 2) +
+        normalized.slice(offset + length * 2);
+    }
+  }
+  return normalized;
+}
+
+export const normalizedRuntimeCodehash = ({ artifact, runtimeCode, step }) =>
+  keccak256(normalizeRuntimeBytecode({ artifact, runtimeCode, step }));
+
+/**
+ * Some RPC replicas briefly report empty code immediately after a successful
+ * creation receipt. Poll only a small, bounded number of times before failing.
+ */
+export async function waitForRuntimeBytecode({
+  getCode,
+  address: address_,
+  step,
+  attempts = RUNTIME_CODE_POLL_ATTEMPTS,
+  intervalMs = RUNTIME_CODE_POLL_INTERVAL_MS,
+  sleep = delay,
+}) {
+  if (!Number.isInteger(attempts) || attempts < 1)
+    throw new Error(
+      "runtime bytecode polling attempts must be a positive integer",
+    );
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    const code = await getCode({ address: address_ });
+    if (hasRuntimeCode(code)) return code;
+    if (attempt < attempts) await sleep(intervalMs);
+  }
+  throw new Error(
+    `${step} has no runtime bytecode after successful receipt (timed out after ${attempts} checks)`,
+  );
+}
+
+/**
+ * A resume can consume only the exact nonce-derived prefix. Each consumed
+ * address must contain the reviewed runtime, and every later planned address
+ * must still be empty so an unrelated nonce or a deployment gap cannot pass.
+ */
+export async function recoverDeploymentPrefix({
+  onChainNonce,
+  plannedNonce,
+  addresses,
+  expectedRuntimeCodehashes,
+  runtimeArtifacts,
+  getCode,
+  steps = DEPLOYMENT_STEPS,
+}) {
+  const recoveredCount = BigInt(onChainNonce) - BigInt(plannedNonce);
+  if (recoveredCount < 1n || recoveredCount > BigInt(steps.length))
+    throw new Error(
+      `resume nonce drift: current nonce ${onChainNonce} does not describe a recoverable prefix after reviewed nonce ${plannedNonce}`,
+    );
+  const prefixLength = Number(recoveredCount);
+  const recovered = [];
+  for (const [index, step] of steps.entries()) {
+    const code = await getCode({ address: addresses[step] });
+    if (index < prefixLength) {
+      if (!hasRuntimeCode(code))
+        throw new Error(
+          `resume gap: consumed ${step} nonce has no runtime bytecode at ${addresses[step]}`,
+        );
+      const actualCodehash = keccak256(code);
+      const expectedCodehash = expectedRuntimeCodehashes[step];
+      if (!runtimeArtifacts?.[step])
+        throw new Error(
+          `resume runtime artifact is absent for recovered ${step}`,
+        );
+      const normalizedCodehash = normalizedRuntimeCodehash({
+        artifact: runtimeArtifacts[step],
+        runtimeCode: code,
+        step,
+      });
+      if (
+        !expectedCodehash ||
+        normalizedCodehash.toLowerCase() !== expectedCodehash.toLowerCase()
+      )
+        throw new Error(
+          `resume codehash mismatch for ${step} at ${addresses[step]}: expected normalized ${expectedCodehash}, got ${normalizedCodehash} (on-chain ${actualCodehash})`,
+        );
+      recovered.push({
+        step,
+        address: addresses[step],
+        runtimeCodehash: actualCodehash,
+        recovered: true,
+      });
+    } else if (hasRuntimeCode(code)) {
+      throw new Error(
+        `resume gap/drift: later ${step} address ${addresses[step]} already has runtime bytecode`,
+      );
+    }
+  }
+  return recovered;
+}
+
+export function assertDeploymentNonce({
+  onChainNonce,
+  plannedNonce,
+  resuming,
+}) {
+  if (!resuming && BigInt(onChainNonce) !== BigInt(plannedNonce))
+    throw new Error(
+      `deployer nonce ${onChainNonce} does not match reviewed nonce ${plannedNonce}; no transaction submitted`,
+    );
+}
+
+export const isRecoveredStep = (transactions, step) =>
+  transactions.some(
+    (transaction) =>
+      transaction.step === step && transaction.recovered === true,
+  );
+
 async function loadProtectedDeployerAccount(
   network,
   environment,
@@ -297,7 +569,7 @@ async function compile() {
   );
   sources["contracts/DeploymentImports.sol"] = {
     content:
-      "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.24;\nimport {TimelockController} from '@openzeppelin/contracts/governance/TimelockController.sol';\nimport {TransparentUpgradeableProxy} from '@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol';",
+      "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.24;\nimport {TimelockController} from '@openzeppelin/contracts/governance/TimelockController.sol';\nimport {ProxyAdmin} from '@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol';\nimport {TransparentUpgradeableProxy} from '@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol';",
   };
   const result = JSON.parse(
     solc.compile(
@@ -312,6 +584,7 @@ async function compile() {
                 "abi",
                 "evm.bytecode.object",
                 "evm.deployedBytecode.object",
+                "evm.deployedBytecode.immutableReferences",
               ],
             },
           },
@@ -361,6 +634,10 @@ async function compile() {
     proxy: artifact(
       "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol",
       "TransparentUpgradeableProxy",
+    ),
+    proxyAdmin: artifact(
+      "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol",
+      "ProxyAdmin",
     ),
   };
 }
@@ -465,6 +742,9 @@ export async function runWorldChainDeployment(
   environment = process.env,
 ) {
   const sending = argv.includes("--send");
+  const resuming = argv.includes("--resume");
+  if (resuming && !sending)
+    throw new Error("--resume is only allowed together with --send");
   const confirmation =
     network === "mainnet" ? "CONFIRM_MAINNET_DEPLOY" : "CONFIRM_TESTNET_DEPLOY";
   if (sending && environment[confirmation] !== "yes")
@@ -484,16 +764,18 @@ export async function runWorldChainDeployment(
     keccak256(`0x${artifact.evm.deployedBytecode.object}`);
   const bytecode = (artifact) => `0x${artifact.evm.bytecode.object}`;
   const addresses = Object.fromEntries(
-    ["implementation", "timelock", "splitter", "proxy", "registry"].map(
-      (name, index) => [
-        name,
-        getContractAddress({
-          from: p.deployer,
-          nonce: p.deployerNonce + BigInt(index),
-        }),
-      ],
-    ),
+    DEPLOYMENT_STEPS.map((name, index) => [
+      name,
+      getContractAddress({
+        from: p.deployer,
+        nonce: p.deployerNonce + BigInt(index),
+      }),
+    ]),
   );
+  const expectedProxyAdmin = getContractAddress({
+    from: addresses.proxy,
+    nonce: 1n,
+  });
   const initConfig = {
     worldIdVerifier: p.world.verifier,
     worldActionId: p.world.actionId,
@@ -523,7 +805,7 @@ export async function runWorldChainDeployment(
     deployer: p.deployer,
     deployerNonce: p.deployerNonce,
     addresses,
-    contractRuntimeCodehashes: {
+    compiledRuntimeCodehashes: {
       implementation: runtimeHash(artifacts.game),
       splitter: runtimeHash(artifacts.splitter),
       registry: runtimeHash(artifacts.registry),
@@ -531,13 +813,7 @@ export async function runWorldChainDeployment(
     distribution: p.revenueDistribution,
     claimCooldownSeconds: 60,
     claimFormula: FORMULA,
-    deploymentOrder: [
-      "implementation",
-      "timelock",
-      "splitter",
-      "proxy",
-      "registry",
-    ],
+    deploymentOrder: DEPLOYMENT_STEPS,
     transactions: [],
   };
   if (!sending) {
@@ -569,10 +845,37 @@ export async function runWorldChainDeployment(
     throw new Error(
       `connected chainId ${chainId} does not match reviewed chainId ${manifest.chainId}`,
     );
-  if (onChainNonce !== p.deployerNonce)
-    throw new Error(
-      `deployer nonce ${onChainNonce} does not match reviewed nonce ${p.deployerNonce}; no transaction submitted`,
+  assertDeploymentNonce({
+    onChainNonce,
+    plannedNonce: p.deployerNonce,
+    resuming,
+  });
+  const expectedRuntimeCodehashes = {
+    implementation: runtimeHash(artifacts.game),
+    timelock: runtimeHash(artifacts.timelock),
+    splitter: runtimeHash(artifacts.splitter),
+    proxy: runtimeHash(artifacts.proxy),
+    registry: runtimeHash(artifacts.registry),
+  };
+  const runtimeArtifacts = {
+    implementation: artifacts.game,
+    timelock: artifacts.timelock,
+    splitter: artifacts.splitter,
+    proxy: artifacts.proxy,
+    registry: artifacts.registry,
+  };
+  if (resuming) {
+    manifest.transactions.push(
+      ...(await recoverDeploymentPrefix({
+        onChainNonce,
+        plannedNonce: p.deployerNonce,
+        addresses,
+        expectedRuntimeCodehashes,
+        runtimeArtifacts,
+        getCode: (request) => publicClient.getCode(request),
+      })),
     );
+  }
   const account = await loadProtectedDeployerAccount(
     network,
     environment,
@@ -584,7 +887,8 @@ export async function runWorldChainDeployment(
     chain,
     transport: http(rpcUrl),
   });
-  const send = async (step, data, expectedAddress, expectedRuntimeHash) => {
+  const send = async (step, data, expectedAddress, runtimeArtifact) => {
+    if (isRecoveredStep(manifest.transactions, step)) return;
     const nonce = p.deployerNonce + BigInt(manifest.transactions.length);
     if (getContractAddress({ from: p.deployer, nonce }) !== expectedAddress)
       throw new Error(`predicted address drift before ${step}`);
@@ -597,15 +901,19 @@ export async function runWorldChainDeployment(
       receipt.contractAddress?.toLowerCase() !== expectedAddress.toLowerCase()
     )
       throw new Error(`${step} receipt did not create its predicted contract`);
-    const code = await publicClient.getCode({ address: expectedAddress });
-    if (!code || code === "0x")
-      throw new Error(
-        `${step} has no runtime bytecode after successful receipt`,
-      );
-    if (expectedRuntimeHash)
+    const code = await waitForRuntimeBytecode({
+      getCode: (request) => publicClient.getCode(request),
+      address: expectedAddress,
+      step,
+    });
+    if (runtimeArtifact)
       same(
-        keccak256(code),
-        expectedRuntimeHash,
+        normalizedRuntimeCodehash({
+          artifact: runtimeArtifact,
+          runtimeCode: code,
+          step,
+        }),
+        runtimeHash(runtimeArtifact),
         `${step} runtime bytecode hash`,
       );
     manifest.transactions.push({
@@ -623,7 +931,7 @@ export async function runWorldChainDeployment(
     "implementation",
     bytecode(artifacts.game),
     addresses.implementation,
-    runtimeHash(artifacts.game),
+    artifacts.game,
   );
   await send(
     "timelock",
@@ -634,6 +942,7 @@ export async function runWorldChainDeployment(
       p.governance.timelockAdmin,
     ]),
     addresses.timelock,
+    artifacts.timelock,
   );
   const proposerRole = keccak256(stringToHex("PROPOSER_ROLE"));
   const executorRole = keccak256(stringToHex("EXECUTOR_ROLE"));
@@ -660,7 +969,7 @@ export async function runWorldChainDeployment(
       p.revenueDistribution.bps,
     ]),
     addresses.splitter,
-    runtimeHash(artifacts.splitter),
+    artifacts.splitter,
   );
   const splitterBeforeProxy = await Promise.all([
     read(addresses.splitter, splitterAbi, "token"),
@@ -694,6 +1003,7 @@ export async function runWorldChainDeployment(
       initializeData,
     ]),
     addresses.proxy,
+    artifacts.proxy,
   );
   const proxyBeforeRegistry = await Promise.all([
     read(addresses.proxy, gameAbi, "revenueSplitter"),
@@ -720,11 +1030,32 @@ export async function runWorldChainDeployment(
       "post-deploy verification failed: proxy EIP-1967 admin slot before registry",
     );
   same(
-    await read(
-      getAddress(`0x${proxyBeforeRegistry[3].slice(-40)}`),
-      ownableAbi,
-      "owner",
-    ),
+    getAddress(`0x${proxyBeforeRegistry[3].slice(-40)}`),
+    expectedProxyAdmin,
+    "proxy EIP-1967 admin slot before registry",
+  );
+  const proxyCodeBeforeRegistry = await waitForRuntimeBytecode({
+    getCode: (request) => publicClient.getCode(request),
+    address: addresses.proxy,
+    step: "proxy",
+  });
+  assertProxyAdminImmutableReferences({
+    artifact: artifacts.proxy,
+    runtimeCode: proxyCodeBeforeRegistry,
+    expectedProxyAdmin,
+  });
+  const proxyAdminCodeBeforeRegistry = await waitForRuntimeBytecode({
+    getCode: (request) => publicClient.getCode(request),
+    address: expectedProxyAdmin,
+    step: "expected ProxyAdmin child",
+  });
+  same(
+    keccak256(proxyAdminCodeBeforeRegistry),
+    runtimeHash(artifacts.proxyAdmin),
+    "expected ProxyAdmin runtime bytecode hash before registry",
+  );
+  same(
+    await read(expectedProxyAdmin, ownableAbi, "owner"),
     addresses.timelock,
     "ProxyAdmin owner before registry",
   );
@@ -742,6 +1073,7 @@ export async function runWorldChainDeployment(
       ],
     ]),
     addresses.registry,
+    artifacts.registry,
   );
   const action = BigInt(keccak256(stringToHex(p.world.actionId))) >> 8n;
   const legacyApp = BigInt(keccak256(stringToHex(p.world.legacyAppId))) >> 8n;
