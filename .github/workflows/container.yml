@@ -2,9 +2,9 @@ name: Verify and publish Civilization DApp container
 
 on:
   push:
-    branches: [master]
+    branches: [master, develop]
   pull_request:
-    branches: [master]
+    branches: [master, develop]
 
 permissions:
   contents: read
@@ -63,10 +63,18 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Select explicit release tags
+        id: tags
+        run: |
+          if [ "${{ github.ref_name }}" = "master" ]; then
+            echo "release=latest" >> "$GITHUB_OUTPUT"
+          else
+            echo "release=dev" >> "$GITHUB_OUTPUT"
+          fi
       - uses: docker/build-push-action@v7
         with:
           context: .
           push: true
           tags: |
-            ghcr.io/ralphschuler/civilization.dapp:latest
-            ghcr.io/ralphschuler/civilization.dapp:${{ github.sha }}
+            ghcr.io/ralphschuler/civilization.dapp:${{ steps.tags.outputs.release }}
+            ghcr.io/ralphschuler/civilization.dapp:${{ github.ref_name }}-${{ github.sha }}

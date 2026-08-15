@@ -5,6 +5,56 @@ import { access, readFile } from "node:fs/promises";
 const source = (path) =>
   readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
+test("runtime profiles default to production and development rejects production fallbacks", async () => {
+  const source = await readFile(
+    new URL("../src/lib/runtime-config.ts", import.meta.url),
+    "utf8",
+  );
+  assert.match(
+    source,
+    /CIVILIZATION_ENV === "development" \? "development" : "production"/,
+  );
+  assert.match(source, /DEVELOPMENT_WORLD_ID_ACTION/);
+  assert.match(source, /DEVELOPMENT_RP_ID/);
+  assert.match(source, /hasHttpsOrigin\(authUrl, DEVELOPMENT_ORIGIN\)/);
+  assert.match(
+    source,
+    /getAddress\(world\.civilizationContractAddress\) === getAddress\(LIVE_CONTRACT\)/,
+  );
+  assert.match(source, /expectedContext = `\$\{authUrl\}\/api\/rp-signature`/);
+  assert.match(source, /PGDATABASE/);
+});
+
+test("container CI verifies both branches and assigns explicit dev/latest release tags", async () => {
+  const workflow = await readFile(
+    new URL("../.github/workflows/container.yml", import.meta.url),
+    "utf8",
+  );
+  assert.match(workflow, /branches: \[master, develop\]/);
+  assert.match(workflow, /if: github\.event_name == 'push'/);
+  assert.match(workflow, /echo "release=latest"/);
+  assert.match(workflow, /echo "release=dev"/);
+  assert.doesNotMatch(workflow, /&& 'latest' \|\| 'dev'/);
+});
+
+test("production template remains separate while the Dev template has a dedicated port, database and volume", async () => {
+  const [production, development, docs] = await Promise.all([
+    readFile(new URL("../deploy/truenas.yaml", import.meta.url), "utf8"),
+    readFile(
+      new URL("../deploy/truenas.dev.example.yaml", import.meta.url),
+      "utf8",
+    ),
+    readFile(new URL("../docs/DEV_DEPLOYMENT.md", import.meta.url), "utf8"),
+  ]);
+  assert.match(production, /:latest/);
+  assert.match(production, /"31057:31057"/);
+  assert.match(development, /:dev/);
+  assert.match(development, /"31058:31057"/);
+  assert.match(development, /civilization_dev_postgres/);
+  assert.match(development, /PGDATABASE: civilization_dev/);
+  assert.match(docs, /GitHub Pages remains a walletless UI preview/);
+});
+
 test("production and Pages are pnpm-powered Next builds with runtime World IDs and no Vite entrypoint", async () => {
   const [
     pages,
@@ -37,11 +87,11 @@ test("production and Pages are pnpm-powered Next builds with runtime World IDs a
     `${container}${dockerfile}`,
     /NEXT_PUBLIC_|--build-arg|build-args:/,
   );
-  assert.match(runtimeConfig, /process\.env\.WORLD_APP_ID/);
-  assert.match(runtimeConfig, /process\.env\.WORLD_ID_APP_ID/);
+  assert.match(runtimeConfig, /value\(env, "WORLD_APP_ID"\)/);
+  assert.match(runtimeConfig, /value\(env, "WORLD_ID_APP_ID"\)/);
   assert.match(providers, /worldAppId/);
   assert.doesNotMatch(providers, /process\.env/);
-  assert.match(gamePage, /redirect\(["']\/["']\)/);
+  assert.match(gamePage, /redirect\(["']\/['"]\)/);
   assert.doesNotMatch(gamePage, /@\/auth|CivilizationClient|walletAddress/);
   assert.match(registration, /registerWalletWithMiniKit/);
   assert.match(nextConfig, /reactStrictMode:\s*true/);
@@ -62,7 +112,7 @@ test("production and Pages are pnpm-powered Next builds with runtime World IDs a
   await assert.rejects(access(new URL("../server/index.js", import.meta.url)));
 });
 
-test("release channels keep the Dev Pages Mini App separate from the production container", async () => {
+test("release channels keep the Dev Pages Mini App separate from production and Dev containers", async () => {
   const [pages, container, readme] = await Promise.all([
     source(".github/workflows/deploy-pages.yml"),
     source(".github/workflows/container.yml"),
@@ -74,12 +124,10 @@ test("release channels keep the Dev Pages Mini App separate from the production 
   assert.match(pages, /group: civilization-pages-dev/);
   assert.match(pages, /if: github\.event_name != 'pull_request'/);
   assert.doesNotMatch(pages, /branches: \[master\]/);
-  assert.match(container, /push:\s*\n\s*branches: \[master\]/);
-  assert.match(container, /pull_request:\s*\n\s*branches: \[master\]/);
-  assert.doesNotMatch(container, /branches: \[develop\]/);
+  assert.match(container, /branches: \[master, develop\]/);
   assert.match(
     readme,
-    /develop.*https:\/\/nyphon\.de\/civilization\.dapp\/.*master.*https:\/\/civilization\.nyphon\.de/s,
+    /develop.*:dev.*master.*:latest.*https:\/\/civilization\.nyphon\.de.*https:\/\/nyphon\.de\/civilization\.dapp\//s,
   );
 });
 
@@ -200,7 +248,8 @@ test("active client uses wallet registration while legacy World ID compatibility
   assert.match(contract, /function registerWorldIdLegacy/);
   assert.match(contract, /function registerWorldId\(/);
   assert.match(deployment, /worldIdLegacyRouterAddress/);
-  assert.match(rpRoute, /LIVE_RP_ID/);
+  assert.match(rpRoute, /runtimeConfiguration\(\)/);
+  assert.match(rpRoute, /process\.env\.RP_ID/);
 });
 
 test("mainnet deployment requires explicit legacy router, app, and action and documents deployment configuration", async () => {
@@ -282,4 +331,26 @@ test("production game state is contract-authoritative with no compatibility muta
   await assert.rejects(
     access(new URL("../src/app/api/game/targets/route.ts", import.meta.url)),
   );
+});
+
+test("development compose grants the migration job database-only access", async () => {
+  const [development, ignored, env] = await Promise.all([
+    readFile(
+      new URL("../deploy/truenas.dev.example.yaml", import.meta.url),
+      "utf8",
+    ),
+    readFile(new URL("../.gitignore", import.meta.url), "utf8"),
+    readFile(new URL("../.env.development.example", import.meta.url), "utf8"),
+  ]);
+  const migration = development.slice(
+    development.indexOf("civilization-dev-migrate:"),
+    development.indexOf("  civilization-dev:\n"),
+  );
+  assert.match(migration, /PGPASSWORD: REPLACE_DEV_POSTGRES_PASSWORD/);
+  assert.doesNotMatch(migration, /AUTH_SECRET|RP_SIGNING_KEY|WORLD_APP_ID/);
+  assert.match(development, /NODE_ENV: production/);
+  assert.match(development, /restart: unless-stopped/);
+  assert.match(ignored, /!\.env\.development\.example/);
+  assert.match(env, /^PGPASSWORD=/m);
+  assert.match(env, /^POSTGRES_PASSWORD=/m);
 });

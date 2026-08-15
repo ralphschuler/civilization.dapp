@@ -1,0 +1,11 @@
+# Isolated development Mini App
+
+Production stays on `https://civilization.nyphon.de`, port 31057, its existing database, Portal RP/action, and proxy. `CIVILIZATION_ENV` defaults to `production`; use `development` only with the separate Dev stack in `deploy/truenas.dev.example.yaml` on host port 31058.
+
+The Dev Mini App uses `app_c098bd46180834e598bd9cac8d1bd94d`, `https://civilization-dev.nyphon.de`, a distinct PostgreSQL service/volume/database, Dev RP ID/signing key, a Dev-only action, and a World Chain **Mainnet (480)** test contract. Dev means isolated state, not a testnet: transactions and WLD are real. Never use Sepolia (MiniKit device transactions do not support it) or the production proxy. The runtime refuses Dev if any of those values are absent, production-shaped, or the RP context URL is not exactly `${AUTH_URL}/api/rp-signature`.
+
+Deploy in this order: deploy/verify the isolated contract with the Dev RP/action allowlist; configure the Dev Portal app, HTTPS origin and RP action; provide protected runtime values; start PostgreSQL; wait for its healthcheck; run the migration job; then start the app. `GET /api/healthz` checks liveness and `GET /api/readyz` must return 200 before routing traffic. On an allowlisted physical World App device, complete WalletAuth, World ID proof, and then the separately-clicked Mainnet transaction. Browser/GitHub Pages cannot validate native transport or server-backed flows.
+
+Rollback means remove the Dev route/app workload and retain the Dev database for diagnosis; do not point Dev traffic at production. Roll back a Dev image only after its schema compatibility is confirmed. No Portal, DNS, contract, secret, or production change is made by this repository.
+
+Required protected inputs: Dev `AUTH_SECRET`, `HMAC_SECRET_KEY`, database password, RP signing key, and the deployed Dev contract address. RP ID `rp_de35f1ecb30715f9` and action `civilization-dev-play` are public identifiers and stay explicit in the template. Set the same database password as `PGPASSWORD` for the app/migration process and `POSTGRES_PASSWORD` for PostgreSQL initialization. The Portal must allowlist the Dev origin, configured action, RP, and the Dev contract. GitHub Pages remains a walletless UI preview, not this Mini App.

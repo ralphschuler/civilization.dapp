@@ -2,27 +2,39 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
-test("Civilization client uses only the WalletAuth-established wallet registration path", async () => {
-  const [client, registration, gate] = await Promise.all([
-    readFile(
-      new URL("../src/components/CivilizationClient.tsx", import.meta.url),
-      "utf8",
-    ),
-    readFile(
-      new URL(
-        "../src/components/CivilizationClient/useWalletVillageRegistration.ts",
-        import.meta.url,
+test("production retains WalletAuth registration while development has an explicit v4 registration mode", async () => {
+  const [client, registration, gate, development, developmentFlow] =
+    await Promise.all([
+      readFile(
+        new URL("../src/components/CivilizationClient.tsx", import.meta.url),
+        "utf8",
       ),
-      "utf8",
-    ),
-    readFile(
-      new URL(
-        "../src/components/CivilizationClient/WalletVillageRegistrationGate.tsx",
-        import.meta.url,
+      readFile(
+        new URL(
+          "../src/components/CivilizationClient/useWalletVillageRegistration.ts",
+          import.meta.url,
+        ),
+        "utf8",
       ),
-      "utf8",
-    ),
-  ]);
+      readFile(
+        new URL(
+          "../src/components/CivilizationClient/WalletVillageRegistrationGate.tsx",
+          import.meta.url,
+        ),
+        "utf8",
+      ),
+      readFile(
+        new URL(
+          "../src/components/CivilizationClient/DevelopmentWorldIdRegistration.tsx",
+          import.meta.url,
+        ),
+        "utf8",
+      ),
+      readFile(
+        new URL("../src/lib/world-id-registration.js", import.meta.url),
+        "utf8",
+      ),
+    ]);
   assert.match(
     client,
     /useWalletVillageRegistration\(walletAddress, contractAddress\)/,
@@ -38,11 +50,16 @@ test("Civilization client uses only the WalletAuth-established wallet registrati
   assert.match(gate, /Dorf on-chain erstellen/);
   assert.match(registration, /registrationInFlight\.current/);
   assert.match(registration, /pendingRegistrationHash\.current = hash/);
-  assert.doesNotMatch(`${client}${registration}${gate}`, /errorText|\$\{error/);
-  assert.doesNotMatch(
-    `${client}${registration}${gate}`,
-    /@worldcoin\/idkit|IDKit|WorldId|World ID|rp_context|proofOfHuman/,
-  );
+  assert.match(client, /environment === "development"/);
+  assert.match(development, /IDKitRequestWidget/);
+  assert.match(development, /proofOfHuman\(\{\s*signal: walletAddress\s*\}\)/);
+  assert.match(development, /1\. World ID bestätigen/);
+  assert.match(development, /2\. World ID on-chain registrieren/);
+  assert.match(development, /On-chain-Transaktionen und eingesetzte/);
+  assert.match(developmentFlow, /encodeWorldIdRegistration/);
+  assert.match(developmentFlow, /validUserOpHash/);
+  assert.match(developmentFlow, /readCivilizationState/);
+  assert.match(developmentFlow, /pendingUserOpHash/);
 });
 
 test("WalletAuth is completed before CivilizationClient is loaded", async () => {

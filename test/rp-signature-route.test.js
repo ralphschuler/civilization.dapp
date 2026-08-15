@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import {
   isRpSigningConfigured,
+  rpContextResponse,
   validateRpSignatureRequest,
 } from "../src/lib/rp-signature-core.js";
 import {
@@ -13,7 +14,7 @@ import {
 const wallet = "0x52908400098527886E0F7030069857D2E4169EE7";
 const key = `0x${"a".repeat(64)}`;
 
-test("public RP request accepts only fixed play action and checksum-normalizable wallet signals", () => {
+test("public RP request accepts only configured action and checksum-normalizable wallet signals", () => {
   assert.deepEqual(
     validateRpSignatureRequest(
       { action: "play", signal: wallet.toLowerCase() },
@@ -47,7 +48,6 @@ test("public RP configuration fails closed", () => {
     isRpSigningConfigured({
       signingKey: key,
       rpId: "rp_a84548cb908798cf",
-      liveRpId: "rp_a84548cb908798cf",
     }),
     true,
   );
@@ -55,7 +55,6 @@ test("public RP configuration fails closed", () => {
     isRpSigningConfigured({
       signingKey: "",
       rpId: "rp_a84548cb908798cf",
-      liveRpId: "rp_a84548cb908798cf",
     }),
     false,
   );
@@ -63,10 +62,26 @@ test("public RP configuration fails closed", () => {
     isRpSigningConfigured({
       signingKey: key,
       rpId: "rp_wrong",
-      liveRpId: "rp_a84548cb908798cf",
     }),
     false,
   );
+});
+
+test("RP response is the exact IDKit v4 RpContext wire shape", () => {
+  const response = rpContextResponse("rp_a84548cb908798cf", {
+    sig: "signed-request",
+    nonce: "123",
+    createdAt: "100",
+    expiresAt: "200",
+  });
+  assert.deepEqual(response, {
+    rp_id: "rp_a84548cb908798cf",
+    signature: "signed-request",
+    nonce: "123",
+    created_at: 100,
+    expires_at: 200,
+  });
+  assert.equal("sig" in response, false);
 });
 
 test("public RP route uses a bounded JSON reader and has no Auth.js, cookies, logs, or mutable signing context", async () => {
@@ -81,10 +96,10 @@ test("public RP route uses a bounded JSON reader and has no Auth.js, cookies, lo
     ),
   ]);
   assert.match(route, /readWalletAuthJson\(req\)/);
-  assert.match(route, /LIVE_WORLD_ID_ACTION/);
+  assert.match(route, /runtimeConfiguration\(\)/);
   assert.match(
     route,
-    /signRequest\(\{[\s\S]*?action: LIVE_WORLD_ID_ACTION,[\s\S]*?signingKeyHex: SIGNING_KEY!,?[\s\S]*?\}\)/,
+    /signRequest\(\{[\s\S]*?action: configuration\.world\.worldIdAction,[\s\S]*?signingKeyHex: signingKey!,?[\s\S]*?\}\)/,
   );
   assert.match(route, /["']Cache-Control["']: ["']no-store["']/);
   assert.doesNotMatch(

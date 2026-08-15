@@ -1471,6 +1471,13 @@ button {
   font-weight: 800;
   letter-spacing: 0.15em;
 }
+.game-access-card .game-access-warning {
+  color: #ef9a80;
+  font-size: 0.78rem;
+  font-weight: 650;
+  letter-spacing: 0;
+  line-height: 1.45;
+}
 .game-access-card h1 {
   margin: 0;
   color: #f3f0de;

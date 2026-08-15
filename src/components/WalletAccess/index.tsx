@@ -12,9 +12,17 @@ const CivilizationClient = dynamic(
 
 type WalletAccessProps = {
   contractAddress: string;
+  environment: "production" | "development";
+  worldIdAppId: string;
+  worldIdAction: string;
 };
 
-export const WalletAccess = ({ contractAddress }: WalletAccessProps) => {
+export const WalletAccess = ({
+  contractAddress,
+  environment,
+  worldIdAppId,
+  worldIdAction,
+}: WalletAccessProps) => {
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [isPending, setIsPending] = useState(false);
@@ -46,6 +54,9 @@ export const WalletAccess = ({ contractAddress }: WalletAccessProps) => {
         key={`${contractAddress}:${walletAddress}`}
         walletAddress={walletAddress}
         contractAddress={contractAddress}
+        environment={environment}
+        worldIdAppId={worldIdAppId}
+        worldIdAction={worldIdAction}
       />
     );
   }

@@ -23,6 +23,7 @@ export {
 } from "./world-game/projections.js";
 export {
   encodeWalletRegistration,
+  encodeWorldIdRegistration,
   encodeWorldGameAction,
   registerWalletWithMiniKit,
 } from "./world-game/actions.js";
