@@ -1,6 +1,20 @@
 # TrueNAS Apps custom YAML for the `civilization.dapp` application.
 # Replace every REPLACE_* value only in protected TrueNAS configuration.
 services:
+  civilization-migrate:
+    image: ghcr.io/ralphschuler/civilization.dapp:latest
+    command: ["node", "scripts/db-migrate.mjs"]
+    environment:
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGDATABASE: civilization
+      PGUSER: civilization
+      PGPASSWORD: REPLACE_POSTGRES_PASSWORD
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
   civilization-dapp:
     image: ghcr.io/ralphschuler/civilization.dapp:latest
     environment:
@@ -25,8 +39,8 @@ services:
     ports:
       - "31057:31057"
     depends_on:
-      postgres:
-        condition: service_healthy
+      civilization-migrate:
+        condition: service_completed_successfully
     restart: unless-stopped
 
   postgres:

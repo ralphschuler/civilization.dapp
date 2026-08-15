@@ -1,10 +1,10 @@
-'use client';
-import { MiniKitProvider } from '@worldcoin/minikit-js/minikit-provider';
-import dynamic from 'next/dynamic';
-import type { ReactNode } from 'react';
+"use client";
+import { MiniKitProvider } from "@worldcoin/minikit-js/minikit-provider";
+import dynamic from "next/dynamic";
+import type { ReactNode } from "react";
 
 const ErudaProvider = dynamic(
-  () => import('@/providers/Eruda').then((c) => c.ErudaProvider),
+  () => import("@/providers/Eruda").then((c) => c.ErudaProvider),
   { ssr: false },
 );
 

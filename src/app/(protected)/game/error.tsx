@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 export default function GameError({
   reset,
@@ -6,13 +6,20 @@ export default function GameError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  return <main className="world-id-gate">
-    <div className="world-id-gate-card" role="alert">
-      <span className="world-id-gate-mark">CD</span>
-      <p>WORLD MINI APP</p>
-      <h1>Etwas ist schiefgelaufen</h1>
-      <span>Das Spiel konnte nicht geladen werden. Deine Verifizierung und Wallet bleiben geschützt.</span>
-      <button className="world-access-action" onClick={reset}>Erneut versuchen</button>
-    </div>
-  </main>;
+  return (
+    <main className="game-access-gate">
+      <div className="game-access-card" role="alert">
+        <span className="game-access-mark">CD</span>
+        <p>WORLD MINI APP</p>
+        <h1>Etwas ist schiefgelaufen</h1>
+        <span>
+          Das Spiel konnte nicht geladen werden. Deine Wallet-Verbindung bleibt
+          geschützt.
+        </span>
+        <button className="game-access-action" onClick={reset}>
+          Erneut versuchen
+        </button>
+      </div>
+    </main>
+  );
 }

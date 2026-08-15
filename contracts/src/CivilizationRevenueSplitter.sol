@@ -22,20 +22,38 @@ contract CivilizationRevenueSplitter is ReentrancyGuard {
     uint64 public nextPayoutAt;
     uint64 public splitVersion;
 
-    event DistributionSet(address[] recipients, uint16[] sharesBps, uint64 indexed splitVersion);
+    event DistributionSet(
+        address[] recipients,
+        uint16[] sharesBps,
+        uint64 indexed splitVersion
+    );
     event RevenueAllocated(uint256 amount, uint64 indexed splitVersion);
-    event MonthlyPayoutProcessed(uint256 amount, uint64 indexed splitVersion, uint64 nextPayoutAt);
+    event MonthlyPayoutProcessed(
+        uint256 amount,
+        uint64 indexed splitVersion,
+        uint64 nextPayoutAt
+    );
     event RevenueReleased(address indexed recipient, uint256 amount);
-    error Unauthorized(); error InvalidDistribution();
+    error Unauthorized();
+    error InvalidDistribution();
 
-    constructor(address token_, address timelock_, address[] memory recipients_, uint16[] memory shares_) {
-        if (token_.code.length == 0 || timelock_.code.length == 0) revert InvalidDistribution();
-        token = IERC20(token_); timelock = timelock_;
+    constructor(
+        address token_,
+        address timelock_,
+        address[] memory recipients_,
+        uint16[] memory shares_
+    ) {
+        if (token_.code.length == 0 || timelock_.code.length == 0)
+            revert InvalidDistribution();
+        token = IERC20(token_);
+        timelock = timelock_;
         nextPayoutAt = uint64(block.timestamp + PAYOUT_PERIOD);
         _setDistribution(recipients_, shares_);
     }
 
-    function recipients() external view returns (address[] memory) { return _recipients; }
+    function recipients() external view returns (address[] memory) {
+        return _recipients;
+    }
 
     error PayoutNotDue(uint64 dueAt);
 
@@ -47,15 +65,21 @@ contract CivilizationRevenueSplitter is ReentrancyGuard {
     }
 
     /// @notice Permissionless cadence endpoint. It is intentionally a cheap no-op before its deadline.
-    function processMonthlyPayout() external nonReentrant returns (uint256 amount, uint64 version, uint64 deadline) {
-        if (block.timestamp < nextPayoutAt) return (0, splitVersion, nextPayoutAt);
+    function processMonthlyPayout()
+        external
+        nonReentrant
+        returns (uint256 amount, uint64 version, uint64 deadline)
+    {
+        if (block.timestamp < nextPayoutAt)
+            return (0, splitVersion, nextPayoutAt);
         amount = _allocate();
         // Current recipients are paid in the cadence transaction.  Removed
         // recipients retain their pre-rotation checkpoint for release().
         for (uint256 i; i < _recipients.length; ++i) _release(_recipients[i]);
         // Advance directly beyond the current timestamp. This stays O(1) even
         // after years of inactivity, unlike advancing one missed period at a time.
-        uint256 missedPeriods = (block.timestamp - nextPayoutAt) / PAYOUT_PERIOD + 1;
+        uint256 missedPeriods =
+            (block.timestamp - nextPayoutAt) / PAYOUT_PERIOD + 1;
         nextPayoutAt += uint64(missedPeriods * PAYOUT_PERIOD);
         version = splitVersion;
         deadline = nextPayoutAt;
@@ -94,7 +118,10 @@ contract CivilizationRevenueSplitter is ReentrancyGuard {
         emit RevenueReleased(recipient, amount);
     }
 
-    function setDistribution(address[] calldata recipients_, uint16[] calldata shares_) external nonReentrant {
+    function setDistribution(
+        address[] calldata recipients_,
+        uint16[] calldata shares_
+    ) external nonReentrant {
         if (msg.sender != timelock) revert Unauthorized();
         // Preserve the old schedule only when it is already payable.  Before
         // the cadence boundary, leaving the balance unallocated both prevents
@@ -104,14 +131,28 @@ contract CivilizationRevenueSplitter is ReentrancyGuard {
         _setDistribution(recipients_, shares_);
     }
 
-    function _setDistribution(address[] memory recipients_, uint16[] memory shares_) private {
-        if (recipients_.length < 2 || recipients_.length > 10 || recipients_.length != shares_.length) revert InvalidDistribution();
-        for (uint256 i; i < _recipients.length; ++i) delete sharesBps[_recipients[i]];
+    function _setDistribution(
+        address[] memory recipients_,
+        uint16[] memory shares_
+    ) private {
+        if (
+            recipients_.length < 2 ||
+            recipients_.length > 10 ||
+            recipients_.length != shares_.length
+        ) revert InvalidDistribution();
+        for (uint256 i; i < _recipients.length; ++i)
+            delete sharesBps[_recipients[i]];
         delete _recipients;
         uint256 sum;
         for (uint256 i; i < recipients_.length; ++i) {
-            if (recipients_[i] == address(0) || recipients_[i] == address(this) || shares_[i] == 0) revert InvalidDistribution();
-            for (uint256 j; j < i; ++j) if (recipients_[i] == recipients_[j]) revert InvalidDistribution();
+            if (
+                recipients_[i] == address(0) ||
+                recipients_[i] == address(this) ||
+                shares_[i] == 0
+            ) revert InvalidDistribution();
+            for (uint256 j; j < i; ++j)
+                if (recipients_[i] == recipients_[j])
+                    revert InvalidDistribution();
             _recipients.push(recipients_[i]);
             sharesBps[recipients_[i]] = shares_[i];
             sum += shares_[i];

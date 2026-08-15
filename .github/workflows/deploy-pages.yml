@@ -1,10 +1,10 @@
-name: Deploy Civilization DApp to GitHub Pages
+name: Deploy Civilization Dev Mini App to GitHub Pages
 
 on:
   push:
-    branches: [master]
+    branches: [develop]
   pull_request:
-    branches: [master]
+    branches: [develop]
   workflow_dispatch:
 
 permissions:
@@ -13,7 +13,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: pages
+  group: civilization-pages-dev
   cancel-in-progress: true
 
 jobs:

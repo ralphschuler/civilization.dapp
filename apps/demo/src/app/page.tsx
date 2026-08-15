@@ -1,3 +1,5 @@
-import DemoClient from '../demo-client';
+import DemoClient from "../demo-client";
 
-export default function DemoPage() { return <DemoClient />; }
+export default function DemoPage() {
+  return <DemoClient />;
+}

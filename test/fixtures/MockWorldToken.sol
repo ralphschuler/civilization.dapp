@@ -8,8 +8,12 @@ contract MockWorldToken {
     uint16 public feeBps;
     bool public transferFails;
 
-    function setFeeBps(uint16 value) external { feeBps = value; }
-    function setTransferFails(bool value) external { transferFails = value; }
+    function setFeeBps(uint16 value) external {
+        feeBps = value;
+    }
+    function setTransferFails(bool value) external {
+        transferFails = value;
+    }
 
     function mint(address account, uint256 value) external {
         balanceOf[account] += value;
@@ -20,11 +24,16 @@ contract MockWorldToken {
         return true;
     }
 
-    function transferFrom(address from, address to, uint256 value) external returns (bool) {
-        if (allowance[from][msg.sender] < value || balanceOf[from] < value) return false;
+    function transferFrom(
+        address from,
+        address to,
+        uint256 value
+    ) external returns (bool) {
+        if (allowance[from][msg.sender] < value || balanceOf[from] < value)
+            return false;
         allowance[from][msg.sender] -= value;
         balanceOf[from] -= value;
-        balanceOf[to] += value - (value * feeBps / 10_000);
+        balanceOf[to] += value - ((value * feeBps) / 10_000);
         return true;
     }
 

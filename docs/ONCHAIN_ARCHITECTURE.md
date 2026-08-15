@@ -6,17 +6,19 @@ The current source introduces `registerWallet()`: a public, zero-argument functi
 
 After server-side WalletAuth/SIWE has produced the checksum wallet, the client reads `previewPlayerState`. Registered wallets render the game immediately. Unregistered wallets submit exactly one MiniKit transaction for `registerWallet()`, require `executedWith === 'minikit'`, a successful status, `userOpHash`, and a checksum-equal `from`, then wait for a successful receipt and a registered readback before rendering the map. Any rejection, timeout, failed receipt, or false readback stays on the fixed retry UI; retries read state before another submission.
 
-This revision is deployed at `0x71564689Fa320bA010561A880CfE2896b6Dc8f8b` by transaction [`0xf9f5164392011c80cf5a510e055f255fbcfe2166e39f537d2e18cf8a48f0e750`](https://worldscan.org/tx/0xf9f5164392011c80cf5a510e055f255fbcfe2166e39f537d2e18cf8a48f0e750), block `33697221`. The deployed runtime is 16,276 bytes and `registerWallet()` was simulated successfully against World Chain mainnet after deployment.
+The active client and production target use proxy `0x0E6689d0649Ad9037465d178231b10F18518D2b0`. The transaction [`0xf9f5164392011c80cf5a510e055f255fbcfe2166e39f537d2e18cf8a48f0e750`](https://worldscan.org/tx/0xf9f5164392011c80cf5a510e055f255fbcfe2166e39f537d2e18cf8a48f0e750), block `33697221`, belongs to the earlier directly deployed contract at `0x71564689Fa320bA010561A880CfE2896b6Dc8f8b`; it is not a proxy-deployment transaction. The earlier runtime was 16,276 bytes and `registerWallet()` was simulated successfully against World Chain mainnet after that deployment. This repository does not establish that the earlier direct deployment is the active proxy's implementation.
 
 The replaced dual World ID v3/v4 deployment at `0xfCdB50926c3c6b2CDF3ACE76B13c9383A2DC3199` remains historical. It had zero events, zero registered wallets, and zero CGOLD supply before replacement; no player-state migration was needed. Neither deployment has been independently audited or enables settlement.
 
 ## Authority boundary
 
 ```text
-Mini App client -> IDKit Proof of Human -> v4 -> CivilizationGame.registerWorldId
-                                      \-> v3 -> CivilizationGame.registerWorldIdLegacy
-       -> WorldIDVerifier (v4) or WorldIDRouter (v3) verifies on World Chain
-       -> shared nullifier/player checks -> village created
+Mini App client -> server-side WalletAuth/SIWE verification -> checksum wallet
+                -> MiniKit registerWallet() -> active Civilization proxy
+                -> successful receipt and registered readback -> village rendered
+
+Dormant contract ABI compatibility only:
+registerWorldId (v4) / registerWorldIdLegacy (v3) -> verifier/router -> legacy nullifier checks
 Mini App client --------------------------------------> claim / upgrade / completeUpgrade / prestige / train / startRaid / resolveRaid
 ```
 
@@ -32,17 +34,17 @@ Every player transition settles elapsed production from `block.timestamp`; produ
 
 `startRaid` requires a registered non-self defender, reserves an available army, and records a one-minute march. `resolveRaid` is callable only by its attacker after arrival, accrues both players, calculates deterministic attack/defense and casualties, and—on victory—takes only defender field stock within troop transport capacity and the attacker's free total storage capacity. It never touches a defender's protected stored resources. Events make registration and every state transition indexable.
 
-## MiniKit transaction path
+## Active MiniKit transaction path
 
-IDKit is requested with `CredentialRequest('proof_of_human', { signal: walletAddress })` and `allow_legacy_proofs=true`, the SDK's migration mode for v4 with v3 fallback. A v4 result is encoded as `registerWorldId(nullifierHash, nonce, signalHash, expiresAtMin, issuerSchemaId, proof)`. A v3 Orb result's ABI-encoded proof is decoded as the documented `uint256[8]` and sent as `registerWorldIdLegacy(root, signalHash, nullifierHash, proof)`. No backend verifies, rewrites, or blesses either proof. Subsequent UI actions are signed/submitted by that player's wallet. The client reads `playerState`, `balanceOf`, and contract events for display; it does not derive authoritative balances locally.
+After WalletAuth/SIWE verification, the active client reads `previewPlayerState`. If the checksum wallet is not registered, it sends `registerWallet()` through MiniKit and accepts the result only when it is a MiniKit submission for that same checksum wallet. A successful receipt and registered readback are required before rendering the game. Subsequent player actions are signed/submitted by that wallet. The client reads `playerState`, `balanceOf`, and contract events for display; it does not derive authoritative balances locally.
 
-## Required dual-protocol constructor configuration
+## Required dual-protocol proxy-release configuration
 
 `scripts/deploy-worldchain-mainnet.mjs` requires the v4 action/RP/schema/freshness inputs plus `worldIdLegacyRouterAddress`, `worldIdLegacyAppId`, and `worldIdLegacyActionId` from the protected World ID JSON. The legacy app ID must exactly match `WORLD_ID_APP_ID`; the legacy and v4 action must exactly match `WORLD_ID_ACTION`. The router address must be re-verified from the official [World on-chain verification documentation](https://docs.world.org/world-id/idkit/onchain-verification) immediately before deployment. It is intentionally not hard-coded. See `contracts/world-id-deployment.example.json` for the non-secret shape.
 
-All verifier settings are immutable constructor values. This dual-protocol address has been read back after deployment; a later configuration change requires another reviewed deployment and coordinated runtime-address update. The World Developer Portal configuration remains unchanged.
+For the supplied proxy-release path, `CivilizationGame` receives the dual-protocol verifier settings through `initialize(InitConfig)` and stores them in ERC-7201 proxy storage. A reviewed release must initialize the proxy with those values and then perform an on-chain readback of the active proxy configuration. The source and runner inputs alone do not prove the proxy's active implementation, its initialized capabilities, or an unchanged World Developer Portal configuration.
 
-The mainnet address and public World ID build configuration are included for the deployed game. No settlement adapter, Permit2 flow, withdrawal, redemption, fee routing, liquidity, custody, or World Portal change is included in this release. A direct WLD construction-time payment exists in the deployed contract, but no WLD/CGOLD settlement is enabled. CGOLD's ordinary ERC-20 movement remains governed by the deployed game rules.
+The repository configures an active proxy target and includes source support plus build inputs for World ID and direct WLD construction boosts. It does not establish the active proxy implementation, the initialized World ID configuration, or capability readback for that target. No settlement adapter, Permit2 flow, withdrawal, redemption, fee routing, liquidity, custody, or World Portal change is included in this release. If the active implementation exposes WLD construction boosts, its direct WLD payment remains separate from WLD/CGOLD settlement; no such settlement is enabled here. CGOLD's ordinary ERC-20 movement remains governed by the active implementation's game rules.
 
 ## Required before settlement or wider release
 

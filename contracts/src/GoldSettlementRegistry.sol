@@ -9,7 +9,10 @@ contract GoldSettlementRegistry {
     address public immutable goldToken;
     mapping(address => bool) public isSettlementAsset;
 
-    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+    event OwnershipTransferred(
+        address indexed previousOwner,
+        address indexed newOwner
+    );
     event SettlementAssetSet(address indexed asset, bool allowed);
 
     error NotOwner();
@@ -33,7 +36,10 @@ contract GoldSettlementRegistry {
         owner = nextOwner;
     }
 
-    function setSettlementAsset(address asset, bool allowed) external onlyOwner {
+    function setSettlementAsset(
+        address asset,
+        bool allowed
+    ) external onlyOwner {
         if (asset == address(0)) revert ZeroAddress();
         isSettlementAsset[asset] = allowed;
         emit SettlementAssetSet(asset, allowed);

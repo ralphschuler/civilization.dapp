@@ -4,12 +4,15 @@ export const TRADE_FEE_BPS = 150;
 export const TRADE_BPS_DENOMINATOR = 10_000;
 
 function parseBaseUnits(value) {
-  if (typeof value !== "string" || !/^[1-9]\d*$/.test(value)) throw new Error("invalid_amount");
+  if (typeof value !== "string" || !/^[1-9]\d*$/.test(value))
+    throw new Error("invalid_amount");
   return BigInt(value);
 }
 
 function applyFee(gross) {
-  const net = (gross * BigInt(TRADE_BPS_DENOMINATOR - TRADE_FEE_BPS)) / BigInt(TRADE_BPS_DENOMINATOR);
+  const net =
+    (gross * BigInt(TRADE_BPS_DENOMINATOR - TRADE_FEE_BPS)) /
+    BigInt(TRADE_BPS_DENOMINATOR);
   return { gross, net, sink: gross - net };
 }
 

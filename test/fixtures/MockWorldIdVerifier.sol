@@ -89,8 +89,15 @@ contract MockWorldIdVerifier {
         require(signalHash == expectedV4SignalHash, "v4 signal");
         require(expiresAtMin == expectedV4ExpiresAtMin, "v4 expiry");
         require(issuerSchemaId == expectedV4IssuerSchemaId, "v4 issuer");
-        require(credentialGenesisIssuedAtMin == expectedV4CredentialGenesisIssuedAtMin, "v4 genesis");
-        require(keccak256(abi.encode(proof)) == expectedV4ProofHash, "v4 proof");
+        require(
+            credentialGenesisIssuedAtMin ==
+                expectedV4CredentialGenesisIssuedAtMin,
+            "v4 genesis"
+        );
+        require(
+            keccak256(abi.encode(proof)) == expectedV4ProofHash,
+            "v4 proof"
+        );
     }
 
     function verifyProof(
@@ -107,7 +114,13 @@ contract MockWorldIdVerifier {
         require(groupId == expectedLegacyGroupId, "v3 group");
         require(signalHash == expectedLegacySignalHash, "v3 signal");
         require(nullifierHash == expectedLegacyNullifier, "v3 nullifier");
-        require(externalNullifierHash == expectedLegacyExternalNullifier, "v3 external nullifier");
-        require(keccak256(abi.encode(proof)) == expectedLegacyProofHash, "v3 proof");
+        require(
+            externalNullifierHash == expectedLegacyExternalNullifier,
+            "v3 external nullifier"
+        );
+        require(
+            keccak256(abi.encode(proof)) == expectedLegacyProofHash,
+            "v3 proof"
+        );
     }
 }
