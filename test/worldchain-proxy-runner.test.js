@@ -6,14 +6,200 @@ import { join } from "node:path";
 import test from "node:test";
 import { keccak256 } from "viem";
 import {
+  assertCompilerAbiPreflight,
   assertProxyAdminImmutableReferences,
   assertDeploymentNonce,
+  assertWorldIdPlanBounds,
   isRecoveredStep,
   normalizeRuntimeBytecode,
   normalizedRuntimeCodehash,
+  readWorldIdStorageSnapshot,
   recoverDeploymentPrefix,
   waitForRuntimeBytecode,
 } from "../scripts/worldchain-proxy-runner.mjs";
+
+const worldIdSnapshot = {
+  slot: "0xb9c5fb29a19a4c3e9d391dc26eaefcdaaec2a4fc6362d4bd27f1470fa2592b00",
+  structs: {
+    GameStorage: [
+      "uint256 totalSupply",
+      "mapping(address => uint256) balanceOf",
+      "mapping(address => mapping(address => uint256)) allowance",
+      "IWorldIDVerifier worldIdVerifier",
+      "uint256 worldIdAction",
+      "uint64 worldIdRpId",
+      "uint64 worldIdIssuerSchemaId",
+      "uint256 worldIdCredentialGenesisIssuedAtMin",
+    ],
+  },
+};
+
+const word = (value) => `0x${value.toString(16).padStart(64, "0")}`;
+
+test("World ID storage helper unpacks the frozen V1 packed fields", async () => {
+  const rpId = 42n;
+  const issuerSchemaId = 73n;
+  const credentialGenesisIssuedAtMin = 123_456_789n;
+  const requestedSlots = [];
+  const values = await readWorldIdStorageSnapshot({
+    snapshot: worldIdSnapshot,
+    address: "0x0000000000000000000000000000000000000001",
+    getStorageAt: async ({ slot }) => {
+      requestedSlots.push(slot);
+      return slot.endsWith("05")
+        ? word(rpId | (issuerSchemaId << 64n))
+        : word(credentialGenesisIssuedAtMin);
+    },
+  });
+  assert.deepEqual(values, {
+    rpId,
+    issuerSchemaId,
+    credentialGenesisIssuedAtMin,
+  });
+  const base = BigInt(worldIdSnapshot.slot);
+  assert.deepEqual(requestedSlots, [
+    `0x${(base + 5n).toString(16).padStart(64, "0")}`,
+    `0x${(base + 6n).toString(16).padStart(64, "0")}`,
+  ]);
+});
+
+test("World ID storage helper accepts uint64 packing boundaries only", async () => {
+  const base = BigInt(worldIdSnapshot.slot);
+  for (const [rpId, issuerSchemaId] of [
+    [0n, (1n << 64n) - 1n],
+    [(1n << 64n) - 1n, 0n],
+  ]) {
+    const values = await readWorldIdStorageSnapshot({
+      snapshot: worldIdSnapshot,
+      address: "0x0000000000000000000000000000000000000001",
+      getStorageAt: async ({ slot }) =>
+        slot === `0x${(base + 5n).toString(16).padStart(64, "0")}`
+          ? word(rpId | (issuerSchemaId << 64n))
+          : word(0n),
+    });
+    assert.equal(values.rpId, rpId);
+    assert.equal(values.issuerSchemaId, issuerSchemaId);
+  }
+});
+
+test("World ID storage helper rejects reordered snapshots and missing storage", async () => {
+  for (let index = 0; index < 8; index += 1) {
+    const reordered = structuredClone(worldIdSnapshot);
+    reordered.structs.GameStorage[index] = "uint256 incompatiblePrefixField";
+    await assert.rejects(
+      readWorldIdStorageSnapshot({
+        snapshot: reordered,
+        address: "0x0000000000000000000000000000000000000001",
+        getStorageAt: async () => word(0n),
+      }),
+      /frozen GameStorage World ID field ordering/,
+    );
+  }
+  await assert.rejects(
+    readWorldIdStorageSnapshot({
+      snapshot: worldIdSnapshot,
+      address: "0x0000000000000000000000000000000000000001",
+      getStorageAt: async ({ slot }) =>
+        slot.endsWith("05") ? word(1n << 128n) : word(0n),
+    }),
+    /storage has dirty upper bits/,
+  );
+  await assert.rejects(
+    readWorldIdStorageSnapshot({
+      snapshot: worldIdSnapshot,
+      address: "0x0000000000000000000000000000000000000001",
+      getStorageAt: async () => undefined,
+    }),
+    /storage is missing or malformed/,
+  );
+});
+
+const compilerAbiFixture = () => {
+  const functions = (names) =>
+    names.map((name) => ({ type: "function", name, inputs: [], outputs: [] }));
+  return {
+    game: {
+      abi: functions([
+        "initialize",
+        "revenueSplitter",
+        "timelock",
+        "CLAIM_COOLDOWN",
+        "worldIdVerifier",
+        "worldIdLegacyRouter",
+        "worldToken",
+        "worldIdAction",
+        "worldIdRpId",
+        "worldIdLegacyExternalNullifier",
+        "MAX_OFFLINE_SECONDS",
+        "prestigeMultiplierBps",
+      ]),
+    },
+    splitter: {
+      abi: functions([
+        "token",
+        "timelock",
+        "recipients",
+        "PAYOUT_PERIOD",
+        "sharesBps",
+      ]),
+    },
+    registry: { abi: functions(["owner", "releaseCount", "releaseAt"]) },
+    timelock: { abi: functions(["hasRole"]) },
+    proxyAdmin: { abi: functions(["owner"]) },
+  };
+};
+
+test("compiler ABI preflight accepts every required compiler ABI function entry", () => {
+  assert.doesNotThrow(() => assertCompilerAbiPreflight(compilerAbiFixture()));
+});
+
+test("compiler ABI preflight rejects a missing function before deployment", () => {
+  const artifacts = compilerAbiFixture();
+  artifacts.game.abi = artifacts.game.abi.filter(
+    ({ name }) => name !== "initialize",
+  );
+  assert.throws(
+    () => assertCompilerAbiPreflight(artifacts),
+    /game\.initialize function entry is missing/,
+  );
+});
+
+test("World ID plan bounds are uint64/uint256 fail-closed", () => {
+  assert.doesNotThrow(() =>
+    assertWorldIdPlanBounds({
+      rpId: (1n << 64n) - 1n,
+      issuerSchemaId: (1n << 64n) - 1n,
+      credentialGenesisIssuedAtMin: (1n << 256n) - 1n,
+    }),
+  );
+  assert.throws(
+    () =>
+      assertWorldIdPlanBounds({
+        rpId: 1n << 64n,
+        issuerSchemaId: 1n,
+        credentialGenesisIssuedAtMin: 1n,
+      }),
+    /world\.rpId must fit in uint64/,
+  );
+  assert.throws(
+    () =>
+      assertWorldIdPlanBounds({
+        rpId: 1n,
+        issuerSchemaId: 1n << 64n,
+        credentialGenesisIssuedAtMin: 1n,
+      }),
+    /world\.issuerSchemaId must fit in uint64/,
+  );
+  assert.throws(
+    () =>
+      assertWorldIdPlanBounds({
+        rpId: 1n,
+        issuerSchemaId: 1n,
+        credentialGenesisIssuedAtMin: 1n << 256n,
+      }),
+    /world\.credentialGenesisIssuedAtMin must fit in uint256/,
+  );
+});
 
 const immutableArtifact = (
   immutableReferences = { 42: [{ start: 1, length: 4 }] },
@@ -495,5 +681,37 @@ test("runner source keeps receipt, EIP-1967, ordering, and post-verification gua
     proxyAdminVerification,
     /normalizedRuntimeCodehash/,
     "ProxyAdmin verification must not normalize future immutable references",
+  );
+});
+
+test("runner uses same-run compiler artifacts instead of drift-prone manual ABIs", async () => {
+  const source = await readFile("scripts/worldchain-proxy-runner.mjs", "utf8");
+  for (const name of [
+    "gameAbi",
+    "splitterAbi",
+    "registryAbi",
+    "ownableAbi",
+    "timelockAbi",
+  ])
+    assert.doesNotMatch(source, new RegExp(`const ${name}\\s*=`));
+  assert.match(source, /encodeInitializeData\(artifacts\.game, initConfig\)/);
+  assert.match(
+    source,
+    /const artifacts = await compile\(\);\s+assertCompilerAbiPreflight\(artifacts\);/,
+    "the compiler ABI preflight must run immediately after compilation",
+  );
+  assert.match(source, /abi: gameArtifact\.abi/);
+  for (const artifact of [
+    "game",
+    "splitter",
+    "registry",
+    "timelock",
+    "proxyAdmin",
+  ])
+    assert.match(source, new RegExp(`artifacts\\.${artifact}\\.abi`));
+  assert.doesNotMatch(
+    source,
+    /read\(addresses\.proxy, artifacts\.game\.abi, "worldIdIssuerSchemaId"/,
+    "the private issuer schema field must not be read through an obsolete getter",
   );
 });

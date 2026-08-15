@@ -41,156 +41,6 @@ const FORMULA = Object.freeze({
   goldPerHour: 12,
   prestigeBonusBps: 1_000,
 });
-const gameAbi = [
-  {
-    type: "function",
-    name: "initialize",
-    stateMutability: "nonpayable",
-    inputs: [
-      {
-        type: "tuple",
-        name: "config",
-        components: [
-          { type: "address", name: "worldIdVerifier" },
-          { type: "string", name: "worldActionId" },
-          { type: "uint64", name: "worldRpId" },
-          { type: "uint64", name: "worldIssuerSchemaId" },
-          { type: "uint256", name: "credentialGenesisIssuedAtMin" },
-          { type: "address", name: "worldIdLegacyRouter" },
-          { type: "string", name: "worldIdLegacyAppId" },
-          { type: "string", name: "worldIdLegacyActionId" },
-          { type: "address", name: "worldToken" },
-          { type: "address", name: "revenueSplitter" },
-          { type: "address", name: "timelock" },
-        ],
-      },
-    ],
-    outputs: [],
-  },
-  ...[
-    "worldIdVerifier",
-    "worldIdLegacyRouter",
-    "worldToken",
-    "revenueSplitter",
-    "timelock",
-  ].map((name) => ({
-    type: "function",
-    name,
-    stateMutability: "view",
-    inputs: [],
-    outputs: [{ type: "address" }],
-  })),
-  ...[
-    "worldIdAction",
-    "worldIdLegacyExternalNullifier",
-    "CLAIM_COOLDOWN",
-    "MAX_OFFLINE_SECONDS",
-  ].map((name) => ({
-    type: "function",
-    name,
-    stateMutability: "view",
-    inputs: [],
-    outputs: [{ type: "uint256" }],
-  })),
-  ...["worldIdRpId", "worldIdIssuerSchemaId"].map((name) => ({
-    type: "function",
-    name,
-    stateMutability: "view",
-    inputs: [],
-    outputs: [{ type: "uint64" }],
-  })),
-  {
-    type: "function",
-    name: "prestigeMultiplierBps",
-    stateMutability: "view",
-    inputs: [{ type: "uint256" }],
-    outputs: [{ type: "uint256" }],
-  },
-];
-const splitterAbi = [
-  ...["token", "timelock"].map((name) => ({
-    type: "function",
-    name,
-    stateMutability: "view",
-    inputs: [],
-    outputs: [{ type: "address" }],
-  })),
-  {
-    type: "function",
-    name: "recipients",
-    stateMutability: "view",
-    inputs: [],
-    outputs: [{ type: "address[]" }],
-  },
-  {
-    type: "function",
-    name: "sharesBps",
-    stateMutability: "view",
-    inputs: [{ type: "address" }],
-    outputs: [{ type: "uint16" }],
-  },
-  {
-    type: "function",
-    name: "PAYOUT_PERIOD",
-    stateMutability: "view",
-    inputs: [],
-    outputs: [{ type: "uint256" }],
-  },
-];
-const registryAbi = [
-  {
-    type: "function",
-    name: "owner",
-    stateMutability: "view",
-    inputs: [],
-    outputs: [{ type: "address" }],
-  },
-  {
-    type: "function",
-    name: "releaseCount",
-    stateMutability: "view",
-    inputs: [],
-    outputs: [{ type: "uint256" }],
-  },
-  {
-    type: "function",
-    name: "releaseAt",
-    stateMutability: "view",
-    inputs: [{ type: "uint256" }],
-    outputs: [
-      {
-        type: "tuple",
-        components: [
-          { type: "address", name: "proxy" },
-          { type: "uint64", name: "version" },
-          { type: "address", name: "implementation" },
-          { type: "bytes32", name: "implementationCodehash" },
-          { type: "bytes32", name: "sourceCommit" },
-          { type: "bytes32", name: "storageLayoutHash" },
-        ],
-      },
-    ],
-  },
-];
-const ownableAbi = [
-  {
-    type: "function",
-    name: "owner",
-    stateMutability: "view",
-    inputs: [],
-    outputs: [{ type: "address" }],
-  },
-];
-const timelockAbi = [
-  {
-    type: "function",
-    name: "hasRole",
-    stateMutability: "view",
-    inputs: [{ type: "bytes32" }, { type: "address" }],
-    outputs: [{ type: "bool" }],
-  },
-];
-
 const fail = (message) => {
   throw new Error(`World Chain deployment plan rejected: ${message}`);
 };
@@ -247,6 +97,167 @@ const json = (value) =>
   JSON.stringify(value, (_, item) =>
     typeof item === "bigint" ? item.toString() : item,
   );
+
+const GAME_STORAGE_PREFIX_FIELDS = Object.freeze([
+  "uint256 totalSupply",
+  "mapping(address => uint256) balanceOf",
+  "mapping(address => mapping(address => uint256)) allowance",
+  "IWorldIDVerifier worldIdVerifier",
+  "uint256 worldIdAction",
+  "uint64 worldIdRpId",
+  "uint64 worldIdIssuerSchemaId",
+  "uint256 worldIdCredentialGenesisIssuedAtMin",
+]);
+const UINT64_MAX = (1n << 64n) - 1n;
+const UINT256_MAX = (1n << 256n) - 1n;
+
+const REQUIRED_COMPILER_ABI_FUNCTIONS = Object.freeze({
+  game: Object.freeze([
+    "initialize",
+    "revenueSplitter",
+    "timelock",
+    "CLAIM_COOLDOWN",
+    "worldIdVerifier",
+    "worldIdLegacyRouter",
+    "worldToken",
+    "worldIdAction",
+    "worldIdRpId",
+    "worldIdLegacyExternalNullifier",
+    "MAX_OFFLINE_SECONDS",
+    "prestigeMultiplierBps",
+  ]),
+  splitter: Object.freeze([
+    "token",
+    "timelock",
+    "recipients",
+    "PAYOUT_PERIOD",
+    "sharesBps",
+  ]),
+  registry: Object.freeze(["owner", "releaseCount", "releaseAt"]),
+  timelock: Object.freeze(["hasRole"]),
+  proxyAdmin: Object.freeze(["owner"]),
+});
+
+export function assertWorldIdPlanBounds({
+  rpId,
+  issuerSchemaId,
+  credentialGenesisIssuedAtMin,
+}) {
+  const boundedUint = (value, name, maximum, bits) => {
+    const parsed = uint(value, name);
+    if (parsed > maximum) fail(`${name} must fit in uint${bits}`);
+    return parsed;
+  };
+  return {
+    rpId: boundedUint(rpId, "world.rpId", UINT64_MAX, 64),
+    issuerSchemaId: boundedUint(
+      issuerSchemaId,
+      "world.issuerSchemaId",
+      UINT64_MAX,
+      64,
+    ),
+    credentialGenesisIssuedAtMin: boundedUint(
+      credentialGenesisIssuedAtMin,
+      "world.credentialGenesisIssuedAtMin",
+      UINT256_MAX,
+      256,
+    ),
+  };
+}
+
+const storageWord = (value, name) => {
+  if (typeof value !== "string" || !/^0x[0-9a-f]{64}$/i.test(value))
+    throw new Error(
+      `post-deploy verification failed: ${name} is missing or malformed`,
+    );
+  return BigInt(value);
+};
+
+/**
+ * Read the private V1 World ID fields directly from the frozen GameStorage
+ * layout. The explicit ordering check prevents a later snapshot from silently
+ * changing the meaning of these offsets.
+ */
+export async function readWorldIdStorageSnapshot({
+  snapshot,
+  address,
+  getStorageAt,
+}) {
+  const fields = snapshot?.structs?.GameStorage;
+  if (
+    !Array.isArray(fields) ||
+    fields.length < 8 ||
+    fields
+      .slice(0, GAME_STORAGE_PREFIX_FIELDS.length)
+      .some((field, index) => field !== GAME_STORAGE_PREFIX_FIELDS[index])
+  )
+    throw new Error(
+      "post-deploy verification failed: frozen GameStorage World ID field ordering",
+    );
+  if (
+    typeof snapshot.slot !== "string" ||
+    !/^0x[0-9a-f]{64}$/i.test(snapshot.slot)
+  )
+    throw new Error(
+      "post-deploy verification failed: frozen GameStorage slot is malformed",
+    );
+  if (typeof getStorageAt !== "function")
+    throw new Error(
+      "post-deploy verification failed: storage reader is missing",
+    );
+
+  const slot = BigInt(snapshot.slot);
+  const [packedWorldId, credentialGenesisIssuedAtMin] = await Promise.all([
+    getStorageAt({ address, slot: toHex(slot + 5n, { size: 32 }) }),
+    getStorageAt({ address, slot: toHex(slot + 6n, { size: 32 }) }),
+  ]);
+  const packed = storageWord(packedWorldId, "World ID RP/schema storage");
+  if (packed >> 128n !== 0n)
+    throw new Error(
+      "post-deploy verification failed: World ID RP/schema storage has dirty upper bits",
+    );
+  return {
+    rpId: packed & UINT64_MAX,
+    issuerSchemaId: (packed >> 64n) & UINT64_MAX,
+    credentialGenesisIssuedAtMin: storageWord(
+      credentialGenesisIssuedAtMin,
+      "World ID credential genesis storage",
+    ),
+  };
+}
+
+export const encodeInitializeData = (gameArtifact, initConfig) =>
+  encodeFunctionData({
+    abi: gameArtifact.abi,
+    functionName: "initialize",
+    args: [initConfig],
+  });
+
+/**
+ * Fail before any account, nonce, or transaction work if compiler output lacks
+ * a function entry needed for initialization or post-deployment verification.
+ */
+export function assertCompilerAbiPreflight(artifacts) {
+  for (const [artifactName, functionNames] of Object.entries(
+    REQUIRED_COMPILER_ABI_FUNCTIONS,
+  )) {
+    const abi = artifacts?.[artifactName]?.abi;
+    if (!Array.isArray(abi))
+      throw new Error(
+        `compiler ABI preflight failed: ${artifactName} ABI is missing or malformed`,
+      );
+    for (const functionName of functionNames) {
+      if (
+        !abi.some(
+          (entry) => entry?.type === "function" && entry.name === functionName,
+        )
+      )
+        throw new Error(
+          `compiler ABI preflight failed: ${artifactName}.${functionName} function entry is missing`,
+        );
+    }
+  }
+}
 
 const hasRuntimeCode = (code) => typeof code === "string" && code !== "0x";
 const delay = (milliseconds) =>
@@ -664,6 +675,11 @@ async function loadPlan(network) {
     governance.executors.length === 0
   )
     fail("governance role model requires non-empty proposers and executors");
+  const worldIdFields = assertWorldIdPlanBounds({
+    rpId: plan.world?.rpId,
+    issuerSchemaId: plan.world?.issuerSchemaId,
+    credentialGenesisIssuedAtMin: plan.world?.credentialGenesisIssuedAtMin,
+  });
   const normalized = {
     ...plan,
     deployer: address(plan.deployer, "deployer"),
@@ -689,12 +705,9 @@ async function loadPlan(network) {
     world: {
       verifier: address(plan.world?.verifier, "world.verifier"),
       actionId: text(plan.world?.actionId, "world.actionId"),
-      rpId: uint(plan.world?.rpId, "world.rpId"),
-      issuerSchemaId: uint(plan.world?.issuerSchemaId, "world.issuerSchemaId"),
-      credentialGenesisIssuedAtMin: uint(
-        plan.world?.credentialGenesisIssuedAtMin,
-        "world.credentialGenesisIssuedAtMin",
-      ),
+      rpId: worldIdFields.rpId,
+      issuerSchemaId: worldIdFields.issuerSchemaId,
+      credentialGenesisIssuedAtMin: worldIdFields.credentialGenesisIssuedAtMin,
       legacyRouter: address(plan.world?.legacyRouter, "world.legacyRouter"),
       legacyAppId: text(plan.world?.legacyAppId, "world.legacyAppId"),
       legacyActionId: text(plan.world?.legacyActionId, "world.legacyActionId"),
@@ -760,6 +773,7 @@ export async function runWorldChainDeployment(
   if (hash(plan.storageLayoutHash, "storageLayoutHash") !== storageLayoutHash)
     fail(`storageLayoutHash must match frozen V1 schema ${storageLayoutHash}`);
   const artifacts = await compile();
+  assertCompilerAbiPreflight(artifacts);
   const runtimeHash = (artifact) =>
     keccak256(`0x${artifact.evm.deployedBytecode.object}`);
   const bytecode = (artifact) => `0x${artifact.evm.bytecode.object}`;
@@ -789,11 +803,7 @@ export async function runWorldChainDeployment(
     revenueSplitter: addresses.splitter,
     timelock: addresses.timelock,
   };
-  const initializeData = encodeFunctionData({
-    abi: gameAbi,
-    functionName: "initialize",
-    args: [initConfig],
-  });
+  const initializeData = encodeInitializeData(artifacts.game, initConfig);
   const manifest = {
     mode: sending ? "SEND" : "DRY_RUN",
     chain: network,
@@ -947,15 +957,21 @@ export async function runWorldChainDeployment(
   const proposerRole = keccak256(stringToHex("PROPOSER_ROLE"));
   const executorRole = keccak256(stringToHex("EXECUTOR_ROLE"));
   const timelockChecks = await Promise.all([
-    read(addresses.timelock, timelockAbi, "hasRole", [
+    read(addresses.timelock, artifacts.timelock.abi, "hasRole", [
       ZERO_HASH,
       p.governance.timelockAdmin,
     ]),
     ...p.governance.proposers.map((account) =>
-      read(addresses.timelock, timelockAbi, "hasRole", [proposerRole, account]),
+      read(addresses.timelock, artifacts.timelock.abi, "hasRole", [
+        proposerRole,
+        account,
+      ]),
     ),
     ...p.governance.executors.map((account) =>
-      read(addresses.timelock, timelockAbi, "hasRole", [executorRole, account]),
+      read(addresses.timelock, artifacts.timelock.abi, "hasRole", [
+        executorRole,
+        account,
+      ]),
     ),
   ]);
   if (timelockChecks.some((value) => !value))
@@ -972,10 +988,10 @@ export async function runWorldChainDeployment(
     artifacts.splitter,
   );
   const splitterBeforeProxy = await Promise.all([
-    read(addresses.splitter, splitterAbi, "token"),
-    read(addresses.splitter, splitterAbi, "timelock"),
-    read(addresses.splitter, splitterAbi, "recipients"),
-    read(addresses.splitter, splitterAbi, "PAYOUT_PERIOD"),
+    read(addresses.splitter, artifacts.splitter.abi, "token"),
+    read(addresses.splitter, artifacts.splitter.abi, "timelock"),
+    read(addresses.splitter, artifacts.splitter.abi, "recipients"),
+    read(addresses.splitter, artifacts.splitter.abi, "PAYOUT_PERIOD"),
   ]);
   same(splitterBeforeProxy[0], p.world.token, "splitter token before proxy");
   same(
@@ -1006,9 +1022,9 @@ export async function runWorldChainDeployment(
     artifacts.proxy,
   );
   const proxyBeforeRegistry = await Promise.all([
-    read(addresses.proxy, gameAbi, "revenueSplitter"),
-    read(addresses.proxy, gameAbi, "timelock"),
-    read(addresses.proxy, gameAbi, "CLAIM_COOLDOWN"),
+    read(addresses.proxy, artifacts.game.abi, "revenueSplitter"),
+    read(addresses.proxy, artifacts.game.abi, "timelock"),
+    read(addresses.proxy, artifacts.game.abi, "CLAIM_COOLDOWN"),
     publicClient.getStorageAt({
       address: addresses.proxy,
       slot: EIP1967_ADMIN_SLOT,
@@ -1055,7 +1071,7 @@ export async function runWorldChainDeployment(
     "expected ProxyAdmin runtime bytecode hash before registry",
   );
   same(
-    await read(expectedProxyAdmin, ownableAbi, "owner"),
+    await read(expectedProxyAdmin, artifacts.proxyAdmin.abi, "owner"),
     addresses.timelock,
     "ProxyAdmin owner before registry",
   );
@@ -1108,32 +1124,36 @@ export async function runWorldChainDeployment(
     configuredTimelock,
     configuredAction,
     configuredRp,
-    configuredSchema,
     configuredLegacyNullifier,
     cooldown,
     maxOffline,
     multiplier,
+    storedWorldId,
   ] = await Promise.all([
-    read(proxyAdmin, ownableAbi, "owner"),
-    read(addresses.registry, registryAbi, "owner"),
-    read(addresses.registry, registryAbi, "releaseCount"),
-    read(addresses.registry, registryAbi, "releaseAt", [0n]),
-    read(addresses.splitter, splitterAbi, "token"),
-    read(addresses.splitter, splitterAbi, "timelock"),
-    read(addresses.splitter, splitterAbi, "recipients"),
-    read(addresses.splitter, splitterAbi, "PAYOUT_PERIOD"),
-    read(addresses.proxy, gameAbi, "worldIdVerifier"),
-    read(addresses.proxy, gameAbi, "worldIdLegacyRouter"),
-    read(addresses.proxy, gameAbi, "worldToken"),
-    read(addresses.proxy, gameAbi, "revenueSplitter"),
-    read(addresses.proxy, gameAbi, "timelock"),
-    read(addresses.proxy, gameAbi, "worldIdAction"),
-    read(addresses.proxy, gameAbi, "worldIdRpId"),
-    read(addresses.proxy, gameAbi, "worldIdIssuerSchemaId"),
-    read(addresses.proxy, gameAbi, "worldIdLegacyExternalNullifier"),
-    read(addresses.proxy, gameAbi, "CLAIM_COOLDOWN"),
-    read(addresses.proxy, gameAbi, "MAX_OFFLINE_SECONDS"),
-    read(addresses.proxy, gameAbi, "prestigeMultiplierBps", [0n]),
+    read(proxyAdmin, artifacts.proxyAdmin.abi, "owner"),
+    read(addresses.registry, artifacts.registry.abi, "owner"),
+    read(addresses.registry, artifacts.registry.abi, "releaseCount"),
+    read(addresses.registry, artifacts.registry.abi, "releaseAt", [0n]),
+    read(addresses.splitter, artifacts.splitter.abi, "token"),
+    read(addresses.splitter, artifacts.splitter.abi, "timelock"),
+    read(addresses.splitter, artifacts.splitter.abi, "recipients"),
+    read(addresses.splitter, artifacts.splitter.abi, "PAYOUT_PERIOD"),
+    read(addresses.proxy, artifacts.game.abi, "worldIdVerifier"),
+    read(addresses.proxy, artifacts.game.abi, "worldIdLegacyRouter"),
+    read(addresses.proxy, artifacts.game.abi, "worldToken"),
+    read(addresses.proxy, artifacts.game.abi, "revenueSplitter"),
+    read(addresses.proxy, artifacts.game.abi, "timelock"),
+    read(addresses.proxy, artifacts.game.abi, "worldIdAction"),
+    read(addresses.proxy, artifacts.game.abi, "worldIdRpId"),
+    read(addresses.proxy, artifacts.game.abi, "worldIdLegacyExternalNullifier"),
+    read(addresses.proxy, artifacts.game.abi, "CLAIM_COOLDOWN"),
+    read(addresses.proxy, artifacts.game.abi, "MAX_OFFLINE_SECONDS"),
+    read(addresses.proxy, artifacts.game.abi, "prestigeMultiplierBps", [0n]),
+    readWorldIdStorageSnapshot({
+      snapshot,
+      address: addresses.proxy,
+      getStorageAt: (request) => publicClient.getStorageAt(request),
+    }),
   ]);
   same(adminOwner, addresses.timelock, "ProxyAdmin owner");
   same(registryOwner, addresses.timelock, "registry owner");
@@ -1187,7 +1207,9 @@ export async function runWorldChainDeployment(
   );
   const shares = await Promise.all(
     p.revenueDistribution.recipients.map((recipient) =>
-      read(addresses.splitter, splitterAbi, "sharesBps", [recipient]),
+      read(addresses.splitter, artifacts.splitter.abi, "sharesBps", [
+        recipient,
+      ]),
     ),
   );
   shares.forEach((share, index) =>
@@ -1200,7 +1222,6 @@ export async function runWorldChainDeployment(
   [
     configuredAction,
     configuredRp,
-    configuredSchema,
     configuredLegacyNullifier,
     cooldown,
     maxOffline,
@@ -1212,7 +1233,6 @@ export async function runWorldChainDeployment(
       [
         action,
         p.world.rpId,
-        p.world.issuerSchemaId,
         legacyNullifier,
         60n,
         86_400n,
@@ -1221,6 +1241,18 @@ export async function runWorldChainDeployment(
       ][index],
       `formula/config field ${index}`,
     ),
+  );
+  same(storedWorldId.rpId, configuredRp, "World ID RP storage/public getter");
+  same(storedWorldId.rpId, p.world.rpId, "World ID RP storage");
+  same(
+    storedWorldId.issuerSchemaId,
+    p.world.issuerSchemaId,
+    "World ID issuer schema storage",
+  );
+  same(
+    storedWorldId.credentialGenesisIssuedAtMin,
+    p.world.credentialGenesisIssuedAtMin,
+    "World ID credential genesis storage",
   );
   const codes = await Promise.all(
     Object.values(addresses).map((address_) =>
