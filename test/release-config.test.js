@@ -61,7 +61,7 @@ test('Next deployment templates carry every Wallet Auth, RP, World, and challeng
 });
 
 test('wallet-registration mainnet address is consistent across runtime and deployment templates', async () => {
-  const address = '0x71564689Fa320bA010561A880CfE2896b6Dc8f8b';
+  const address = '0x0E6689d0649Ad9037465d178231b10F18518D2b0';
   const files = await Promise.all([
     source('src/world-game.js'),
     source('src/lib/runtime-config.ts'),
