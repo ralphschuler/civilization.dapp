@@ -451,6 +451,16 @@ test("runner source keeps receipt, EIP-1967, ordering, and post-verification gua
       new RegExp(required.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
     );
   assert.doesNotMatch(source, /createWalletClient\(\{ account: p\.deployer/);
+  assert.match(
+    source,
+    /prestigeMultiplierBps/,
+    "post-deploy verification must use the compiled prestige multiplier getter",
+  );
+  assert.doesNotMatch(
+    source,
+    /productionMultiplierForPrestige/,
+    "post-deploy verification must not use the obsolete prestige multiplier getter",
+  );
   const implementation = source.search(deploymentStep("implementation"));
   const timelock = source.search(deploymentStep("timelock"));
   const splitter = source.search(deploymentStep("splitter"));
