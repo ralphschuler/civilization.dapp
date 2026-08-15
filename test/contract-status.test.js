@@ -10,7 +10,7 @@ test("contract status identifies the unaudited World Chain mainnet deployment wi
   assert.equal(CONTRACT_STATUS.settlementEnabled, false);
   assert.deepEqual(CONTRACT_STATUS.deployedContracts, [{
     name: "CivilizationGame",
-    address: "0x71564689Fa320bA010561A880CfE2896b6Dc8f8b",
+    address: "0x0E6689d0649Ad9037465d178231b10F18518D2b0",
     chainId: 480,
     status: "mainnet_wallet_registration_deployed_not_independently_audited",
   }]);
