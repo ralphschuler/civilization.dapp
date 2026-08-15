@@ -4,6 +4,10 @@ Civilization is a Next.js World Mini App. Production contract `0x71564689Fa320bA
 
 GitHub Pages publishes a separate walletless Next static export from `apps/demo`. It uses the shared Civilization UI and game domain in explicit `demo` mode; it never calls production game APIs.
 
+## Release channels
+
+`develop` publishes the walletless static Dev/Test Mini App at https://nyphon.de/civilization.dapp/. `master` verifies and publishes the production container for https://civilization.nyphon.de.
+
 Use Node 22 and pnpm 11.21.0:
 
 ```sh
