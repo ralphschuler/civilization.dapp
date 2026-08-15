@@ -1,6 +1,6 @@
 import { getAddress, isAddress } from 'viem';
 
-export const LIVE_CONTRACT = '0x71564689Fa320bA010561A880CfE2896b6Dc8f8b';
+export const LIVE_CONTRACT = '0x0E6689d0649Ad9037465d178231b10F18518D2b0';
 export const LIVE_RP_ID = 'rp_a84548cb908798cf';
 export const LIVE_WORLD_ID_ACTION = 'play';
 export const LIVE_WORLD_ID_PROOF_CONTEXT_URL = 'https://civilization.nyphon.de/api/rp-signature';

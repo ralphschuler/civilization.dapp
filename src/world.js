@@ -11,7 +11,7 @@ export const WORLD_CHAIN_MAINNET_RPC_URL = "https://worldchain-mainnet.g.alchemy
 export const WORLD_ID_REGISTRATION_READ_ATTEMPTS = 21;
 export const WORLD_ID_VERIFIER_ADDRESS = "0x00000000009E00F9FE82CfeeBB4556686da094d7";
 export const CIVILIZATION_SEPOLIA_DEPLOYMENT = Object.freeze({
-  game: "0xfCdB50926c3c6b2CDF3ACE76B13c9383A2DC3199",
+  game: "0x0E6689d0649Ad9037465d178231b10F18518D2b0",
   worldToken: "0x29147C7BEAd901E8019d7911A7DC404447877C62",
   worldIdVerifier: "0x1A64F89881FD2E38255E62c6D62b68076052DF4b",
   rpcUrl: "https://worldchain-sepolia.g.alchemy.com/public",
@@ -37,7 +37,7 @@ export function getWorldIdConfig(configuration = {}) {
     // the Mini App ID below.
     appId: configuration?.worldIdAppId || configuration?.worldAppId || "",
     action: configuration?.worldIdAction || "play",
-    contractAddress: configuration?.civilizationContractAddress || "0x71564689Fa320bA010561A880CfE2896b6Dc8f8b",
+    contractAddress: configuration?.civilizationContractAddress || "0x0E6689d0649Ad9037465d178231b10F18518D2b0",
     proofContextEndpoint: configuration?.worldIdProofContextUrl || "https://civilization.nyphon.de/api/rp-signature",
     environment: configuration?.worldIdEnvironment || "production",
     testnet,
