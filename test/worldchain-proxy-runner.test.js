@@ -7,16 +7,59 @@ import test from "node:test";
 import { keccak256 } from "viem";
 import {
   assertCompilerAbiPreflight,
+  assertAddressStorageWord,
+  compileWorldchainArtifacts,
   assertProxyAdminImmutableReferences,
   assertDeploymentNonce,
+  assertRegistryRecord,
   assertWorldIdPlanBounds,
   isRecoveredStep,
-  normalizeRuntimeBytecode,
-  normalizedRuntimeCodehash,
+  materializeRuntimeBytecode,
+  materializedRuntimeCodehash,
+  resolveImmutableReferenceNames,
   readWorldIdStorageSnapshot,
   recoverDeploymentPrefix,
   waitForRuntimeBytecode,
 } from "../scripts/worldchain-proxy-runner.mjs";
+
+const registryRecord = () => ({
+  proxy: "0x0000000000000000000000000000000000000001",
+  version: 1n,
+  implementation: "0x0000000000000000000000000000000000000002",
+  implementationCodehash: `0x${"aa".repeat(32)}`,
+  sourceCommit: `0x${"bb".repeat(32)}`,
+  storageLayoutHash: `0x${"cc".repeat(32)}`,
+});
+
+test("named registry record verification accepts all six expected fields", () => {
+  const expected = registryRecord();
+  assert.doesNotThrow(() => assertRegistryRecord({ ...expected }, expected));
+});
+
+test("named registry record verification fails closed for missing or wrong fields", () => {
+  const expected = registryRecord();
+  for (const field of Object.keys(expected)) {
+    const missing = { ...expected };
+    delete missing[field];
+    assert.throws(
+      () => assertRegistryRecord(missing, expected),
+      new RegExp(`registry record ${field} is missing`),
+    );
+
+    const wrong = {
+      ...expected,
+      [field]: field === "version" ? 2n : "wrong",
+    };
+    assert.throws(
+      () => assertRegistryRecord(wrong, expected),
+      new RegExp(`registry record ${field}`),
+    );
+  }
+  assert.throws(
+    () => assertRegistryRecord([], expected),
+    /registry record must be a named object/,
+  );
+});
 
 const worldIdSnapshot = {
   slot: "0xb9c5fb29a19a4c3e9d391dc26eaefcdaaec2a4fc6362d4bd27f1470fa2592b00",
@@ -204,6 +247,9 @@ test("World ID plan bounds are uint64/uint256 fail-closed", () => {
 const immutableArtifact = (
   immutableReferences = { 42: [{ start: 1, length: 4 }] },
 ) => ({
+  immutableReferenceNames: Object.fromEntries(
+    Object.keys(immutableReferences).map((id) => [id, "token"]),
+  ),
   evm: {
     deployedBytecode: {
       // The four middle bytes stand in for compiler-declared immutable values.
@@ -213,101 +259,101 @@ const immutableArtifact = (
   },
 });
 
-test("runtime validation normalizes only compiler-declared immutable ranges", () => {
-  const artifact = immutableArtifact();
-  const compiled = "0x60000000000055";
-  const immutableOnlyChange = "0x60aabbccdd0055";
-
-  assert.equal(
-    normalizeRuntimeBytecode({
-      artifact,
-      runtimeCode: immutableOnlyChange,
-      step: "splitter",
-    }),
-    compiled,
-  );
-  assert.equal(
-    normalizedRuntimeCodehash({
-      artifact,
-      runtimeCode: immutableOnlyChange,
-      step: "splitter",
-    }),
-    keccak256(compiled),
-  );
-  assert.notEqual(
-    normalizedRuntimeCodehash({
-      artifact,
-      runtimeCode: "0x60aabbccddff55",
-      step: "splitter",
-    }),
-    keccak256(compiled),
-    "a change outside an immutable range must remain visible",
-  );
-});
-
-test("runtime validation fails closed for malformed bytecode lengths and immutable ranges", () => {
-  assert.throws(
-    () =>
-      normalizeRuntimeBytecode({
-        artifact: immutableArtifact(),
-        runtimeCode: "0x600000000055",
-        step: "splitter",
-      }),
-    /length does not match the compiled artifact/,
-  );
-  assert.throws(
-    () =>
-      normalizeRuntimeBytecode({
-        artifact: immutableArtifact({ 42: [{ start: 6, length: 2 }] }),
-        runtimeCode: "0x60000000000055",
-        step: "splitter",
-      }),
-    /invalid range/,
-  );
-  assert.throws(
-    () =>
-      normalizeRuntimeBytecode({
-        artifact: immutableArtifact({
-          42: [
-            { start: 1, length: 2 },
-            { start: 2, length: 2 },
-          ],
-        }),
-        runtimeCode: "0x60000000000055",
-        step: "splitter",
-      }),
-    /overlapping ranges/,
-  );
-  assert.throws(
-    () =>
-      normalizeRuntimeBytecode({
-        artifact: immutableArtifact({ 42: [] }),
-        runtimeCode: "0x60000000000055",
-        step: "splitter",
-      }),
-    /splitter compiler immutableReferences contain an empty group/,
-  );
-});
-
-test("runtime validation rejects divergence within one immutable-reference group", () => {
+test("runtime materialization writes the expected immutable into every occurrence", () => {
   const artifact = immutableArtifact({
     42: [
       { start: 1, length: 2 },
       { start: 3, length: 2 },
     ],
   });
+  const compiled = "0x60000000000055";
+  assert.equal(
+    materializeRuntimeBytecode({
+      artifact,
+      expectedImmutables: { token: "aabb" },
+      step: "splitter",
+    }),
+    "0x60aabbaabb0055",
+  );
+  assert.equal(
+    materializedRuntimeCodehash({
+      artifact,
+      expectedImmutables: { token: "aabb" },
+      step: "splitter",
+    }),
+    keccak256("0x60aabbaabb0055"),
+  );
+  assert.notEqual(compiled, "0x60aabbaabb0055");
+});
+
+test("runtime validation fails closed for malformed bytecode lengths and immutable ranges", () => {
   assert.throws(
     () =>
-      normalizeRuntimeBytecode({
-        artifact,
-        runtimeCode: "0x60aabbccdd0055",
+      materializeRuntimeBytecode({
+        artifact: immutableArtifact(),
+        expectedImmutables: { token: "aabb" },
         step: "splitter",
       }),
-    /immutableReferences group contains differing values/,
+    /wrong hex width/,
+  );
+  assert.throws(
+    () =>
+      materializeRuntimeBytecode({
+        artifact: immutableArtifact({ 42: [{ start: 6, length: 2 }] }),
+        expectedImmutables: { token: "0000" },
+        step: "splitter",
+      }),
+    /invalid range/,
+  );
+  assert.throws(
+    () =>
+      materializeRuntimeBytecode({
+        artifact: immutableArtifact({
+          42: [
+            { start: 1, length: 2 },
+            { start: 2, length: 2 },
+          ],
+        }),
+        expectedImmutables: { token: "0000" },
+        step: "splitter",
+      }),
+    /overlapping ranges/,
+  );
+  assert.throws(
+    () =>
+      materializeRuntimeBytecode({
+        artifact: immutableArtifact({ 42: [] }),
+        expectedImmutables: { token: "" },
+        step: "splitter",
+      }),
+    /splitter compiler immutableReferences contain an empty group/,
+  );
+});
+
+test("runtime materialization rejects missing, extra, and non-reference immutable names", () => {
+  const artifact = immutableArtifact();
+  assert.throws(
+    () =>
+      materializeRuntimeBytecode({
+        artifact,
+        expectedImmutables: {},
+        step: "splitter",
+      }),
+    /do not exactly match/,
+  );
+  assert.throws(
+    () =>
+      materializeRuntimeBytecode({
+        artifact,
+        expectedImmutables: { token: "aabbccdd", extra: "00" },
+        step: "splitter",
+      }),
+    /do not exactly match/,
   );
 });
 
 const proxyImmutableArtifact = () => ({
+  immutableReferenceNames: { 7: "_admin" },
   evm: {
     deployedBytecode: {
       object: `60${"00".repeat(32)}55`,
@@ -337,6 +383,91 @@ test("proxy immutable reference must bind the expected first ProxyAdmin child", 
       runtimeCode: proxyRuntimeWithAdmin(expected),
       expectedProxyAdmin: expected,
     }),
+  );
+});
+
+test("immutable AST resolution is dynamic and fails closed on unknown, non-immutable, or duplicate IDs", () => {
+  const artifact = immutableArtifact({ 17: [{ start: 1, length: 4 }] });
+  const immutable = {
+    nodeType: "VariableDeclaration",
+    id: 17,
+    name: "token",
+    mutability: "immutable",
+  };
+  assert.deepEqual(
+    resolveImmutableReferenceNames({
+      artifact,
+      sourceAsts: { one: { ast: immutable } },
+      step: "splitter",
+    }),
+    { 17: "token" },
+  );
+  assert.throws(
+    () =>
+      resolveImmutableReferenceNames({
+        artifact,
+        sourceAsts: { one: { ast: { ...immutable, id: 99 } } },
+        step: "splitter",
+      }),
+    /ambiguous AST declaration/,
+  );
+  assert.throws(
+    () =>
+      resolveImmutableReferenceNames({
+        artifact,
+        sourceAsts: { one: { ast: { ...immutable, mutability: "mutable" } } },
+        step: "splitter",
+      }),
+    /not a named immutable/,
+  );
+  assert.throws(
+    () =>
+      resolveImmutableReferenceNames({
+        artifact,
+        sourceAsts: { one: { ast: { children: [immutable, immutable] } } },
+        step: "splitter",
+      }),
+    /ambiguous AST declaration/,
+  );
+});
+
+test("compiler immutable regression checks names and group counts without AST IDs", async () => {
+  const artifacts = await compileWorldchainArtifacts();
+  const groups = (artifact) => {
+    const refs = artifact.evm.deployedBytecode.immutableReferences;
+    return Object.fromEntries(
+      Object.entries(refs).map(([id, ranges]) => [
+        artifact.immutableReferenceNames[id],
+        ranges.length,
+      ]),
+    );
+  };
+  assert.deepEqual(groups(artifacts.game), {});
+  assert.deepEqual(groups(artifacts.timelock), {});
+  assert.deepEqual(groups(artifacts.proxyAdmin), {});
+  assert.deepEqual(groups(artifacts.splitter), { token: 3, timelock: 2 });
+  assert.deepEqual(groups(artifacts.registry), { owner: 2 });
+  assert.deepEqual(groups(artifacts.proxy), { _admin: 1 });
+});
+
+test("EIP-1967 address slots require the complete padded word", () => {
+  const expected = "0x00000000000000000000000000000000000000a1";
+  const correct = `0x${expected.slice(2).padStart(64, "0")}`;
+  assert.doesNotThrow(() =>
+    assertAddressStorageWord(correct, expected, "admin slot"),
+  );
+  assert.throws(
+    () =>
+      assertAddressStorageWord(
+        `0x01${correct.slice(4)}`,
+        expected,
+        "admin slot",
+      ),
+    /admin slot/,
+  );
+  assert.throws(
+    () => assertAddressStorageWord("0x00", expected, "implementation slot"),
+    /malformed/,
   );
 });
 
@@ -502,11 +633,6 @@ test("default send nonce guard rejects drift before any send", () => {
 
 const recoveryFixture = () => {
   const runtime = "0x6001600055";
-  const runtimeArtifact = {
-    evm: {
-      deployedBytecode: { object: runtime.slice(2), immutableReferences: {} },
-    },
-  };
   const steps = ["implementation", "timelock", "splitter"];
   const addresses = Object.fromEntries(
     steps.map((step, index) => [
@@ -521,8 +647,8 @@ const recoveryFixture = () => {
     expectedRuntimeCodehashes: Object.fromEntries(
       steps.map((step) => [step, keccak256(runtime)]),
     ),
-    runtimeArtifacts: Object.fromEntries(
-      steps.map((step) => [step, runtimeArtifact]),
+    expectedRuntimeCodes: Object.fromEntries(
+      steps.map((step) => [step, runtime]),
     ),
   };
 };
@@ -548,20 +674,50 @@ test("resume accepts exactly one verified implementation and never re-sends it",
   assert.equal(isRecoveredStep(recovered, "timelock"), false);
 });
 
-test("resume accepts declared immutable changes but records the real on-chain codehash", async () => {
+test("resume accepts only the materialized immutable value and rejects a consistent wrong one", async () => {
   const runtime = "0x60aabbccdd0055";
-  const artifact = immutableArtifact();
   const address = "0x0000000000000000000000000000000000000001";
   const recovered = await recoverDeploymentPrefix({
     onChainNonce: 11n,
     plannedNonce: 10n,
     steps: ["splitter"],
     addresses: { splitter: address },
-    expectedRuntimeCodehashes: { splitter: keccak256("0x60000000000055") },
-    runtimeArtifacts: { splitter: artifact },
+    expectedRuntimeCodehashes: { splitter: keccak256(runtime) },
+    expectedRuntimeCodes: { splitter: runtime },
     getCode: async () => runtime,
   });
   assert.equal(recovered[0].runtimeCodehash, keccak256(runtime));
+  await assert.rejects(
+    recoverDeploymentPrefix({
+      onChainNonce: 11n,
+      plannedNonce: 10n,
+      steps: ["splitter"],
+      addresses: { splitter: address },
+      expectedRuntimeCodehashes: { splitter: keccak256(runtime) },
+      expectedRuntimeCodes: { splitter: runtime },
+      getCode: async () => "0x60112233440055",
+    }),
+    /runtime bytecode mismatch for splitter/,
+  );
+});
+
+test("resume rejects a single differing immutable occurrence and a non-reference byte", async () => {
+  const address = "0x0000000000000000000000000000000000000001";
+  const expectedRuntime = "0x60aabbaabb0055";
+  const options = {
+    onChainNonce: 11n,
+    plannedNonce: 10n,
+    steps: ["splitter"],
+    addresses: { splitter: address },
+    expectedRuntimeCodehashes: { splitter: keccak256(expectedRuntime) },
+    expectedRuntimeCodes: { splitter: expectedRuntime },
+  };
+  for (const runtime of ["0x60aabbccdd0055", "0x61aabbaabb0055"]) {
+    await assert.rejects(
+      recoverDeploymentPrefix({ ...options, getCode: async () => runtime }),
+      /runtime bytecode mismatch for splitter/,
+    );
+  }
 });
 
 test("resume rejects a wrong recovered codehash and a later-address gap", async () => {
@@ -573,7 +729,7 @@ test("resume rejects a wrong recovered codehash and a later-address gap", async 
       plannedNonce: 10n,
       getCode: async () => "0x6002600055",
     }),
-    /resume codehash mismatch for implementation/,
+    /runtime bytecode mismatch for implementation/,
   );
   await assert.rejects(
     recoverDeploymentPrefix({
@@ -598,7 +754,7 @@ test("resume rejects a wrong recovered codehash and a later-address gap", async 
 
 test("resume fails closed when a recovered runtime artifact is absent", async () => {
   const fixture = recoveryFixture();
-  delete fixture.runtimeArtifacts.implementation;
+  delete fixture.expectedRuntimeCodes.implementation;
   await assert.rejects(
     recoverDeploymentPrefix({
       ...fixture,
@@ -607,12 +763,18 @@ test("resume fails closed when a recovered runtime artifact is absent", async ()
       getCode: async ({ address }) =>
         address === fixture.addresses.implementation ? fixture.runtime : "0x",
     }),
-    /runtime artifact is absent for recovered implementation/,
+    /expected runtime bytecode is absent for recovered implementation/,
   );
 });
 
 test("runner source keeps receipt, EIP-1967, ordering, and post-verification guards", async () => {
   const source = await readFile("scripts/worldchain-proxy-runner.mjs", "utf8");
+  assert.match(source, /assertRegistryRecord\(release, \{/);
+  assert.doesNotMatch(
+    source,
+    /release\s*\[\s*\d+\s*\]/,
+    "registry verification must not depend on positional release tuple fields",
+  );
   const deploymentStep = (name) => new RegExp(`await send\\(\\s*"${name}"`);
   for (const required of [
     "waitForTransactionReceipt",
@@ -627,7 +789,8 @@ test("runner source keeps receipt, EIP-1967, ordering, and post-verification gua
     "protected deployer key does not match reviewed plan address",
     "const onChainNonce = BigInt(onChainNonceRaw)",
     "evm.deployedBytecode.immutableReferences",
-    "normalizedRuntimeCodehash",
+    "materializeRuntimeBytecode",
+    "EIP1967_IMPLEMENTATION_SLOT",
     "assertProxyAdminImmutableReferences",
     "expectedProxyAdmin",
     "ProxyAdmin.sol",
@@ -674,12 +837,12 @@ test("runner source keeps receipt, EIP-1967, ordering, and post-verification gua
   );
   assert.match(
     proxyAdminVerification,
-    /keccak256\(proxyAdminCodeBeforeRegistry\)[\s\S]*runtimeHash\(artifacts\.proxyAdmin\)/,
-    "the ProxyAdmin child must use an exact codehash comparison",
+    /same\(\s*proxyAdminCodeBeforeRegistry,\s*expectedRuntimeCodes\.proxyAdmin/,
+    "the ProxyAdmin child must use an exact runtime comparison",
   );
   assert.doesNotMatch(
     proxyAdminVerification,
-    /normalizedRuntimeCodehash/,
+    /normalizeRuntimeBytecode|normalizedRuntimeCodehash/,
     "ProxyAdmin verification must not normalize future immutable references",
   );
 });
@@ -697,7 +860,7 @@ test("runner uses same-run compiler artifacts instead of drift-prone manual ABIs
   assert.match(source, /encodeInitializeData\(artifacts\.game, initConfig\)/);
   assert.match(
     source,
-    /const artifacts = await compile\(\);\s+assertCompilerAbiPreflight\(artifacts\);/,
+    /const artifacts = await compileWorldchainArtifacts\(\);\s+assertCompilerAbiPreflight\(artifacts\);/,
     "the compiler ABI preflight must run immediately after compilation",
   );
   assert.match(source, /abi: gameArtifact\.abi/);
