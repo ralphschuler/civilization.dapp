@@ -32,6 +32,35 @@ export function encodeWalletRegistration(
   ];
 }
 
+export function encodeWorldIdRegistration(
+  registration,
+  contractAddress = CIVILIZATION_GAME_ADDRESS,
+) {
+  if (
+    !registration ||
+    !Array.isArray(registration.proof) ||
+    registration.proof.length !== 5
+  )
+    throw new Error("invalid_world_id_registration");
+  return [
+    transaction(
+      getAddress(contractAddress),
+      encodeFunctionData({
+        abi: CIVILIZATION_GAME_ABI,
+        functionName: "registerWorldId",
+        args: [
+          BigInt(registration.nullifierHash),
+          BigInt(registration.nonce),
+          BigInt(registration.signalHash),
+          BigInt(registration.expiresAtMin),
+          BigInt(registration.issuerSchemaId),
+          registration.proof.map(BigInt),
+        ],
+      }),
+    ),
+  ];
+}
+
 export function encodeWorldGameAction(
   type,
   payload = {},

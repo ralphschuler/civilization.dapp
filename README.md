@@ -6,7 +6,7 @@ GitHub Pages publishes a separate walletless Next static export from `apps/demo`
 
 ## Release channels
 
-`develop` publishes the walletless static Dev/Test Mini App at https://nyphon.de/civilization.dapp/. `master` verifies and publishes the production container for https://civilization.nyphon.de.
+`develop` verifies and publishes the `:dev` container for the server-backed Dev Mini App; `master` alone publishes `:latest` for https://civilization.nyphon.de. GitHub Pages at https://nyphon.de/civilization.dapp/ is a walletless UI preview only: it has no WalletAuth, RP signature, database, or native World App validation path. See [the Dev deployment runbook](docs/DEV_DEPLOYMENT.md).
 
 Use Node 22 and pnpm 11.21.0:
 
