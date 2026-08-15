@@ -62,7 +62,7 @@ test("World Chain runner keeps estimation read-only and mutually exclusive with 
   assert.match(source, /publicClient\.estimateGas/);
   assert.match(source, /deployerBalance/);
   assert.match(source, /const onChainNonce = BigInt\(onChainNonceRaw\)/);
-  assert.ok(source.indexOf("if (estimating)") < source.indexOf("loadProtectedDeployerAccount"));
+  assert.ok(source.indexOf("if (estimating)") < source.indexOf("const account = await loadProtectedDeployerAccount"));
 });
 
 test("runner source keeps receipt, EIP-1967, ordering, and post-verification guards", async () => {
