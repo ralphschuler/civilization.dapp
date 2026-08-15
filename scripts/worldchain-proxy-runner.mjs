@@ -1,9 +1,10 @@
-import { readFile, readdir } from "node:fs/promises";
+import { readFile, readdir, stat } from "node:fs/promises";
 import { createRequire } from "node:module";
 import {
   concatHex, createPublicClient, createWalletClient, defineChain, encodeDeployData, encodeFunctionData,
   getAddress, getContractAddress, http, isAddress, keccak256, stringToHex, toBytes, toHex,
 } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
 import solc from "solc";
 
 const require = createRequire(import.meta.url);
@@ -56,6 +57,19 @@ const hash = (value, name) => {
 const same = (actual, expected, name) => { if (String(actual).toLowerCase() !== String(expected).toLowerCase()) throw new Error(`post-deploy verification failed: ${name}`); };
 const json = value => JSON.stringify(value, (_, item) => typeof item === "bigint" ? item.toString() : item);
 
+async function loadProtectedDeployerAccount(network, environment, expectedAddress, expectedReference) {
+  if (environment.CIVILIZATION_DEPLOYER_KEY_REF !== expectedReference) throw new Error("--send requires CIVILIZATION_DEPLOYER_KEY_REF to exactly match the reviewed protectedKeyRef; raw private keys are never accepted");
+  const keyFile = environment[network === "mainnet" ? "WORLDCHAIN_MAINNET_KEY_FILE" : "WORLDCHAIN_TESTNET_KEY_FILE"];
+  if (!keyFile) throw new Error("--send requires the protected World Chain key-file reference");
+  const info = await stat(keyFile);
+  if ((info.mode & 0o077) !== 0) throw new Error("protected World Chain key file must not be group/world-readable");
+  const parsed = JSON.parse(await readFile(keyFile, "utf8"));
+  if (typeof parsed.receiverPrivateKey !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(parsed.receiverPrivateKey)) throw new Error("protected World Chain key file has no valid deployer key");
+  const account = privateKeyToAccount(parsed.receiverPrivateKey);
+  if (account.address.toLowerCase() !== expectedAddress.toLowerCase()) throw new Error("protected deployer key does not match reviewed plan address");
+  return account;
+}
+
 async function compile() {
   const names = (await readdir(new URL("../contracts/src/", import.meta.url))).filter(name => name.endsWith(".sol"));
   const sources = Object.fromEntries(await Promise.all(names.map(async name => [`contracts/src/${name}`, { content: await readFile(new URL(`../contracts/src/${name}`, import.meta.url), "utf8") }])));
@@ -96,7 +110,6 @@ export async function runWorldChainDeployment(network, argv = process.argv, envi
   const confirmation = network === "mainnet" ? "CONFIRM_MAINNET_DEPLOY" : "CONFIRM_TESTNET_DEPLOY";
   if (sending && environment[confirmation] !== "yes") throw new Error(`--send requires exact ${confirmation}=yes`);
   const { plan, normalized: p } = await loadPlan(network);
-  if (sending && environment.CIVILIZATION_DEPLOYER_KEY_REF !== p.protectedKeyRef) throw new Error("--send requires CIVILIZATION_DEPLOYER_KEY_REF to exactly match the reviewed protectedKeyRef; raw private keys are never accepted");
   const snapshot = JSON.parse(await readFile(new URL("../contracts/storage-layout-v1.snapshot.json", import.meta.url), "utf8"));
   const storageLayoutHash = keccak256(toBytes(JSON.stringify(snapshot)));
   if (hash(plan.storageLayoutHash, "storageLayoutHash") !== storageLayoutHash) fail(`storageLayoutHash must match frozen V1 schema ${storageLayoutHash}`);
@@ -112,14 +125,15 @@ export async function runWorldChainDeployment(network, argv = process.argv, envi
   if (!rpcUrl || /placeholder|replace|example/i.test(rpcUrl)) throw new Error("--send requires a configured CIVILIZATION_WORLDCHAIN_RPC_URL for a protected external signer");
   const chain = defineChain({ id: manifest.chainId, name: `World Chain ${network}`, nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 }, rpcUrls: { default: { http: [rpcUrl] } }, testnet: network === "testnet" });
   const publicClient = createPublicClient({ chain, transport: http(rpcUrl) });
-  const walletClient = createWalletClient({ account: p.deployer, chain, transport: http(rpcUrl) });
+  const account = await loadProtectedDeployerAccount(network, environment, p.deployer, p.protectedKeyRef);
+  const walletClient = createWalletClient({ account, chain, transport: http(rpcUrl) });
   const [chainId, onChainNonce] = await Promise.all([publicClient.getChainId(), publicClient.getTransactionCount({ address: p.deployer, blockTag: "pending" })]);
   if (chainId !== manifest.chainId) throw new Error(`connected chainId ${chainId} does not match reviewed chainId ${manifest.chainId}`);
   if (onChainNonce !== p.deployerNonce) throw new Error(`deployer nonce ${onChainNonce} does not match reviewed nonce ${p.deployerNonce}; no transaction submitted`);
   const send = async (step, data, expectedAddress, expectedRuntimeHash) => {
     const nonce = p.deployerNonce + BigInt(manifest.transactions.length);
     if (getContractAddress({ from: p.deployer, nonce }) !== expectedAddress) throw new Error(`predicted address drift before ${step}`);
-    const txHash = await walletClient.sendTransaction({ account: p.deployer, data, nonce });
+    const txHash = await walletClient.sendTransaction({ account, data, nonce });
     const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
     if (receipt.status !== "success" || receipt.contractAddress?.toLowerCase() !== expectedAddress.toLowerCase()) throw new Error(`${step} receipt did not create its predicted contract`);
     const code = await publicClient.getCode({ address: expectedAddress });
