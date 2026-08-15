@@ -101,7 +101,7 @@ const gameAbi = [
   })),
   {
     type: "function",
-    name: "productionMultiplierForPrestige",
+    name: "prestigeMultiplierBps",
     stateMutability: "view",
     inputs: [{ type: "uint256" }],
     outputs: [{ type: "uint256" }],
@@ -1133,7 +1133,7 @@ export async function runWorldChainDeployment(
     read(addresses.proxy, gameAbi, "worldIdLegacyExternalNullifier"),
     read(addresses.proxy, gameAbi, "CLAIM_COOLDOWN"),
     read(addresses.proxy, gameAbi, "MAX_OFFLINE_SECONDS"),
-    read(addresses.proxy, gameAbi, "productionMultiplierForPrestige", [0n]),
+    read(addresses.proxy, gameAbi, "prestigeMultiplierBps", [0n]),
   ]);
   same(adminOwner, addresses.timelock, "ProxyAdmin owner");
   same(registryOwner, addresses.timelock, "registry owner");
