@@ -26,6 +26,11 @@ test("Solidity sources remain free of deployment configuration", async () => {
   for (const contract of CONTRACT_STATUS.contracts) {
     const source = await readFile(new URL(`../${contract.source}`, import.meta.url), "utf8");
     assert.match(source, /pragma solidity \^0\.8\.24;/);
-    assert.doesNotMatch(source, /0x[a-fA-F0-9]{40}/);
+    // A bytes32 ERC-7201 namespace is a storage-layout identifier, not a
+    // deployment address. Reject only address-sized literals that are not
+    // part of a bytes32 constant declaration.
+    for (const line of source.split("\n")) {
+      if (!/bytes32\s+(?:private\s+)?constant/.test(line)) assert.doesNotMatch(line, /0x[a-fA-F0-9]{40}(?![a-fA-F0-9])/);
+    }
   }
 });

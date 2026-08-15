@@ -80,8 +80,27 @@ export const CIVILIZATION_GAME_ABI = [
     ],
   },
   {
+    // Added by the proxy release.  Keeping this entry separate lets callers
+    // feature-detect it and continue reading the current immutable release.
+    type: 'function', name: 'previewAccrual', stateMutability: 'view',
+    inputs: [{ name: 'account', type: 'address' }],
+    outputs: [
+      { name: 'wholeField', type: 'tuple', components: resources },
+      { name: 'fractionalRemainder', type: 'tuple', components: resources },
+      { name: 'fractionScale', type: 'uint256' },
+      { name: 'asOf', type: 'uint64' },
+    ],
+  },
+  {
     type: 'function', name: 'balanceOf', stateMutability: 'view',
     inputs: [{ name: 'account', type: 'address' }], outputs: [{ name: '', type: 'uint256' }],
+  },
+  {
+    // The contract is the sole authority for the rational, upward-rounded
+    // construction curve; clients must read this instead of approximating it.
+    type: 'function', name: 'buildDuration', stateMutability: 'pure',
+    inputs: [{ name: 'building', type: 'uint8' }, { name: 'nextLevel', type: 'uint256' }],
+    outputs: [{ name: 'durationSeconds', type: 'uint256' }],
   },
   { type: 'function', name: 'claim', stateMutability: 'nonpayable', inputs: [], outputs: [] },
   { type: 'function', name: 'upgrade', stateMutability: 'nonpayable', inputs: [{ name: 'building', type: 'uint8' }], outputs: [] },
