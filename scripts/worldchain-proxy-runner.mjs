@@ -107,8 +107,6 @@ async function loadPlan(network) {
 
 export async function runWorldChainDeployment(network, argv = process.argv, environment = process.env) {
   const sending = argv.includes("--send");
-  const estimating = argv.includes("--estimate");
-  if (sending && estimating) throw new Error("--send and --estimate are mutually exclusive");
   const confirmation = network === "mainnet" ? "CONFIRM_MAINNET_DEPLOY" : "CONFIRM_TESTNET_DEPLOY";
   if (sending && environment[confirmation] !== "yes") throw new Error(`--send requires exact ${confirmation}=yes`);
   const { plan, normalized: p } = await loadPlan(network);
@@ -122,35 +120,15 @@ export async function runWorldChainDeployment(network, argv = process.argv, envi
   const initConfig = { worldIdVerifier: p.world.verifier, worldActionId: p.world.actionId, worldRpId: p.world.rpId, worldIssuerSchemaId: p.world.issuerSchemaId, credentialGenesisIssuedAtMin: p.world.credentialGenesisIssuedAtMin, worldIdLegacyRouter: p.world.legacyRouter, worldIdLegacyAppId: p.world.legacyAppId, worldIdLegacyActionId: p.world.legacyActionId, worldToken: p.world.token, revenueSplitter: addresses.splitter, timelock: addresses.timelock };
   const initializeData = encodeFunctionData({ abi: gameAbi, functionName: "initialize", args: [initConfig] });
   const manifest = { mode: sending ? "SEND" : "DRY_RUN", chain: network, chainId: network === "mainnet" ? 480 : 4801, sourceCommit: p.sourceCommit, storageLayoutHash, planDigest: keccak256(toBytes(json(plan))), protectedKeyReferenceDigest: keccak256(toBytes(p.protectedKeyRef)), deployer: p.deployer, deployerNonce: p.deployerNonce, addresses, contractRuntimeCodehashes: { implementation: runtimeHash(artifacts.game), splitter: runtimeHash(artifacts.splitter), registry: runtimeHash(artifacts.registry) }, distribution: p.revenueDistribution, claimCooldownSeconds: 60, claimFormula: FORMULA, deploymentOrder: ["implementation", "timelock", "splitter", "proxy", "registry"], transactions: [] };
-  const constructorData = (artifact, args) => encodeDeployData({ abi: artifact.abi, bytecode: bytecode(artifact), args });
-  const deploymentData = [
-    ["implementation", bytecode(artifacts.game)],
-    ["timelock", constructorData(artifacts.timelock, [p.governance.minDelaySeconds, p.governance.proposers, p.governance.executors, p.governance.timelockAdmin])],
-    ["splitter", constructorData(artifacts.splitter, [p.world.token, addresses.timelock, p.revenueDistribution.recipients, p.revenueDistribution.bps])],
-    ["proxy", constructorData(artifacts.proxy, [addresses.implementation, addresses.timelock, initializeData])],
-    ["registry", constructorData(artifacts.registry, [addresses.timelock, [addresses.proxy, 1n, addresses.implementation, runtimeHash(artifacts.game), p.sourceCommit, storageLayoutHash]])],
-  ];
-  if (!sending && !estimating) { console.log(json(manifest)); return manifest; }
+  if (!sending) { console.log(json(manifest)); return manifest; }
   const rpcUrl = environment.CIVILIZATION_WORLDCHAIN_RPC_URL;
-  if (!rpcUrl || /placeholder|replace|example/i.test(rpcUrl)) throw new Error(`${sending ? "--send" : "--estimate"} requires a configured CIVILIZATION_WORLDCHAIN_RPC_URL`);
+  if (!rpcUrl || /placeholder|replace|example/i.test(rpcUrl)) throw new Error("--send requires a configured CIVILIZATION_WORLDCHAIN_RPC_URL for a protected external signer");
   const chain = defineChain({ id: manifest.chainId, name: `World Chain ${network}`, nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 }, rpcUrls: { default: { http: [rpcUrl] } }, testnet: network === "testnet" });
   const publicClient = createPublicClient({ chain, transport: http(rpcUrl) });
   const [chainId, onChainNonceRaw] = await Promise.all([publicClient.getChainId(), publicClient.getTransactionCount({ address: p.deployer, blockTag: "pending" })]);
   const onChainNonce = BigInt(onChainNonceRaw);
   if (chainId !== manifest.chainId) throw new Error(`connected chainId ${chainId} does not match reviewed chainId ${manifest.chainId}`);
   if (onChainNonce !== p.deployerNonce) throw new Error(`deployer nonce ${onChainNonce} does not match reviewed nonce ${p.deployerNonce}; no transaction submitted`);
-  if (estimating) {
-    const [gasPrice, balance, estimates] = await Promise.all([
-      publicClient.getGasPrice(),
-      publicClient.getBalance({ address: p.deployer }),
-      Promise.all(deploymentData.map(async ([step, data]) => ({ step, gas: await publicClient.estimateGas({ account: p.deployer, data }) }))),
-    ]);
-    const totalGas = estimates.reduce((total, entry) => total + entry.gas, 0n);
-    manifest.mode = "ESTIMATE";
-    manifest.gasEstimate = { transactions: estimates, totalGas, gasPrice, estimatedCost: totalGas * gasPrice, deployerBalance: balance, funded: balance >= totalGas * gasPrice };
-    console.log(json(manifest));
-    return manifest;
-  }
   const account = await loadProtectedDeployerAccount(network, environment, p.deployer, p.protectedKeyRef);
   const walletClient = createWalletClient({ account, chain, transport: http(rpcUrl) });
   const send = async (step, data, expectedAddress, expectedRuntimeHash) => {
@@ -165,8 +143,9 @@ export async function runWorldChainDeployment(network, argv = process.argv, envi
     manifest.transactions.push({ step, hash: txHash, address: expectedAddress, runtimeCodehash: keccak256(code) });
   };
   const read = (address_, abi, functionName, args = []) => publicClient.readContract({ address: address_, abi, functionName, args });
-  await send("implementation", deploymentData[0][1], addresses.implementation, runtimeHash(artifacts.game));
-  await send("timelock", deploymentData[1][1], addresses.timelock);
+  const constructorData = (artifact, args) => encodeDeployData({ abi: artifact.abi, bytecode: bytecode(artifact), args });
+  await send("implementation", bytecode(artifacts.game), addresses.implementation, runtimeHash(artifacts.game));
+  await send("timelock", constructorData(artifacts.timelock, [p.governance.minDelaySeconds, p.governance.proposers, p.governance.executors, p.governance.timelockAdmin]), addresses.timelock);
   const proposerRole = keccak256(stringToHex("PROPOSER_ROLE"));
   const executorRole = keccak256(stringToHex("EXECUTOR_ROLE"));
   const timelockChecks = await Promise.all([
@@ -175,16 +154,16 @@ export async function runWorldChainDeployment(network, argv = process.argv, envi
     ...p.governance.executors.map(account => read(addresses.timelock, timelockAbi, "hasRole", [executorRole, account])),
   ]);
   if (timelockChecks.some(value => !value)) throw new Error("post-deploy verification failed: timelock role model");
-  await send("splitter", deploymentData[2][1], addresses.splitter, runtimeHash(artifacts.splitter));
+  await send("splitter", constructorData(artifacts.splitter, [p.world.token, addresses.timelock, p.revenueDistribution.recipients, p.revenueDistribution.bps]), addresses.splitter, runtimeHash(artifacts.splitter));
   const splitterBeforeProxy = await Promise.all([read(addresses.splitter, splitterAbi, "token"), read(addresses.splitter, splitterAbi, "timelock"), read(addresses.splitter, splitterAbi, "recipients"), read(addresses.splitter, splitterAbi, "PAYOUT_PERIOD")]);
   same(splitterBeforeProxy[0], p.world.token, "splitter token before proxy"); same(splitterBeforeProxy[1], addresses.timelock, "splitter timelock before proxy");
   if (splitterBeforeProxy[2].length !== 2 || splitterBeforeProxy[2].some((recipient, index) => recipient.toLowerCase() !== p.revenueDistribution.recipients[index].toLowerCase()) || splitterBeforeProxy[3] !== 2_592_000n) throw new Error("post-deploy verification failed: splitter distribution/cadence before proxy");
-  await send("proxy", deploymentData[3][1], addresses.proxy);
+  await send("proxy", constructorData(artifacts.proxy, [addresses.implementation, addresses.timelock, initializeData]), addresses.proxy);
   const proxyBeforeRegistry = await Promise.all([read(addresses.proxy, gameAbi, "revenueSplitter"), read(addresses.proxy, gameAbi, "timelock"), read(addresses.proxy, gameAbi, "CLAIM_COOLDOWN"), publicClient.getStorageAt({ address: addresses.proxy, slot: EIP1967_ADMIN_SLOT })]);
   same(proxyBeforeRegistry[0], addresses.splitter, "proxy splitter before registry"); same(proxyBeforeRegistry[1], addresses.timelock, "proxy timelock before registry"); same(proxyBeforeRegistry[2], 60n, "proxy claim cooldown before registry");
   if (!proxyBeforeRegistry[3]) throw new Error("post-deploy verification failed: proxy EIP-1967 admin slot before registry");
   same(await read(getAddress(`0x${proxyBeforeRegistry[3].slice(-40)}`), ownableAbi, "owner"), addresses.timelock, "ProxyAdmin owner before registry");
-  await send("registry", deploymentData[4][1], addresses.registry);
+  await send("registry", constructorData(artifacts.registry, [addresses.timelock, [addresses.proxy, 1n, addresses.implementation, runtimeHash(artifacts.game), p.sourceCommit, storageLayoutHash]]), addresses.registry);
   const action = BigInt(keccak256(stringToHex(p.world.actionId))) >> 8n;
   const legacyApp = BigInt(keccak256(stringToHex(p.world.legacyAppId))) >> 8n;
   const legacyNullifier = BigInt(keccak256(concatHex([toHex(legacyApp, { size: 32 }), stringToHex(p.world.legacyActionId)]))) >> 8n;
