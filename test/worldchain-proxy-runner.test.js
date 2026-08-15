@@ -57,7 +57,8 @@ test("World Chain runner rejects --send before it can contact an RPC", () => {
 
 test("runner source keeps receipt, EIP-1967, ordering, and post-verification guards", async () => {
   const source = await readFile("scripts/worldchain-proxy-runner.mjs", "utf8");
-  for (const required of ["waitForTransactionReceipt", "EIP1967_ADMIN_SLOT", "ProxyAdmin owner", "post-deploy verification failed", "executorAddress", "await send(\"implementation\"", "await send(\"timelock\"", "await send(\"splitter\"", "await send(\"proxy\"", "await send(\"registry\""]) assert.match(source, new RegExp(required.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  for (const required of ["waitForTransactionReceipt", "EIP1967_ADMIN_SLOT", "ProxyAdmin owner", "post-deploy verification failed", "executorAddress", "loadProtectedDeployerAccount", "CIVILIZATION_DEPLOYER_KEY_REF", "WORLDCHAIN_MAINNET_KEY_FILE", "privateKeyToAccount", "protected deployer key does not match reviewed plan address", "const onChainNonce = BigInt(onChainNonceRaw)", "await send(\"implementation\"", "await send(\"timelock\"", "await send(\"splitter\"", "await send(\"proxy\"", "await send(\"registry\""]) assert.match(source, new RegExp(required.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.doesNotMatch(source, /createWalletClient\(\{ account: p\.deployer/);
   assert.ok(source.indexOf('await send("implementation"') < source.indexOf('await send("timelock"'));
   assert.ok(source.indexOf('await send("timelock"') < source.indexOf('await send("splitter"'));
   assert.ok(source.indexOf('await send("splitter"') < source.indexOf('await send("proxy"'));
