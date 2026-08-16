@@ -1,6 +1,9 @@
 packages:
   - apps/*
 
+overrides:
+  tmp: 0.2.6
+
 allowBuilds:
   sharp: true
   unrs-resolver: true
