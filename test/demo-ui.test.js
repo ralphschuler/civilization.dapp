@@ -14,6 +14,7 @@ import {
 } from "../src/demo/storage.js";
 import { STORAGE_KEY } from "../src/game-ui/constants.js";
 import { gameShell } from "../src/game-ui/views/shell.js";
+import { buildPanel } from "../src/game-ui/views/build.js";
 import { createWorldRuntime } from "../src/game-world-runtime.js";
 import { refreshGameTick } from "../src/game-tick.js";
 import { readFile } from "node:fs/promises";
@@ -407,6 +408,66 @@ test("second tick updates collect stock, claim, construction, and raid controls"
   assert.equal(complete.disabled, true);
   assert.equal(boost.disabled, false);
   assert.equal(gather.disabled, false);
+});
+
+test("boost UI is clickable at exactly one hour and explains guarded states", () => {
+  const context = (remainingSeconds, busy = false) => ({
+    state: {
+      construction: {
+        pending: true,
+        buildingId: "timber",
+        completesAt: 10_000_000,
+      },
+      buildings: { timber: 1 },
+    },
+    buildings: { timber: { label: "Holzfäller" } },
+    busy,
+    remainingTime: () => remainingSeconds,
+  });
+  const valid = buildPanel({
+    ...context(3_600),
+    selectedBuilding: "timber",
+    requirements: () => [],
+    buildingCost: () => ({}),
+    runtimeMode: "world",
+    resourceDefs: {},
+    format: String,
+    buildDuration: () => null,
+    nextBuildingProduction: () => ({}),
+  });
+  assert.match(
+    valid,
+    /id="boost-construction" aria-describedby="boost-construction-status" >/,
+  );
+  assert.match(valid, /1 WLD reduziert die Bauzeit um genau 1 Stunde/);
+
+  const tooShort = buildPanel({
+    ...context(3_599),
+    selectedBuilding: "timber",
+    requirements: () => [],
+    buildingCost: () => ({}),
+    runtimeMode: "world",
+    resourceDefs: {},
+    format: String,
+    buildDuration: () => null,
+    nextBuildingProduction: () => ({}),
+  });
+  assert.match(tooShort, /id="boost-construction"[^>]*disabled/);
+  assert.match(tooShort, /mindestens 1 Stunde Bauzeit verbleiben/);
+
+  const pending = buildPanel({
+    ...context(4_000, true),
+    selectedBuilding: "timber",
+    requirements: () => [],
+    buildingCost: () => ({}),
+    runtimeMode: "world",
+    resourceDefs: {},
+    format: String,
+    buildDuration: () => null,
+    nextBuildingProduction: () => ({}),
+  });
+  assert.match(pending, /id="boost-construction"[^>]*disabled/);
+  assert.match(pending, /laufende Transaktion wird noch bestätigt/);
 });
 
 test("ticks update collect stock and production independently without rerendering", () => {
