@@ -26,4 +26,8 @@ export {
   encodeWorldGameAction,
   registerWalletWithMiniKit,
 } from "./world-game/actions.js";
+export {
+  CONSTRUCTION_BOOST_SECONDS,
+  constructionBoostEligibility,
+} from "./world-game/boost-eligibility.js";
 export { createWorldGameAdapter } from "./world-game/adapter.js";

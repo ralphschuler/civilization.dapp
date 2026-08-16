@@ -4,6 +4,7 @@ import { CIVILIZATION_GAME_ABI } from "../abi/CivilizationGame.js";
 import { WORLD_CHAIN_ID } from "../world-chain.js";
 import { CIVILIZATION_GAME_ADDRESS, TROOP_IDS } from "./constants.js";
 import { encodeWorldGameAction, validUserOpHash } from "./actions.js";
+import { constructionBoostEligibility } from "./boost-eligibility.js";
 import {
   claimEligibility,
   getContractBuildingCost,
@@ -101,6 +102,14 @@ export function createWorldGameAdapter({
       !claimEligibility(await readState())
     )
       throw new Error("claim_not_available");
+    if (type === "boost" && !pendingUserOpHash) {
+      const state = await readState();
+      const eligibility = constructionBoostEligibility({
+        construction: state.construction,
+        now: state.chainTimestamp,
+      });
+      if (!eligibility.eligible) throw new Error(eligibility.reason);
+    }
     const raidBefore =
       type === "resolve_raid" && !pendingUserOpHash
         ? await readRawState(wallet, false, game)
