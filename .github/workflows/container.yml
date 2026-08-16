@@ -28,7 +28,7 @@ jobs:
     env:
       TEST_DATABASE_URL: postgresql://postgres:test-password@localhost:5432/civilization_test
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v4
         with:
           version: 11.21.0
@@ -57,7 +57,7 @@ jobs:
     needs: verify
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
