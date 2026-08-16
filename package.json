@@ -10,6 +10,8 @@
     "start": "next start --hostname 0.0.0.0 --port 31057",
     "db:migrate": "node scripts/db-migrate.mjs",
     "test": "node --test test/*.test.js",
+    "test:worldchain:proxy-verifier": "node --test test/worldchain-proxy-verifier.test.js",
+    "verify:worldchain:proxy": "node scripts/verify-worldchain-proxy.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "format": "prettier --plugin=prettier-plugin-solidity --write src apps/demo/src server scripts test contracts/src eslint.config.mjs next.config.ts postcss.config.mjs --ignore-unknown",
