@@ -132,7 +132,7 @@ test("shell rendering receives explicit state and no controller callbacks", () =
   assert.match(html, /<p>panel<\/p>/);
 });
 
-test("resource HUD keeps field stock and positive production distinct in Demo and World", () => {
+test("resource HUD omits field stock while the collect button exposes it once", () => {
   const state = {
     resources: { wood: 2_410_426_546, clay: 1, stone: 1, gold: 0 },
     unclaimed: { wood: 4, clay: 0, stone: 0, gold: 0 },
@@ -183,7 +183,6 @@ test("resource HUD keeps field stock and positive production distinct in Demo an
     production: { wood: 35_100, gold: 0 },
   });
 
-  assert.match(demo, /data-resource-field>Feld 4<\/em>/);
   assert.match(demo, /data-resource-value>2,4Mrd<\/strong>/);
   assert.match(
     demo,
@@ -196,9 +195,22 @@ test("resource HUD keeps field stock and positive production distinct in Demo an
   assert.match(demo, /role="group" aria-label="Holz"/);
   assert.doesNotMatch(demo, /aria-describedby=/);
   assert.match(demo, /class="resource-values" aria-hidden="true"/);
+  assert.doesNotMatch(demo, /data-resource-field|Feldbestand/);
   assert.match(
     demo,
-    /class="resource-accessibility">[\s\S]*role="progressbar" aria-label="Holz-Speicher"[\s\S]*aria-valuetext="2410426546 von 100"[\s\S]*Feldbestand:[\s\S]*Produktion: \+35100\/s/,
+    /class="resource-accessibility">[\s\S]*role="progressbar" aria-label="Holz-Speicher"[\s\S]*aria-valuetext="2410426546 von 100"[\s\S]*Produktion: \+35100\/s/,
+  );
+  assert.match(
+    demo,
+    /class="collection-resources" aria-hidden="true">[\s\S]*data-collection-resource="wood"[\s\S]*<img [^>]*alt=""[^>]*>[\s\S]*data-collection-resource-value>4<\/b>/,
+  );
+  assert.match(
+    demo,
+    /Feldressourcen: Holz <span data-collection-resource-accessible="wood">4<\/span>; Gold <span data-collection-resource-accessible="gold">0<\/span>\./,
+  );
+  assert.match(
+    demo,
+    /data-ready-to-claim aria-hidden="true">4 sammeln<\/b>[\s\S]*data-ready-to-claim-accessible>4 sammeln<\/span>/,
   );
   assert.doesNotMatch(world, /data-resource="gold"[\s\S]*?storage-capacity/);
   assert.match(
@@ -214,7 +226,6 @@ test("mobile HUD keeps all four resources in one bounded row", async () => {
     "utf8",
   );
   const mobile = css.slice(css.indexOf("@media (max-width: 640px)"));
-  assert.match(mobile, /\.resource-field\s*\{\s*display: none/);
   assert.match(
     mobile,
     /\.resource-production\s*\{[\s\S]*?display: block[\s\S]*?max-width: 100%[\s\S]*?white-space: nowrap/,
@@ -236,7 +247,23 @@ test("mobile HUD keeps all four resources in one bounded row", async () => {
     css,
     /grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/,
   );
-  assert.doesNotMatch(mobile, /\.resource em\s*\{\s*display: none/);
+  assert.match(
+    css,
+    /\.collect-button\s*\{[\s\S]*?max-width: calc\(100% - 3\.2rem\)/,
+  );
+  assert.match(
+    css,
+    /\.collection-resources\s*\{[\s\S]*?grid-template-columns: repeat\(4, minmax\(0, 1fr\)\)[\s\S]*?min-width: 0/,
+  );
+  assert.match(
+    css,
+    /\.collection-resource b\s*\{[\s\S]*?overflow: hidden[\s\S]*?text-overflow: ellipsis[\s\S]*?white-space: nowrap/,
+  );
+  assert.match(
+    mobile,
+    /\.collect-button > \[data-collection-status\]\s*\{\s*display: none/,
+  );
+  assert.doesNotMatch(mobile, /\.collect-button span\s*\{\s*display: none/);
 });
 
 test("app lifecycle owns timer setup and teardown while bindings live outside markup", async () => {
@@ -316,7 +343,7 @@ test("old mount callbacks cannot update the replacement runtime", async () => {
   assert.equal(runtime.durations.get("townhall:2"), null);
 });
 
-test("second tick updates field, claim, construction, and raid controls", () => {
+test("second tick updates collect stock, claim, construction, and raid controls", () => {
   const nodes = new Map();
   const add = (selector, node = {}) => {
     nodes.set(selector, node);
@@ -329,7 +356,10 @@ test("second tick updates field, claim, construction, and raid controls", () => 
   const construction = add("[data-construction-countdown]", {});
   const complete = add("#complete-upgrade", {});
   const boost = add("#boost-construction", {});
-  const field = add('[data-resource="wood"] [data-resource-field]', {});
+  const collectionValue = add(
+    '[data-collection-resource="wood"] [data-collection-resource-value]',
+    {},
+  );
   const production = add(
     '[data-resource="wood"] [data-resource-production]',
     {},
@@ -338,8 +368,8 @@ test("second tick updates field, claim, construction, and raid controls", () => 
     '[data-resource="wood"] [data-resource-production-value]',
     {},
   );
-  const accessibleField = add(
-    '[data-resource="wood"] [data-resource-accessible-field]',
+  const accessibleCollectionValue = add(
+    '[data-collection-resource-accessible="wood"]',
     {},
   );
   const accessibleProduction = add(
@@ -347,6 +377,7 @@ test("second tick updates field, claim, construction, and raid controls", () => 
     {},
   );
   const claim = add("[data-ready-to-claim]", {});
+  const accessibleClaim = add("[data-ready-to-claim-accessible]", {});
   const root = { querySelector: (selector) => nodes.get(selector) || null };
   refreshGameTick({
     root,
@@ -362,12 +393,13 @@ test("second tick updates field, claim, construction, and raid controls", () => 
       construction: { pending: true, completesAt: 4_000 },
     },
   });
-  assert.equal(field.textContent, "Feld 2,4Mrd");
+  assert.equal(collectionValue.textContent, "2,4Mrd");
   assert.equal(productionValue.textContent, "+35,1K/Tag");
   assert.equal(production.hidden, false);
-  assert.equal(accessibleField.textContent, "2410426546");
+  assert.equal(accessibleCollectionValue.textContent, "2410426546");
   assert.equal(accessibleProduction.textContent, "Produktion: +35100/Tag");
   assert.equal(claim.textContent, "2410426546 sammeln");
+  assert.equal(accessibleClaim.textContent, "2410426546 sammeln");
   assert.equal(claimStatus.textContent, "FELD");
   assert.equal(raid.textContent, "00:00");
   assert.equal(resolve.textContent, "Schlacht auswerten");
@@ -377,23 +409,26 @@ test("second tick updates field, claim, construction, and raid controls", () => 
   assert.equal(gather.disabled, false);
 });
 
-test("ticks reveal and hide production independently without rerendering", () => {
+test("ticks update collect stock and production independently without rerendering", () => {
   const nodes = new Map();
   const add = (selector, node = {}) => nodes.set(selector, node);
-  const field = {};
+  const collectionValue = {};
   const production = {};
   const productionValue = {};
-  const accessibleField = {};
+  const accessibleCollectionValue = {};
   const accessibleProduction = {};
-  add('[data-resource="gold"] [data-resource-field]', field);
+  add(
+    '[data-collection-resource="gold"] [data-collection-resource-value]',
+    collectionValue,
+  );
   add('[data-resource="gold"] [data-resource-production]', production);
   add(
     '[data-resource="gold"] [data-resource-production-value]',
     productionValue,
   );
   add(
-    '[data-resource="gold"] [data-resource-accessible-field]',
-    accessibleField,
+    '[data-collection-resource-accessible="gold"]',
+    accessibleCollectionValue,
   );
   add(
     '[data-resource="gold"] [data-resource-accessible-production]',
@@ -414,20 +449,20 @@ test("ticks reveal and hide production independently without rerendering", () =>
     });
 
   tick(0, 3);
-  assert.equal(field.textContent, "Feld 3");
+  assert.equal(collectionValue.textContent, "3");
   assert.equal(productionValue.textContent, "");
   assert.equal(production.hidden, true);
   tick(1, 4);
-  assert.equal(field.textContent, "Feld 4");
+  assert.equal(collectionValue.textContent, "4");
   assert.equal(productionValue.textContent, "+1/s");
   assert.equal(production.hidden, false);
   tick(0, 5);
-  assert.equal(field.textContent, "Feld 5");
+  assert.equal(collectionValue.textContent, "5");
   assert.equal(productionValue.textContent, "");
   assert.equal(production.hidden, true);
   assert.equal(accessibleProduction.hidden, true);
   tick(Number.NaN, 6);
-  assert.equal(field.textContent, "Feld 6");
+  assert.equal(collectionValue.textContent, "6");
   assert.equal(productionValue.textContent, "");
   assert.equal(production.hidden, true);
 
@@ -439,15 +474,18 @@ test("ticks reveal and hide production independently without rerendering", () =>
   assert.equal(production.hidden, true);
 });
 
-test("ticks update field stock without a matching production entry", () => {
+test("ticks update collect stock without a matching production entry", () => {
   const nodes = new Map();
   const add = (selector, node = {}) => {
     nodes.set(selector, node);
     return node;
   };
-  const field = add('[data-resource="clay"] [data-resource-field]', {});
-  const accessibleField = add(
-    '[data-resource="clay"] [data-resource-accessible-field]',
+  const collectionValue = add(
+    '[data-collection-resource="clay"] [data-collection-resource-value]',
+    {},
+  );
+  const accessibleCollectionValue = add(
+    '[data-collection-resource-accessible="clay"]',
     {},
   );
   const production = add(
@@ -476,8 +514,8 @@ test("ticks update field stock without a matching production entry", () => {
     state: {},
   });
 
-  assert.equal(field.textContent, "Feld 9");
-  assert.equal(accessibleField.textContent, "9");
+  assert.equal(collectionValue.textContent, "9");
+  assert.equal(accessibleCollectionValue.textContent, "9");
   assert.equal(productionValue.textContent, "");
   assert.equal(production.hidden, true);
   assert.equal(accessibleProduction.hidden, true);

@@ -134,7 +134,8 @@ button {
   margin: -1px;
   overflow: hidden;
   clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
   border: 0;
 }
 .resource-production[hidden],
@@ -254,6 +255,7 @@ button {
   transition:
     transform 0.16s ease,
     filter 0.16s ease;
+  max-width: calc(100% - 3.2rem);
 }
 .collect-button:hover {
   filter: brightness(1.12);
@@ -268,6 +270,45 @@ button {
 }
 .collect-button b {
   font-size: 0.74rem;
+}
+.collection-resources {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.22rem;
+  min-width: 0;
+}
+.collection-resource {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: end;
+  gap: 0.1rem;
+}
+.collection-resource img {
+  width: 0.82rem;
+  height: 0.82rem;
+  flex: 0 0 auto;
+  object-fit: contain;
+  mix-blend-mode: multiply;
+}
+.collection-resource b {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 0.57rem;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.collection-accessibility {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 .map-buildings {
   position: absolute;
@@ -867,8 +908,7 @@ button {
     width: 0.95rem;
     height: 0.95rem;
   }
-  .resource small,
-  .resource-field {
+  .resource small {
     display: none;
   }
   .resource-production {
@@ -909,12 +949,23 @@ button {
     top: 1.1rem;
     right: 1.1rem;
     padding: 0.48rem 0.55rem;
+    max-width: calc(100% - 2.2rem);
   }
-  .collect-button span {
+  .collect-button > [data-collection-status] {
     display: none;
   }
   .collect-button b {
     font-size: 0.62rem;
+  }
+  .collection-resources {
+    gap: 0.12rem;
+  }
+  .collection-resource img {
+    width: 0.68rem;
+    height: 0.68rem;
+  }
+  .collection-resource b {
+    font-size: 0.5rem;
   }
   .map-buildings {
     inset: 7rem 0.35rem 2.5rem;
