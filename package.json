@@ -8,10 +8,13 @@
     "dev": "next dev --hostname 127.0.0.1",
     "build": "next build",
     "start": "next start --hostname 0.0.0.0 --port 31057",
+    "db:migrate": "node scripts/db-migrate.mjs",
     "test": "node --test test/*.test.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "check": "pnpm typecheck && pnpm lint",
+    "format": "prettier --plugin=prettier-plugin-solidity --write src apps/demo/src server scripts test contracts/src eslint.config.mjs next.config.ts postcss.config.mjs --ignore-unknown",
+    "format:check": "prettier --plugin=prettier-plugin-solidity --check src apps/demo/src server scripts test contracts/src eslint.config.mjs next.config.ts postcss.config.mjs --ignore-unknown",
+    "check": "pnpm typecheck && pnpm lint && pnpm format:check",
     "build:demo": "pnpm --filter @civilization/demo build",
     "preflight:worldchain:mainnet": "node scripts/deploy-worldchain-mainnet.mjs",
     "preflight:worldchain:testnet": "node scripts/deploy-worldchain-testnet.mjs",
@@ -22,7 +25,6 @@
     "deploy:worldchain:mainnet": "CONFIRM_MAINNET_DEPLOY=yes node scripts/deploy-worldchain-mainnet.mjs --send"
   },
   "devDependencies": {
-    "@eslint/eslintrc": "^3.3.1",
     "@ethereumjs/block": "10.1.2",
     "@ethereumjs/util": "10.1.2",
     "@ethereumjs/vm": "10.1.2",
@@ -34,25 +36,21 @@
     "@types/react-dom": "^19.0.0",
     "eruda": "^3.4.1",
     "eslint": "^9.0.0",
-    "eslint-config-next": "15.5.9",
-    "eslint-plugin-react": "^7.37.5",
+    "eslint-config-next": "16.3.0",
+    "prettier": "3.7.4",
+    "prettier-plugin-solidity": "2.4.1",
     "solc": "0.8.30",
     "typescript": "^5.0.0"
   },
   "dependencies": {
     "@worldcoin/idkit": "^4.2.2",
-    "@worldcoin/idkit-core": "^4.2.3",
-    "@worldcoin/mini-apps-ui-kit-react": "^1.0.2",
     "@worldcoin/minikit-js": "^2.0.3",
     "@worldcoin/minikit-react": "2.0.3",
-    "clsx": "^2.1.1",
-    "iconoir-react": "^7.11.0",
     "next": "16.3.0",
     "next-auth": "5.0.0-beta.32",
     "pg": "^8.16.3",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "tailwind-merge": "^3.2.0",
     "viem": "^2.55.11"
   }
 }

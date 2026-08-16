@@ -1,8 +1,8 @@
-import NextAuth, { type DefaultSession } from 'next-auth';
-import Credentials from 'next-auth/providers/credentials';
-import { consumeWalletLoginTicket } from '@/lib/wallet-login-ticket';
+import NextAuth, { type DefaultSession } from "next-auth";
+import Credentials from "next-auth/providers/credentials";
+import { consumeWalletLoginTicket } from "@/lib/wallet-login-ticket";
 
-declare module 'next-auth' {
+declare module "next-auth" {
   interface User {
     walletAddress: string;
     loginId: string;
@@ -16,7 +16,7 @@ declare module 'next-auth' {
       loginId: string;
       username: string;
       profilePictureUrl: string;
-    } & DefaultSession['user'];
+    } & DefaultSession["user"];
   }
 }
 
@@ -25,24 +25,25 @@ declare module 'next-auth' {
 // https://authjs.dev/getting-started/authentication/credentials
 export const { handlers, signIn, signOut, auth } = NextAuth({
   secret: process.env.AUTH_SECRET,
-  trustHost: process.env.AUTH_TRUST_HOST === 'true',
-  session: { strategy: 'jwt', maxAge: 3600 },
+  trustHost: process.env.AUTH_TRUST_HOST === "true",
+  session: { strategy: "jwt", maxAge: 3600 },
   providers: [
     Credentials({
-      name: 'World App Wallet',
+      name: "World App Wallet",
       credentials: {
-        ticket: { label: 'Login ticket', type: 'text' },
+        ticket: { label: "Login ticket", type: "text" },
       },
       authorize: async (credentials) => {
-        const ticket = typeof credentials?.ticket === 'string' ? credentials.ticket : '';
+        const ticket =
+          typeof credentials?.ticket === "string" ? credentials.ticket : "";
         const walletLogin = await consumeWalletLoginTicket(ticket);
         if (!walletLogin) return null;
         return {
           id: walletLogin.walletAddress,
           walletAddress: walletLogin.walletAddress,
           loginId: walletLogin.loginId,
-          username: '',
-          profilePictureUrl: '',
+          username: "",
+          profilePictureUrl: "",
         };
       },
     }),
@@ -72,6 +73,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     },
   },
   pages: {
-    signIn: '/',
+    signIn: "/",
   },
 });

@@ -1,4 +1,19 @@
 services:
+  civilization-migrate:
+    build:
+      context: .
+    command: ["node", "scripts/db-migrate.mjs"]
+    environment:
+      PGHOST: postgres
+      PGPORT: 5432
+      PGDATABASE: civilization
+      PGUSER: civilization
+      PGPASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
   civilization-dapp:
     build:
       context: .
@@ -24,8 +39,8 @@ services:
     ports:
       - "127.0.0.1:31057:31057"
     depends_on:
-      postgres:
-        condition: service_healthy
+      civilization-migrate:
+        condition: service_completed_successfully
     restart: unless-stopped
 
   postgres:
@@ -37,7 +52,11 @@ services:
     volumes:
       - civilization_postgres:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U civilization -d civilization"]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -h 127.0.0.1 -p 5432 -U civilization -d civilization",
+        ]
       interval: 5s
       timeout: 3s
       retries: 20

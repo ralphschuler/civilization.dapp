@@ -1,24 +1,23 @@
-import { runtimeConfiguration } from '@/lib/runtime-config';
-import ClientProviders from '@/providers';
-import '@worldcoin/mini-apps-ui-kit-react/styles.css';
-import type { Metadata } from 'next';
-import { connection } from 'next/server';
-import { Geist, Geist_Mono } from 'next/font/google';
-import './globals.css';
+import { runtimeConfiguration } from "@/lib/runtime-config";
+import ClientProviders from "@/providers";
+import type { Metadata } from "next";
+import { connection } from "next/server";
+import { Geist, Geist_Mono } from "next/font/google";
+import "./globals.css";
 
 const geistSans = Geist({
-  variable: '--font-geist-sans',
-  subsets: ['latin'],
+  variable: "--font-geist-sans",
+  subsets: ["latin"],
 });
 
 const geistMono = Geist_Mono({
-  variable: '--font-geist-mono',
-  subsets: ['latin'],
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
 });
 
 export const metadata: Metadata = {
-  title: 'Civilization DApp',
-  description: 'Civilization für World App',
+  title: "Civilization DApp",
+  description: "Civilization für World App",
 };
 
 export default async function RootLayout({
@@ -31,7 +30,9 @@ export default async function RootLayout({
   return (
     <html lang="de">
       <body className={`${geistSans.variable} ${geistMono.variable} `}>
-        <ClientProviders worldAppId={world.worldAppId}>{children}</ClientProviders>
+        <ClientProviders worldAppId={world.worldAppId}>
+          {children}
+        </ClientProviders>
       </body>
     </html>
   );

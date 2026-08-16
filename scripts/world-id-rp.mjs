@@ -5,6 +5,7 @@ export function worldRpIdToUint64(rpId) {
   const match = RP_ID_PATTERN.exec(rpId || "");
   if (!match) throw new Error("invalid_world_id_rp_id");
   const value = BigInt(`0x${match[1]}`);
-  if (value === 0n || value > 0xffffffffffffffffn) throw new Error("invalid_world_id_rp_id");
+  if (value === 0n || value > 0xffffffffffffffffn)
+    throw new Error("invalid_world_id_rp_id");
   return value;
 }

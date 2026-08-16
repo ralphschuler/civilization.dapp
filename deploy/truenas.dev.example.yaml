@@ -1,0 +1,59 @@
+# Separate TrueNAS application for civilization-dev; protected values stay in TrueNAS.
+services:
+  civilization-dev-migrate:
+    image: ghcr.io/ralphschuler/civilization.dapp:dev
+    command: ["node", "scripts/db-migrate.mjs"]
+    environment:
+      PGHOST: civilization-dev-postgres
+      PGPORT: "5432"
+      PGDATABASE: civilization_dev
+      PGUSER: civilization_dev
+      PGPASSWORD: REPLACE_DEV_POSTGRES_PASSWORD
+    depends_on:
+      civilization-dev-postgres: { condition: service_healthy }
+    restart: "no"
+  civilization-dev:
+    image: ghcr.io/ralphschuler/civilization.dapp:dev
+    environment:
+      NODE_ENV: production
+      CIVILIZATION_ENV: development
+      AUTH_URL: https://civilization-dev.nyphon.de
+      AUTH_TRUST_HOST: "true"
+      AUTH_SECRET: REPLACE_DEV_AUTH_SECRET
+      HMAC_SECRET_KEY: REPLACE_DEV_WALLET_NONCE_HMAC_SECRET
+      WORLD_APP_ID: app_c098bd46180834e598bd9cac8d1bd94d
+      WORLD_ID_APP_ID: app_c098bd46180834e598bd9cac8d1bd94d
+      WORLD_ID_ACTION: civilization-dev-play
+      WORLD_ID_PROOF_CONTEXT_URL: https://civilization-dev.nyphon.de/api/rp-signature
+      WORLD_ID_ENVIRONMENT: production
+      RP_ID: rp_de35f1ecb30715f9
+      RP_SIGNING_KEY: REPLACE_DEV_RP_SIGNING_KEY
+      CIVILIZATION_CONTRACT_ADDRESS: REPLACE_DEV_WORLD_CHAIN_MAINNET_CONTRACT
+      PGHOST: civilization-dev-postgres
+      PGPORT: "5432"
+      PGDATABASE: civilization_dev
+      PGUSER: civilization_dev
+      PGPASSWORD: REPLACE_DEV_POSTGRES_PASSWORD
+    ports: ["31058:31057"]
+    depends_on:
+      civilization-dev-migrate: { condition: service_completed_successfully }
+    restart: unless-stopped
+  civilization-dev-postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: civilization_dev
+      POSTGRES_USER: civilization_dev
+      POSTGRES_PASSWORD: REPLACE_DEV_POSTGRES_PASSWORD
+    volumes: ["civilization_dev_postgres:/var/lib/postgresql/data"]
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -h 127.0.0.1 -p 5432 -U civilization_dev -d civilization_dev",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+volumes:
+  civilization_dev_postgres:

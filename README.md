@@ -1,12 +1,12 @@
 # Civilization DApp
 
-Civilization is a Next.js World Mini App. Production contract `0x71564689Fa320bA010561A880CfE2896b6Dc8f8b` lets the connected World wallet create its own village once through `registerWallet()`. Access uses the proven native WalletAuth/SIWE flow, reads `playerState`, and renders the game on the same page after registration. The active client uses no IDKit, Auth.js session, or `/game` redirect.
+Civilization is a Next.js World Mini App. Its active production target is proxy `0x0E6689d0649Ad9037465d178231b10F18518D2b0`, which lets the connected World wallet create its own village once through `registerWallet()`. Access uses the proven native WalletAuth/SIWE flow, reads `playerState`, and renders the game on the same page after registration. The active client uses no IDKit, Auth.js session, or `/game` redirect.
 
 GitHub Pages publishes a separate walletless Next static export from `apps/demo`. It uses the shared Civilization UI and game domain in explicit `demo` mode; it never calls production game APIs.
 
 ## Release channels
 
-`develop` publishes the walletless static Dev/Test Mini App at https://nyphon.de/civilization.dapp/. `master` verifies and publishes the production container for https://civilization.nyphon.de.
+`develop` verifies and publishes the `:dev` container for the server-backed Dev Mini App; `master` alone publishes `:latest` for https://civilization.nyphon.de. GitHub Pages at https://nyphon.de/civilization.dapp/ is a walletless UI preview only: it has no WalletAuth, RP signature, database, or native World App validation path. See [the Dev deployment runbook](docs/DEV_DEPLOYMENT.md).
 
 Use Node 22 and pnpm 11.21.0:
 
@@ -18,7 +18,13 @@ pnpm build
 pnpm build:demo
 ```
 
-Server-only production configuration includes `AUTH_SECRET`, `HMAC_SECRET_KEY`, `DATABASE_URL` or the documented `PG*` values, and `RP_SIGNING_KEY`. PostgreSQL stores only short-lived, one-time Wallet Auth challenges. Public Mini App/World ID identifiers and game contract address are read by Next at runtime and serialized into client props, so container image contains no deployment-specific App ID. Never commit secrets.
+Server-only production configuration includes `AUTH_SECRET`, `HMAC_SECRET_KEY`, `DATABASE_URL` or the documented `PG*` values, and `RP_SIGNING_KEY`. PostgreSQL stores only short-lived, one-time Wallet Auth challenges and login tickets. Public Mini App/World ID identifiers and game contract address are read by Next at runtime and serialized into client props, so container image contains no deployment-specific App ID. Never commit secrets.
+
+## Database migrations and probes
+
+Run `pnpm db:migrate` after PostgreSQL is reachable and before starting the app. It serializes concurrent runners with a PostgreSQL advisory lock, records each version and SHA-256 checksum in `schema_migrations`, and can safely be repeated. A changed checksum or any migration error fails closed; restore a verified database backup before changing migration history or attempting a manual rollback. Migrations are forward-only.
+
+The Compose and TrueNAS templates run the same migration command as a one-shot service before the app starts. `/api/healthz` is a cheap liveness probe and never touches configuration or PostgreSQL. `/api/readyz` is the read-only readiness probe: it requires runtime configuration, a DB connection, and schema version `003`; an empty or old database returns HTTP 503 without creating tables.
 
 Production has no backend game-mutation API. UI reads `previewPlayerState`/`balanceOf` from deployed `CivilizationGame` and sends wallet registration, claim, construction, boost, training, prestige, and raid transactions through MiniKit. Backend provides WalletAuth/SIWE verification with one-time challenge storage. Dormant Auth.js and World-ID compatibility routes are not part of the active client flow. Health and readiness endpoints remain at `/api/healthz` and `/api/readyz`.
 
