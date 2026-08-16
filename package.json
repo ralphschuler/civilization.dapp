@@ -44,7 +44,7 @@
     "prettier": "3.7.4",
     "prettier-plugin-solidity": "2.4.1",
     "@playwright/test": "1.57.0",
-    "solc": "0.8.30",
+    "solc": "0.8.36",
     "typescript": "^5.0.0"
   },
   "dependencies": {

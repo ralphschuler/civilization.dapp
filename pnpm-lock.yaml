@@ -88,8 +88,8 @@ importers:
         specifier: 2.4.1
         version: 2.4.1(prettier@3.7.4)
       solc:
-        specifier: 0.8.30
-        version: 0.8.30(debug@4.4.3(supports-color@7.2.0))
+        specifier: 0.8.36
+        version: 0.8.36(debug@4.4.3(supports-color@7.2.0))
       typescript:
         specifier: ^5.0.0
         version: 5.9.3
@@ -2327,8 +2327,8 @@ packages:
     resolution: {integrity: sha512-6x6dK6zJdpTzF4sQeNYxwtvBzf6Eg4GtlesS94HOvTudUeyK2WXAaIfmDgsyslYrRBeFIlsi54AYsFGUuhmvrQ==}
     engines: {node: '>= 0.4'}
 
-  solc@0.8.30:
-    resolution: {integrity: sha512-9Srk/gndtBmoUbg4CE6ypAzPQlElv8ntbnl6SigUBAzgXKn35v87sj04uZeoZWjtDkdzT0qKFcIo/wl63UMxdw==}
+  solc@0.8.36:
+    resolution: {integrity: sha512-cnDhjWo8dC5FxnEwCrWxUsJS7RPsHf+pVUe9Tr/+b15sQ40WCVn4vX4R+tOvN5gRfEgiquvFzfF4VV0kSnknhw==}
     engines: {node: '>=12.0.0'}
     hasBin: true
 
@@ -4907,7 +4907,7 @@ snapshots:
       side-channel-map: 1.0.1
       side-channel-weakmap: 1.0.2
 
-  solc@0.8.30(debug@4.4.3(supports-color@7.2.0)):
+  solc@0.8.36(debug@4.4.3(supports-color@7.2.0)):
     dependencies:
       command-exists: 1.2.9
       commander: 8.3.0
