@@ -46,7 +46,11 @@ services:
       POSTGRES_PASSWORD: REPLACE_DEV_POSTGRES_PASSWORD
     volumes: ["civilization_dev_postgres:/var/lib/postgresql/data"]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U civilization_dev -d civilization_dev"]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -h 127.0.0.1 -p 5432 -U civilization_dev -d civilization_dev",
+        ]
       interval: 5s
       timeout: 3s
       retries: 20

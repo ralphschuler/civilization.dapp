@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
+import { connectWithRetry } from "../../src/lib/database-connect.mjs";
 
 const ADVISORY_LOCK_KEY = 4_414_270_044_001;
 
@@ -31,7 +32,7 @@ async function ensureMigrationTable(client) {
 }
 
 export async function runMigrations(pool, migrations) {
-  const client = await pool.connect();
+  const client = await connectWithRetry(pool);
   let locked = false;
   try {
     await client.query("SELECT pg_advisory_lock($1)", [ADVISORY_LOCK_KEY]);

@@ -1,6 +1,6 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { database } from "../src/lib/database.mjs";
+import { createMigrationDatabasePool } from "../src/lib/database.mjs";
 import { loadMigrations, runMigrations } from "./lib/migrations.mjs";
 
 const directory = path.join(
@@ -13,7 +13,7 @@ let pool;
 let failed = false;
 
 try {
-  pool = database();
+  pool = createMigrationDatabasePool();
   await runMigrations(pool, await loadMigrations(directory));
   console.log("Database migrations are current.");
 } catch (error) {

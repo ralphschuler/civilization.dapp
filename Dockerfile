@@ -24,6 +24,7 @@ COPY --from=build --chown=node:node /app/scripts/db-migrate.mjs ./scripts/db-mig
 COPY --from=build --chown=node:node /app/scripts/lib/migrations.mjs ./scripts/lib/migrations.mjs
 COPY --from=build --chown=node:node /app/migrations ./migrations
 COPY --from=build --chown=node:node /app/src/lib/database.mjs ./src/lib/database.mjs
+COPY --from=build --chown=node:node /app/src/lib/database-connect.mjs ./src/lib/database-connect.mjs
 USER node
 EXPOSE 31057
 HEALTHCHECK --interval=30s --timeout=3s --start-period=15s --retries=3 CMD node -e "fetch('http://127.0.0.1:31057/api/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
