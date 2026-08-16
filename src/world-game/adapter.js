@@ -60,6 +60,7 @@ function persistPending({ key, store }, wallet, game, action, userOpHash) {
 export function createWorldGameAdapter({
   walletAddress,
   contractAddress = CIVILIZATION_GAME_ADDRESS,
+  worldTokenAddress = "",
   pollReceipt,
   miniKit = MiniKit,
   readState: suppliedReadState = undefined,
@@ -114,7 +115,12 @@ export function createWorldGameAdapter({
     if (!userOpHash) {
       const response = await sendTransaction({
         chainId: WORLD_CHAIN_ID,
-        transactions: encodeWorldGameAction(type, payload, game),
+        transactions: encodeWorldGameAction(
+          type,
+          payload,
+          game,
+          worldTokenAddress,
+        ),
       });
       if (response.executedWith !== "minikit")
         throw new Error("world_app_wallet_required");

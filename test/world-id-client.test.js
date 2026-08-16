@@ -37,7 +37,7 @@ test("production retains WalletAuth registration while development has an explic
     ]);
   assert.match(
     client,
-    /useWalletVillageRegistration\(walletAddress, contractAddress\)/,
+    /useWalletVillageRegistration\(\s*walletAddress,\s*contractAddress,\s*worldTokenAddress,?\s*\)/,
   );
   assert.match(
     registration,

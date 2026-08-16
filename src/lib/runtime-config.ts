@@ -1,7 +1,10 @@
 import { getAddress, isAddress } from "viem";
+import { WORLD_CHAIN_ID } from "../world-chain.js";
 
 /** Immutable production identifiers. Development must never inherit these. */
 export const LIVE_CONTRACT = "0x0E6689d0649Ad9037465d178231b10F18518D2b0";
+/** WLD's World Chain mainnet contract; clients receive it through runtime config. */
+export const LIVE_WORLD_TOKEN = "0x2cFc85d8E48F8EAB294be644d9E25C3030863003";
 export const LIVE_RP_ID = "rp_a84548cb908798cf";
 export const LIVE_WORLD_ID_ACTION = "play";
 export const LIVE_WORLD_ID_PROOF_CONTEXT_URL =
@@ -19,6 +22,8 @@ export type PublicWorldRuntimeConfiguration = Readonly<{
   worldIdAppId: string;
   worldIdAction: string;
   civilizationContractAddress: string;
+  worldTokenAddress: string;
+  worldChainId: number;
   worldIdProofContextUrl: string;
   worldIdEnvironment: string;
 }>;
@@ -67,6 +72,8 @@ function publicWorld(
     worldIdAppId: value(env, "WORLD_ID_APP_ID"),
     worldIdAction: value(env, "WORLD_ID_ACTION"),
     civilizationContractAddress: value(env, "CIVILIZATION_CONTRACT_ADDRESS"),
+    worldTokenAddress: value(env, "CIVILIZATION_WORLD_TOKEN_ADDRESS"),
+    worldChainId: Number(value(env, "CIVILIZATION_CHAIN_ID")),
     worldIdProofContextUrl: value(env, "WORLD_ID_PROOF_CONTEXT_URL"),
     worldIdEnvironment: value(env, "WORLD_ID_ENVIRONMENT"),
   };
@@ -87,6 +94,8 @@ function sharedMissing(
     missing.push("RP_SIGNING_KEY");
   if (world.worldIdEnvironment !== "production")
     missing.push("WORLD_ID_ENVIRONMENT");
+  if (world.worldChainId !== WORLD_CHAIN_ID)
+    missing.push("CIVILIZATION_CHAIN_ID");
   return missing;
 }
 
@@ -105,6 +114,11 @@ function productionMissing(
     getAddress(world.civilizationContractAddress) !== getAddress(LIVE_CONTRACT)
   )
     missing.push("CIVILIZATION_CONTRACT_ADDRESS");
+  if (
+    !isAddress(world.worldTokenAddress) ||
+    getAddress(world.worldTokenAddress) !== getAddress(LIVE_WORLD_TOKEN)
+  )
+    missing.push("CIVILIZATION_WORLD_TOKEN_ADDRESS");
   return missing;
 }
 
@@ -138,6 +152,8 @@ function developmentMissing(
     getAddress(world.civilizationContractAddress) === getAddress(LIVE_CONTRACT)
   )
     missing.push("CIVILIZATION_CONTRACT_ADDRESS");
+  if (!isAddress(world.worldTokenAddress))
+    missing.push("CIVILIZATION_WORLD_TOKEN_ADDRESS");
   if (value(env, "PGDATABASE") === "civilization" || !value(env, "PGDATABASE"))
     missing.push("PGDATABASE");
   if (!value(env, "PGHOST")) missing.push("PGHOST");
