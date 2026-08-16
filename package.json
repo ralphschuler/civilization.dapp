@@ -41,7 +41,7 @@
     "eruda": "^3.4.1",
     "eslint": "^9.0.0",
     "eslint-config-next": "16.3.0",
-    "prettier": "3.7.4",
+    "prettier": "3.9.6",
     "prettier-plugin-solidity": "2.4.1",
     "@playwright/test": "1.57.0",
     "solc": "0.8.30",
