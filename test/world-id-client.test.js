@@ -79,6 +79,40 @@ test("WalletAuth is completed before CivilizationClient is loaded", async () => 
   assert.match(client, /server has verified WalletAuth\/SIWE/);
 });
 
+test("wallet access presents accessible, retryable authentication states", async () => {
+  const [access, styles] = await Promise.all([
+    readFile(
+      new URL("../src/components/WalletAccess/index.tsx", import.meta.url),
+      "utf8",
+    ),
+    readFile(new URL("../src/app/globals.css", import.meta.url), "utf8"),
+  ]);
+  assert.match(
+    access,
+    /type AccessStatus = "idle" \| "pending" \| "success" \| "cancelled" \| "failure"/,
+  );
+  assert.match(access, /attemptInFlight\.current/);
+  assert.match(access, /error\.code === "user_rejected"/);
+  assert.match(access, /aria-busy=\{isPending\}/);
+  assert.match(
+    access,
+    /role="status"[\s\S]*?aria-live="polite"[\s\S]*?aria-atomic="true"/,
+  );
+  assert.match(access, /aria-describedby="wallet-access-status"/);
+  assert.match(access, /environment === "development"/);
+  assert.match(
+    access,
+    /niemals nach deiner Seed Phrase oder deinem\s+privaten Schlüssel/,
+  );
+  assert.doesNotMatch(access, /WORLD MINI APP · DEVELOPMENT/);
+  assert.match(styles, /min-height: 2\.75rem/);
+  assert.match(styles, /env\(safe-area-inset-top\)/);
+  assert.match(styles, /prefers-reduced-motion/);
+  assert.match(styles, /prefers-reduced-transparency/);
+  assert.match(styles, /prefers-contrast: more/);
+  assert.match(styles, /:focus-visible/);
+});
+
 test("wallet registration retry always rereads on-chain state before a new MiniKit transaction", async () => {
   const registration = await readFile(
     new URL(
