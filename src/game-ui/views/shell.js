@@ -44,7 +44,6 @@ function resourceHudItem({
   runtimeMode,
   tokens,
   capacity,
-  displayState,
   production,
   resourceFormat,
 }) {
@@ -53,9 +52,6 @@ function resourceHudItem({
   const compactValue = (amount) => compactResourceValue(amount, resourceFormat);
   const stored = Number.isFinite(state.resources[id]) ? state.resources[id] : 0;
   const storageCapacity = Number.isFinite(capacity) ? capacity : 0;
-  const fieldStock = Number.isFinite(displayState.unclaimed?.[id])
-    ? displayState.unclaimed[id]
-    : 0;
   const productionText = productionRateText({
     resourceId: id,
     rate: production?.[id],
@@ -88,15 +84,43 @@ function resourceHudItem({
         <small>${gold ? "CGOLD" : tokens[id].symbol} · ${gold ? "WALLET" : "SPEICHER"}</small>
         <strong data-resource-value>${compactValue(stored)}</strong>
         ${capacityMarkup}
-        <em class="resource-field" data-resource-field>Feld ${compactValue(fieldStock)}</em>
       </span>
       <em class="resource-production" data-resource-production aria-hidden="true" ${hasProduction ? "" : "hidden"}><span class="resource-production-label">Produktion </span><span data-resource-production-value>${productionText}</span></em>
       <span class="resource-accessibility">
         ${accessibleStorageMarkup}
-        Feldbestand: <span data-resource-accessible-field>${exactValue(fieldStock)}</span>;
         <span data-resource-accessible-production ${hasProduction ? "" : "hidden"}>${hasProduction ? `Produktion: ${accessibleProductionText}` : ""}</span>
       </span>
     </div>`;
+}
+
+function collectionResources({ resourceDefs, displayState, resourceFormat }) {
+  const resources = Object.entries(resourceDefs).map(([id, definition]) => {
+    const value = Number.isFinite(displayState.unclaimed?.[id])
+      ? displayState.unclaimed[id]
+      : 0;
+    return { id, label: definition.label, value };
+  });
+  const compactValue = (value) => compactResourceValue(value, resourceFormat);
+  return `
+    <span class="collection-resources" aria-hidden="true">
+      ${resources
+        .map(
+          ({ id, value }) => `
+            <span class="collection-resource" data-collection-resource="${id}">
+              <img src="${RESOURCE_ASSETS[id]}" alt="" aria-hidden="true">
+              <b data-collection-resource-value>${compactValue(value)}</b>
+            </span>`,
+        )
+        .join("")}
+    </span>
+    <span class="collection-accessibility">
+      Feldressourcen: ${resources
+        .map(
+          ({ id, label, value }) =>
+            `${label} <span data-collection-resource-accessible="${id}">${resourceFormat(value)}</span>`,
+        )
+        .join("; ")}.
+    </span>`;
 }
 
 function buildingSpot(id, ctx) {
@@ -155,7 +179,6 @@ export function gameShell(ctx) {
         runtimeMode,
         tokens,
         capacity,
-        displayState,
         production,
         resourceFormat,
       }),
@@ -163,6 +186,11 @@ export function gameShell(ctx) {
     .join("");
   const spots = BUILDING_IDS.map((id) => buildingSpot(id, ctx)).join("");
   const navigation = tabs(activePanel);
+  const collectionStock = collectionResources({
+    resourceDefs,
+    displayState,
+    resourceFormat,
+  });
   const mobileNavigation = navigation
     .replaceAll("Bauplan", "Bau")
     .replaceAll("Kaserne", "Armee");
@@ -188,7 +216,9 @@ export function gameShell(ctx) {
 </div>
           <button class="collect-button" id="gather" ${collection.locked || busy ? "disabled" : ""}>
 <span data-collection-status>${collection.detail}</span>
-<b data-ready-to-claim>${collection.locked ? collection.label : `${resourceFormat(readyToClaim)} sammeln`}</b>
+<b data-ready-to-claim aria-hidden="true">${collection.locked ? collection.label : `${resourceFormat(readyToClaim)} sammeln`}</b>
+${collectionStock}
+<span class="collection-accessibility" data-ready-to-claim-accessible>${collection.locked ? collection.label : `${resourceFormat(readyToClaim)} sammeln`}</span>
 </button>
           <div class="map-buildings">
             ${spots}

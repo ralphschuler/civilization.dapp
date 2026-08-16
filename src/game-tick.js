@@ -22,21 +22,20 @@ export function refreshGameTick({
   const compactValue = (value) => compactResourceValue(value, resourceFormat);
   for (const id of resourceIds) {
     const rate = production?.[id];
-    const field = root.querySelector(
-      `[data-resource="${id}"] [data-resource-field]`,
-    );
     const fieldStock = Number.isFinite(displayState.unclaimed?.[id])
       ? displayState.unclaimed[id]
       : 0;
-    if (field) {
-      field.textContent = `Feld ${compactValue(fieldStock)}`;
-    }
-
-    const accessibleField = root.querySelector(
-      `[data-resource="${id}"] [data-resource-accessible-field]`,
+    const collectionValue = root.querySelector(
+      `[data-collection-resource="${id}"] [data-collection-resource-value]`,
     );
-    if (accessibleField) {
-      accessibleField.textContent = resourceFormat(fieldStock);
+    if (collectionValue) {
+      collectionValue.textContent = compactValue(fieldStock);
+    }
+    const accessibleCollectionValue = root.querySelector(
+      `[data-collection-resource-accessible="${id}"]`,
+    );
+    if (accessibleCollectionValue) {
+      accessibleCollectionValue.textContent = resourceFormat(fieldStock);
     }
 
     const productionNode = root.querySelector(
@@ -71,16 +70,19 @@ export function refreshGameTick({
     }
   }
 
+  const total = Object.values(displayState.unclaimed ?? {}).reduce(
+    (sum, value) => sum + value,
+    0,
+  );
+  const claimText = collection.locked
+    ? collection.label
+    : `${resourceFormat(total)} sammeln`;
   const claim = root.querySelector("[data-ready-to-claim]");
-  if (claim) {
-    const total = Object.values(displayState.unclaimed ?? {}).reduce(
-      (sum, value) => sum + value,
-      0,
-    );
-    claim.textContent = collection.locked
-      ? collection.label
-      : `${resourceFormat(total)} sammeln`;
-  }
+  if (claim) claim.textContent = claimText;
+  const accessibleClaim = root.querySelector(
+    "[data-ready-to-claim-accessible]",
+  );
+  if (accessibleClaim) accessibleClaim.textContent = claimText;
 
   const gather = root.querySelector("#gather");
   if (gather) {
