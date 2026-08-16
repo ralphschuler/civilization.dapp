@@ -48,3 +48,57 @@ export function requirementsLine(requirements, buildings) {
 export function remainingTime(until, now) {
   return Math.max(0, Math.ceil((until - now) / 1_000));
 }
+
+const COMPACT_RESOURCE_UNITS = [
+  { value: 1_000_000_000_000_000_000, suffix: "Tr" },
+  { value: 1_000_000_000_000_000, suffix: "Brd" },
+  { value: 1_000_000_000_000, suffix: "Bio" },
+  { value: 1_000_000_000, suffix: "Mrd" },
+  { value: 1_000_000, suffix: "Mio" },
+  { value: 1_000, suffix: "K" },
+];
+
+const compactResourceNumber = new Intl.NumberFormat("de-DE", {
+  maximumFractionDigits: 1,
+  useGrouping: false,
+});
+
+const scientificResourceNumber = new Intl.NumberFormat("de-DE", {
+  maximumFractionDigits: 1,
+  notation: "scientific",
+  useGrouping: false,
+});
+
+export function compactResourceValue(value, fullFormat) {
+  if (!Number.isFinite(value)) {
+    return fullFormat(0);
+  }
+
+  const absoluteValue = Math.abs(value);
+  const unitIndex = COMPACT_RESOURCE_UNITS.findIndex(
+    (unit) => absoluteValue >= unit.value,
+  );
+  if (unitIndex === -1) {
+    return fullFormat(value);
+  }
+
+  let unit = COMPACT_RESOURCE_UNITS[unitIndex];
+  const largerUnit = COMPACT_RESOURCE_UNITS[unitIndex - 1];
+  if (!largerUnit && absoluteValue >= unit.value * 999.95) {
+    return scientificResourceNumber.format(value);
+  }
+  if (largerUnit && absoluteValue >= largerUnit.value - unit.value / 20) {
+    unit = largerUnit;
+  }
+
+  return `${compactResourceNumber.format(value / unit.value)}${unit.suffix}`;
+}
+
+export function productionRateText({ resourceId, rate, mode, formatValue }) {
+  const hasNoAuthoritativeGoldProduction = resourceId === "gold" && rate === 0;
+  if (!Number.isFinite(rate) || rate < 0 || hasNoAuthoritativeGoldProduction) {
+    return "";
+  }
+
+  return `+${formatValue(rate)}${mode === "world" ? "/Tag" : "/s"}`;
+}

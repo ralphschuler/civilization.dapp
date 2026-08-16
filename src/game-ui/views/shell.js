@@ -4,6 +4,7 @@ import {
   CITY_MAPS,
   RESOURCE_ASSETS,
 } from "../constants.js";
+import { compactResourceValue, productionRateText } from "../helpers.js";
 
 export function accessGateView() {
   return `
@@ -47,25 +48,53 @@ function resourceHudItem({
   production,
   resourceFormat,
 }) {
-  const stored = state.resources[id];
+  const exactValue = (amount) =>
+    Number.isFinite(amount) ? resourceFormat(amount) : resourceFormat(0);
+  const compactValue = (amount) => compactResourceValue(amount, resourceFormat);
+  const stored = Number.isFinite(state.resources[id]) ? state.resources[id] : 0;
+  const storageCapacity = Number.isFinite(capacity) ? capacity : 0;
+  const fieldStock = Number.isFinite(displayState.unclaimed?.[id])
+    ? displayState.unclaimed[id]
+    : 0;
+  const productionText = productionRateText({
+    resourceId: id,
+    rate: production?.[id],
+    mode: runtimeMode,
+    formatValue: compactValue,
+  });
+  const accessibleProductionText = productionRateText({
+    resourceId: id,
+    rate: production?.[id],
+    mode: runtimeMode,
+    formatValue: exactValue,
+  });
+  const hasProduction = productionText !== "";
   const gold = runtimeMode === "world" && id === "gold";
   const capacityMarkup = gold
     ? ""
     : `
-    <b class="storage-capacity" data-resource-capacity>/${resourceFormat(capacity)}</b>
-    <div class="storage-progress ${stored >= capacity ? "is-full" : ""}" role="progressbar"
-      aria-label="${definition.label}-Speicher" aria-valuemin="0" aria-valuemax="${capacity}" aria-valuenow="${stored}">
-      <i data-resource-progress style="transform:scaleX(${Math.min(1, stored / capacity)})">
+    <b class="storage-capacity" data-resource-capacity>/${compactValue(storageCapacity)}</b>
+    <div class="storage-progress ${stored >= storageCapacity ? "is-full" : ""}">
+      <i data-resource-progress style="transform:scaleX(${storageCapacity ? Math.min(1, stored / storageCapacity) : 0})">
 </i>
     </div>`;
+  const accessibleStorageMarkup = gold
+    ? `<span>Wallet-Guthaben: ${exactValue(stored)}.</span>`
+    : `<span role="progressbar" aria-label="${definition.label}-Speicher" aria-valuemin="0" aria-valuemax="${storageCapacity}" aria-valuenow="${stored}" aria-valuetext="${exactValue(stored)} von ${exactValue(storageCapacity)}"></span>`;
   return `
-    <div class="resource ${definition.color}" data-resource="${id}">
-      <img src="${RESOURCE_ASSETS[id]}" alt="">
-      <span>
+    <div class="resource ${definition.color}" data-resource="${id}" role="group" aria-label="${definition.label}">
+      <img src="${RESOURCE_ASSETS[id]}" alt="" aria-hidden="true">
+      <span class="resource-values" aria-hidden="true">
         <small>${gold ? "CGOLD" : tokens[id].symbol} · ${gold ? "WALLET" : "SPEICHER"}</small>
-        <strong data-resource-value>${resourceFormat(stored)}</strong>
+        <strong data-resource-value>${compactValue(stored)}</strong>
         ${capacityMarkup}
-        <em data-resource-field>Feld ${resourceFormat(displayState.unclaimed[id])} · +${resourceFormat(production[id])}${runtimeMode === "world" ? "/Tag" : "/s"}</em>
+        <em class="resource-field" data-resource-field>Feld ${compactValue(fieldStock)}</em>
+      </span>
+      <em class="resource-production" data-resource-production aria-hidden="true" ${hasProduction ? "" : "hidden"}><span class="resource-production-label">Produktion </span><span data-resource-production-value>${productionText}</span></em>
+      <span class="resource-accessibility">
+        ${accessibleStorageMarkup}
+        Feldbestand: <span data-resource-accessible-field>${exactValue(fieldStock)}</span>;
+        <span data-resource-accessible-production ${hasProduction ? "" : "hidden"}>${hasProduction ? `Produktion: ${accessibleProductionText}` : ""}</span>
       </span>
     </div>`;
 }
