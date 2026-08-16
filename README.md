@@ -18,6 +18,22 @@ pnpm build
 pnpm build:demo
 ```
 
+## WalletAccess browser E2E
+
+`pnpm test:e2e:wallet` runs the focused Chromium-only WalletAccess suite at
+desktop and 390px mobile widths. Its harness is enabled only for a Next
+development server with the private server environment flag
+`CIVILIZATION_WALLET_E2E_TEST_MODE=enabled`; it cannot be enabled through a
+browser parameter and is disabled for production builds/starts. The harness
+injects a deterministic result and never calls MiniKit, wallet providers, or
+authentication endpoints.
+
+CI runs the suite after the normal test/check/build steps and installs only
+Chromium. It retries each test once in CI to absorb infrastructure flakes; a
+second failure fails the job. Screenshots, video, and traces are retained only
+for failures, and CI retains those artifacts for seven days only when the job
+fails.
+
 Server-only production configuration includes `AUTH_SECRET`, `HMAC_SECRET_KEY`, `DATABASE_URL` or the documented `PG*` values, and `RP_SIGNING_KEY`. PostgreSQL stores only short-lived, one-time Wallet Auth challenges and login tickets. Public Mini App/World ID identifiers and game contract address are read by Next at runtime and serialized into client props, so container image contains no deployment-specific App ID. Never commit secrets.
 
 ## Database migrations and probes
