@@ -15,7 +15,6 @@ import {
   BUILDING_INDEX,
   CIVILIZATION_GAME_ADDRESS,
   TROOP_INDEX,
-  WORLD_TOKEN_ADDRESS,
   decodeCivilizationState,
   encodeWalletRegistration,
   encodeWorldGameAction,
@@ -28,6 +27,7 @@ import {
 
 const defender = "0x2222222222222222222222222222222222222222";
 const alternateGame = "0x3333333333333333333333333333333333333333";
+const configuredWorldToken = "0x2cFc85d8E48F8EAB294be644d9E25C3030863003";
 const userOpHash = `0x${"ab".repeat(32)}`;
 
 function functionSelector(signature) {
@@ -439,12 +439,20 @@ test("terminally failed wallet registration clears pending operation before a ne
   assert.equal(sends, 0);
 });
 
-test("construction boost batches exact WLD approval before boostConstruction", () => {
-  const transactions = encodeWorldGameAction("boost", { hours: 2 });
+test("construction boost uses the supplied validated WLD configuration", () => {
+  const transactions = encodeWorldGameAction(
+    "boost",
+    { hours: 2 },
+    CIVILIZATION_GAME_ADDRESS,
+    configuredWorldToken,
+  );
   const amount = 2n * 10n ** 18n;
 
   assert.equal(transactions.length, 2);
-  assert.equal(getAddress(transactions[0].to), getAddress(WORLD_TOKEN_ADDRESS));
+  assert.equal(
+    getAddress(transactions[0].to),
+    getAddress(configuredWorldToken),
+  );
   assert.equal(
     transactions[0].data.slice(0, 10),
     functionSelector("approve(address,uint256)"),
@@ -476,9 +484,14 @@ test("construction boost batches exact WLD approval before boostConstruction", (
   );
 });
 
-test("runtime contract address drives registration and every game transaction target", () => {
+test("runtime contract and WLD addresses drive every game transaction target", () => {
   const claim = encodeWorldGameAction("claim", {}, alternateGame);
-  const boost = encodeWorldGameAction("boost", { hours: 1 }, alternateGame);
+  const boost = encodeWorldGameAction(
+    "boost",
+    { hours: 1 },
+    alternateGame,
+    configuredWorldToken,
+  );
 
   assert.equal(getAddress(claim[0].to), getAddress(alternateGame));
   assert.equal(getAddress(boost[1].to), getAddress(alternateGame));
@@ -498,6 +511,20 @@ test("World contract adapter refuses local market swaps and malformed actions", 
   assert.throws(
     () => encodeWorldGameAction("boost", { hours: 0 }),
     /invalid_boost/,
+  );
+  assert.throws(
+    () => encodeWorldGameAction("boost", { hours: 1 }),
+    /invalid_world_token/,
+  );
+  assert.throws(
+    () =>
+      encodeWorldGameAction(
+        "boost",
+        { hours: 1 },
+        CIVILIZATION_GAME_ADDRESS,
+        "not-an-address",
+      ),
+    /invalid_world_token/,
   );
   assert.throws(
     () => encodeWorldGameAction("upgrade", { building: "market" }),

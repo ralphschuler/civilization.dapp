@@ -4,7 +4,6 @@ export {
   BUILDING_INDEX,
   CIVILIZATION_GAME_ADDRESS,
   TROOP_INDEX,
-  WORLD_TOKEN_ADDRESS,
 } from "./world-game/constants.js";
 export {
   decodeCivilizationState,

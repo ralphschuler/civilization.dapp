@@ -20,6 +20,7 @@ import {
 type CivilizationClientProps = {
   walletAddress: string;
   contractAddress: string;
+  worldTokenAddress: string;
   environment: "production" | "development";
   worldIdAppId: string;
   worldIdAction: string;
@@ -28,6 +29,7 @@ type CivilizationClientProps = {
 export default function CivilizationClient({
   walletAddress,
   contractAddress,
+  worldTokenAddress,
   environment,
   worldIdAppId,
   worldIdAction,
@@ -37,6 +39,7 @@ export default function CivilizationClient({
       <DevelopmentCivilizationClient
         walletAddress={walletAddress}
         contractAddress={contractAddress}
+        worldTokenAddress={worldTokenAddress}
         worldIdAppId={worldIdAppId}
         worldIdAction={worldIdAction}
       />
@@ -45,6 +48,7 @@ export default function CivilizationClient({
     <ProductionCivilizationClient
       walletAddress={walletAddress}
       contractAddress={contractAddress}
+      worldTokenAddress={worldTokenAddress}
     />
   );
 }
@@ -52,10 +56,18 @@ export default function CivilizationClient({
 function ProductionCivilizationClient({
   walletAddress,
   contractAddress,
-}: Pick<CivilizationClientProps, "walletAddress" | "contractAddress">) {
+  worldTokenAddress,
+}: Pick<
+  CivilizationClientProps,
+  "walletAddress" | "contractAddress" | "worldTokenAddress"
+>) {
   const root = useRef<HTMLDivElement>(null);
   const { busy, checked, registered, registerVillage, status, worldAdapter } =
-    useWalletVillageRegistration(walletAddress, contractAddress);
+    useWalletVillageRegistration(
+      walletAddress,
+      contractAddress,
+      worldTokenAddress,
+    );
 
   useEffect(() => {
     if (!registered || !root.current) {
@@ -89,11 +101,16 @@ function ProductionCivilizationClient({
 function DevelopmentCivilizationClient({
   walletAddress,
   contractAddress,
+  worldTokenAddress,
   worldIdAppId,
   worldIdAction,
 }: Pick<
   CivilizationClientProps,
-  "walletAddress" | "contractAddress" | "worldIdAppId" | "worldIdAction"
+  | "walletAddress"
+  | "contractAddress"
+  | "worldTokenAddress"
+  | "worldIdAppId"
+  | "worldIdAction"
 >) {
   const root = useRef<HTMLDivElement>(null);
   const [registered, setRegistered] = useState(false);
@@ -107,9 +124,10 @@ function DevelopmentCivilizationClient({
       createWorldGameAdapter({
         walletAddress,
         contractAddress,
+        worldTokenAddress,
         pollReceipt: poll,
       }),
-    [walletAddress, contractAddress, poll],
+    [walletAddress, contractAddress, worldTokenAddress, poll],
   );
   useEffect(() => {
     readCivilizationState(walletAddress, contractAddress)

@@ -10,7 +10,6 @@ import {
   CIVILIZATION_GAME_ADDRESS,
   TROOP_INDEX,
   WORLD_TOKEN_UNIT,
-  WORLD_TOKEN_ADDRESS,
 } from "./constants.js";
 import { readCivilizationState } from "./reads.js";
 
@@ -65,6 +64,7 @@ export function encodeWorldGameAction(
   type,
   payload = {},
   contractAddress = CIVILIZATION_GAME_ADDRESS,
+  worldTokenAddress = "",
 ) {
   const game = getAddress(contractAddress);
   if (type === "claim")
@@ -160,10 +160,11 @@ export function encodeWorldGameAction(
   if (type === "boost") {
     if (!Number.isSafeInteger(payload.hours) || payload.hours < 1)
       throw new Error("invalid_boost");
+    if (!isAddress(worldTokenAddress)) throw new Error("invalid_world_token");
     const amount = BigInt(payload.hours) * WORLD_TOKEN_UNIT;
     return [
       transaction(
-        WORLD_TOKEN_ADDRESS,
+        getAddress(worldTokenAddress),
         encodeFunctionData({
           abi: WORLD_TOKEN_ABI,
           functionName: "approve",

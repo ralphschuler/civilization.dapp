@@ -60,6 +60,7 @@ function useReceiptPolling() {
 export function useWalletVillageRegistration(
   walletAddress: string,
   contractAddress: string,
+  worldTokenAddress: string,
 ) {
   const registrationInFlight = useRef(false);
   const pendingRegistrationHash = useRef<string | null>(null);
@@ -71,8 +72,13 @@ export function useWalletVillageRegistration(
 
   const worldAdapter = useMemo(
     () =>
-      createWorldGameAdapter({ walletAddress, contractAddress, pollReceipt }),
-    [contractAddress, pollReceipt, walletAddress],
+      createWorldGameAdapter({
+        walletAddress,
+        contractAddress,
+        worldTokenAddress,
+        pollReceipt,
+      }),
+    [contractAddress, pollReceipt, walletAddress, worldTokenAddress],
   );
 
   const readRegistration = useCallback(

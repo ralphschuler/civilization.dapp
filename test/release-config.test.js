@@ -150,6 +150,8 @@ test("Next deployment templates carry every Wallet Auth, RP, World, and challeng
     "WORLD_ID_PROOF_CONTEXT_URL",
     "WORLD_ID_ENVIRONMENT",
     "CIVILIZATION_CONTRACT_ADDRESS",
+    "CIVILIZATION_CHAIN_ID",
+    "CIVILIZATION_WORLD_TOKEN_ADDRESS",
     "POSTGRES_PASSWORD",
   ]) {
     assert.match(compose, new RegExp(name));
@@ -180,6 +182,37 @@ test("wallet-registration mainnet address is consistent across runtime and deplo
     source("server/contract-status.js"),
   ]);
   for (const contents of files) assert.match(contents, new RegExp(address));
+});
+
+test("WLD approval configuration is central, chain-bound, and has no client fallback", async () => {
+  const [runtimeConfig, actions, constants, page] = await Promise.all([
+    source("src/lib/runtime-config.ts"),
+    source("src/world-game/actions.js"),
+    source("src/world-game/constants.js"),
+    source("src/app/page.tsx"),
+  ]);
+  assert.match(runtimeConfig, /LIVE_WORLD_TOKEN/);
+  assert.match(
+    runtimeConfig,
+    /worldTokenAddress: value\(env, "CIVILIZATION_WORLD_TOKEN_ADDRESS"\)/,
+  );
+  assert.match(
+    runtimeConfig,
+    /worldChainId: Number\(value\(env, "CIVILIZATION_CHAIN_ID"\)\)/,
+  );
+  assert.match(runtimeConfig, /world\.worldChainId !== WORLD_CHAIN_ID/);
+  assert.match(
+    runtimeConfig,
+    /missing\.push\("CIVILIZATION_WORLD_TOKEN_ADDRESS"\)/,
+  );
+  assert.match(
+    actions,
+    /if \(!isAddress\(worldTokenAddress\)\) throw new Error\("invalid_world_token"\)/,
+  );
+  assert.match(actions, /getAddress\(worldTokenAddress\)/);
+  assert.doesNotMatch(constants, /WORLD_TOKEN_ADDRESS|2cFc85d8/);
+  assert.match(page, /if \(!configuration\.ready\)/);
+  assert.match(page, /worldTokenAddress=\{world\.worldTokenAddress\}/);
 });
 
 test("healthz is cheap liveness while readyz read-only checks configuration and schema", async () => {

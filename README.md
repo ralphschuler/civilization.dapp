@@ -34,7 +34,7 @@ second failure fails the job. Screenshots, video, and traces are retained only
 for failures, and CI retains those artifacts for seven days only when the job
 fails.
 
-Server-only production configuration includes `AUTH_SECRET`, `HMAC_SECRET_KEY`, `DATABASE_URL` or the documented `PG*` values, and `RP_SIGNING_KEY`. PostgreSQL stores only short-lived, one-time Wallet Auth challenges and login tickets. Public Mini App/World ID identifiers and game contract address are read by Next at runtime and serialized into client props, so container image contains no deployment-specific App ID. Never commit secrets.
+Server-only production configuration includes `AUTH_SECRET`, `HMAC_SECRET_KEY`, `DATABASE_URL` or the documented `PG*` values, and `RP_SIGNING_KEY`. PostgreSQL stores only short-lived, one-time Wallet Auth challenges and login tickets. Public Mini App/World ID identifiers plus `CIVILIZATION_CHAIN_ID`, game contract, and WLD token addresses are read by Next at runtime and serialized into client props, so container image contains no deployment-specific App ID. Production accepts only World Chain `480` and the configured canonical WLD address; malformed or mismatched values disable the transaction UI. Never commit secrets.
 
 ## Database migrations and probes
 

@@ -12,6 +12,7 @@ const CivilizationClient = dynamic(
 
 type WalletAccessProps = {
   contractAddress: string;
+  worldTokenAddress: string;
   environment: "production" | "development";
   worldIdAppId: string;
   worldIdAction: string;
@@ -62,6 +63,7 @@ function wasCancelled(error: unknown) {
 
 export const WalletAccess = ({
   contractAddress,
+  worldTokenAddress,
   environment,
   worldIdAppId,
   worldIdAction,
@@ -117,6 +119,7 @@ export const WalletAccess = ({
         key={`${contractAddress}:${walletAddress}`}
         walletAddress={walletAddress}
         contractAddress={contractAddress}
+        worldTokenAddress={worldTokenAddress}
         environment={environment}
         worldIdAppId={worldIdAppId}
         worldIdAction={worldIdAction}
