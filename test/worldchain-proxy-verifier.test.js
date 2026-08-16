@@ -3,7 +3,6 @@ import test from "node:test";
 import { keccak256 } from "viem";
 import {
   createJsonRpc,
-  EIP1967_ADMIN_SLOT,
   EIP1967_IMPLEMENTATION_SLOT,
   READ_ONLY_RPC_METHODS,
   verifyWorldChainProxy,
@@ -39,9 +38,7 @@ const fixtureRpc = ({
         ? implementationSlot
         : adminSlot;
     if (method === "eth_getCode")
-      return params[0].toLowerCase() === proxy.toLowerCase()
-        ? proxyCode
-        : code;
+      return params[0].toLowerCase() === proxy.toLowerCase() ? proxyCode : code;
     if (method === "eth_call") {
       const data = params[0].data;
       if (data.startsWith("0x8da5cb5b")) return ownerResult;
@@ -76,7 +73,11 @@ const fixtureRpc = ({
 
 test("successful fixture reports decoded authority, pause state, and only safe RPC methods", async () => {
   const { rpc, calls } = fixtureRpc();
-  const report = await verifyWorldChainProxy({ rpc, proxy, expectedChainId: 480 });
+  const report = await verifyWorldChainProxy({
+    rpc,
+    proxy,
+    expectedChainId: 480,
+  });
   assert.equal(report.ok, true);
   assert.equal(report.implementation.address, implementation);
   assert.equal(report.admin.address, admin);
@@ -107,20 +108,31 @@ test("paused() reports a supported true result", async () => {
   const { rpc } = fixtureRpc({
     pausedResult: `0x${"00".repeat(31)}01`,
   });
-  const report = await verifyWorldChainProxy({ rpc, proxy, expectedChainId: 480 });
+  const report = await verifyWorldChainProxy({
+    rpc,
+    proxy,
+    expectedChainId: 480,
+  });
   assert.equal(report.probes.paused.status, "supported");
   assert.equal(report.probes.paused.value, true);
 });
 
 test("paused() reports unsupported or reverted without RPC detail", async () => {
   const { rpc } = fixtureRpc({ pausedRpcError: true });
-  const report = await verifyWorldChainProxy({ rpc, proxy, expectedChainId: 480 });
+  const report = await verifyWorldChainProxy({
+    rpc,
+    proxy,
+    expectedChainId: 480,
+  });
   assert.deepEqual(report.probes.paused, {
     address: proxy,
     abi: "paused()",
     status: "unsupported_or_reverted",
   });
-  assert.doesNotMatch(JSON.stringify(report.probes.paused), /execution reverted/);
+  assert.doesNotMatch(
+    JSON.stringify(report.probes.paused),
+    /execution reverted/,
+  );
 });
 
 test("chain mismatch fails before proxy reads", async () => {
@@ -129,7 +141,10 @@ test("chain mismatch fails before proxy reads", async () => {
     verifyWorldChainProxy({ rpc, proxy, expectedChainId: 480 }),
     /chain id mismatch: expected 480, received 481/,
   );
-  assert.deepEqual(calls.map(({ method }) => method), ["eth_chainId"]);
+  assert.deepEqual(
+    calls.map(({ method }) => method),
+    ["eth_chainId"],
+  );
 });
 
 test("missing code fails closed", async () => {

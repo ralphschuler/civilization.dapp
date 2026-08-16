@@ -58,7 +58,11 @@ const fail = (message) => {
 };
 
 const validateAddress = (value, label) => {
-  if (typeof value !== "string" || !isAddress(value) || /^0x0{40}$/i.test(value))
+  if (
+    typeof value !== "string" ||
+    !isAddress(value) ||
+    /^0x0{40}$/i.test(value)
+  )
     fail(`${label} must be a non-zero EVM address`);
   return getAddress(value);
 };
@@ -109,9 +113,13 @@ const decodeAddressProbe = (result, label) => {
 
 const decodePausedProbe = (result) => {
   if (typeof result !== "string" || !HEX_WORD.test(result))
-    fail("eth_call paused() probe at proxy returned malformed ABI boolean data");
+    fail(
+      "eth_call paused() probe at proxy returned malformed ABI boolean data",
+    );
   if (!/^0x0{63}[01]$/.test(result))
-    fail("eth_call paused() probe at proxy returned an invalid ABI boolean value");
+    fail(
+      "eth_call paused() probe at proxy returned an invalid ABI boolean value",
+    );
   return result.endsWith("1");
 };
 
@@ -122,7 +130,8 @@ export const createJsonRpc = ({
 }) => {
   if (typeof rpcUrl !== "string" || !/^https:\/\//i.test(rpcUrl))
     fail("RPC URL must be an explicit HTTPS URL");
-  if (typeof fetchImpl !== "function") fail("a fetch implementation is required");
+  if (typeof fetchImpl !== "function")
+    fail("a fetch implementation is required");
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0)
     fail("RPC fetch timeout must be a positive safe integer in milliseconds");
   let id = 0;
@@ -155,7 +164,8 @@ export const createJsonRpc = ({
       fail(`RPC request for ${method} returned invalid JSON`);
     }
     if (payload?.error) throw new RpcMethodError(method);
-    if (!("result" in (payload || {}))) fail(`RPC ${method} response omitted result`);
+    if (!("result" in (payload || {})))
+      fail(`RPC ${method} response omitted result`);
     return payload.result;
   };
 };
@@ -176,14 +186,23 @@ export const verifyWorldChainProxy = async ({
     fail("an RPC client or explicit RPC URL is required");
   const chainId = parseChainId(await rpc("eth_chainId", []));
   if (chainId !== expected)
-    fail(`chain id mismatch: expected ${expected.toString()}, received ${chainId.toString()}`);
+    fail(
+      `chain id mismatch: expected ${expected.toString()}, received ${chainId.toString()}`,
+    );
 
   const [implementationWord, adminWord, proxyCode] = await Promise.all([
-    rpc("eth_getStorageAt", [proxyAddress, EIP1967_IMPLEMENTATION_SLOT, "latest"]),
+    rpc("eth_getStorageAt", [
+      proxyAddress,
+      EIP1967_IMPLEMENTATION_SLOT,
+      "latest",
+    ]),
     rpc("eth_getStorageAt", [proxyAddress, EIP1967_ADMIN_SLOT, "latest"]),
     rpc("eth_getCode", [proxyAddress, "latest"]),
   ]);
-  const implementation = addressFromEip1967Word(implementationWord, "implementation");
+  const implementation = addressFromEip1967Word(
+    implementationWord,
+    "implementation",
+  );
   const admin = addressFromEip1967Word(adminWord, "admin");
   const [implementationCode, adminCode] = await Promise.all([
     rpc("eth_getCode", [implementation, "latest"]),
@@ -191,10 +210,16 @@ export const verifyWorldChainProxy = async ({
   ]);
   // Refuse missing or malformed runtime code before issuing optional ABI probes.
   const proxyCodeReport = assertCode(proxyCode, "proxy");
-  const implementationCodeReport = assertCode(implementationCode, "implementation");
+  const implementationCodeReport = assertCode(
+    implementationCode,
+    "implementation",
+  );
   const adminCodeReport = assertCode(adminCode, "admin");
   const [timelockResult, ownerResult] = await Promise.all([
-    rpc("eth_call", [{ to: proxyAddress, data: encodeTimelockProbe() }, "latest"]),
+    rpc("eth_call", [
+      { to: proxyAddress, data: encodeTimelockProbe() },
+      "latest",
+    ]),
     rpc("eth_call", [{ to: admin, data: encodeOwnerProbe() }, "latest"]),
   ]);
   const timelock = decodeAddressProbe(
@@ -210,7 +235,10 @@ export const verifyWorldChainProxy = async ({
     paused = {
       status: "supported",
       value: decodePausedProbe(
-        await rpc("eth_call", [{ to: proxyAddress, data: encodePausedProbe() }, "latest"]),
+        await rpc("eth_call", [
+          { to: proxyAddress, data: encodePausedProbe() },
+          "latest",
+        ]),
       ),
     };
   } catch (error) {
@@ -249,7 +277,10 @@ const cliArguments = (argv) => {
   for (let index = 0; index < argv.length; index += 2) {
     const flag = argv[index];
     const value = argv[index + 1];
-    if (!/^--(?:rpc-url|proxy|expected-chain-id)$/.test(flag) || value === undefined)
+    if (
+      !/^--(?:rpc-url|proxy|expected-chain-id)$/.test(flag) ||
+      value === undefined
+    )
       fail(
         "usage: --rpc-url <https-url> --proxy <address> --expected-chain-id <decimal>",
       );
