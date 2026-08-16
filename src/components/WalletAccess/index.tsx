@@ -15,7 +15,13 @@ type WalletAccessProps = {
   environment: "production" | "development";
   worldIdAppId: string;
   worldIdAction: string;
+  /** Test-only dependency supplied by the server-gated E2E harness. */
+  attemptWalletAccess?: WalletAccessAttempt;
+  /** Keeps the E2E harness on the success state instead of loading the game. */
+  onWalletAccessGranted?: (walletAddress: string) => void;
 };
+
+export type WalletAccessAttempt = () => Promise<string>;
 
 type AccessStatus = "idle" | "pending" | "success" | "cancelled" | "failure";
 
@@ -59,6 +65,8 @@ export const WalletAccess = ({
   environment,
   worldIdAppId,
   worldIdAction,
+  attemptWalletAccess,
+  onWalletAccessGranted,
 }: WalletAccessProps) => {
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [verifiedWalletAddress, setVerifiedWalletAddress] = useState<
@@ -69,12 +77,16 @@ export const WalletAccess = ({
 
   useEffect(() => {
     if (!verifiedWalletAddress) return;
+    if (onWalletAccessGranted) {
+      onWalletAccessGranted(verifiedWalletAddress);
+      return;
+    }
     const nextScreen = window.setTimeout(
       () => setWalletAddress(verifiedWalletAddress),
       250,
     );
     return () => window.clearTimeout(nextScreen);
-  }, [verifiedWalletAddress]);
+  }, [onWalletAccessGranted, verifiedWalletAddress]);
 
   const handleWalletAccess = async () => {
     if (attemptInFlight.current) {
@@ -83,13 +95,15 @@ export const WalletAccess = ({
     attemptInFlight.current = true;
     setStatus("pending");
     try {
-      setVerifiedWalletAddress(
-        await verifyWalletForDirectGame({
-          fetchImpl: fetch,
-          walletAuth: (input: Parameters<typeof MiniKit.walletAuth>[0]) =>
-            MiniKit.walletAuth(input),
-        }),
-      );
+      const verifyWallet =
+        attemptWalletAccess ??
+        (() =>
+          verifyWalletForDirectGame({
+            fetchImpl: fetch,
+            walletAuth: (input: Parameters<typeof MiniKit.walletAuth>[0]) =>
+              MiniKit.walletAuth(input),
+          }));
+      setVerifiedWalletAddress(await verifyWallet());
       setStatus("success");
     } catch (error) {
       setStatus(wasCancelled(error) ? "cancelled" : "failure");

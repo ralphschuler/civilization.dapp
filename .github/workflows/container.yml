@@ -42,6 +42,18 @@ jobs:
       - run: pnpm check
       - run: pnpm build
       - run: pnpm build:demo
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Run WalletAccess browser E2E
+        run: pnpm test:e2e:wallet
+      - name: Upload WalletAccess E2E failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wallet-access-playwright-artifacts
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 7
       - run: docker build -t civilization-dapp-test:ci .
       - name: Migration CLI fails safely without database configuration
         run: |
