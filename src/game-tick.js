@@ -1,4 +1,8 @@
-import { clock } from "./game-ui/helpers.js";
+import {
+  clock,
+  compactResourceValue,
+  productionRateText,
+} from "./game-ui/helpers.js";
 
 export function refreshGameTick({
   root,
@@ -11,19 +15,65 @@ export function refreshGameTick({
   resourceFormat,
   remainingTime,
 }) {
-  for (const [id, rate] of Object.entries(production)) {
+  const resourceIds = new Set([
+    ...Object.keys(displayState.unclaimed ?? {}),
+    ...Object.keys(production ?? {}),
+  ]);
+  const compactValue = (value) => compactResourceValue(value, resourceFormat);
+  for (const id of resourceIds) {
+    const rate = production?.[id];
     const field = root.querySelector(
       `[data-resource="${id}"] [data-resource-field]`,
     );
+    const fieldStock = Number.isFinite(displayState.unclaimed?.[id])
+      ? displayState.unclaimed[id]
+      : 0;
     if (field) {
-      const unit = mode === "world" ? "/Tag" : "/s";
-      field.textContent = `Feld ${resourceFormat(displayState.unclaimed[id])} · +${resourceFormat(rate)}${unit}`;
+      field.textContent = `Feld ${compactValue(fieldStock)}`;
+    }
+
+    const accessibleField = root.querySelector(
+      `[data-resource="${id}"] [data-resource-accessible-field]`,
+    );
+    if (accessibleField) {
+      accessibleField.textContent = resourceFormat(fieldStock);
+    }
+
+    const productionNode = root.querySelector(
+      `[data-resource="${id}"] [data-resource-production]`,
+    );
+    const productionValue = root.querySelector(
+      `[data-resource="${id}"] [data-resource-production-value]`,
+    );
+    const accessibleProduction = root.querySelector(
+      `[data-resource="${id}"] [data-resource-accessible-production]`,
+    );
+    const productionText = productionRateText({
+      resourceId: id,
+      rate,
+      mode,
+      formatValue: compactValue,
+    });
+    const accessibleProductionText = productionRateText({
+      resourceId: id,
+      rate,
+      mode,
+      formatValue: resourceFormat,
+    });
+    const hasProduction = productionText !== "";
+    if (productionNode) productionNode.hidden = !hasProduction;
+    if (productionValue) productionValue.textContent = productionText;
+    if (accessibleProduction) {
+      accessibleProduction.textContent = hasProduction
+        ? `Produktion: ${accessibleProductionText}`
+        : "";
+      accessibleProduction.hidden = !hasProduction;
     }
   }
 
   const claim = root.querySelector("[data-ready-to-claim]");
   if (claim) {
-    const total = Object.values(displayState.unclaimed).reduce(
+    const total = Object.values(displayState.unclaimed ?? {}).reduce(
       (sum, value) => sum + value,
       0,
     );
