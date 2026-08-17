@@ -24,7 +24,6 @@ import { createWorldRuntime } from "../src/game-world-runtime.js";
 import { refreshGameTick } from "../src/game-tick.js";
 import { civilizationMessages } from "../src/lib/civilization-locale.ts";
 import { readFile } from "node:fs/promises";
-import { civilizationMessages } from "../src/lib/civilization-locale.ts";
 
 test("pure UI helpers format time, escape markup, and clamp elapsed time", () => {
   assert.equal(clock(65), "01:05");
