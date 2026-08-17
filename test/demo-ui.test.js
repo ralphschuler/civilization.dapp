@@ -23,6 +23,7 @@ import { marketPanel } from "../src/game-ui/views/market.js";
 import { createWorldRuntime } from "../src/game-world-runtime.js";
 import { refreshGameTick } from "../src/game-tick.js";
 import { readFile } from "node:fs/promises";
+import { civilizationMessages } from "../src/lib/civilization-locale.ts";
 
 test("pure UI helpers format time, escape markup, and clamp elapsed time", () => {
   assert.equal(clock(65), "01:05");
@@ -136,6 +137,43 @@ test("shell rendering receives explicit state and no controller callbacks", () =
   });
   assert.match(html, /data-panel="build"/);
   assert.match(html, /<p>panel<\/p>/);
+});
+
+test("imperative shell uses the selected locale for navigation and dynamic claim values", () => {
+  const state = {
+    resources: { wood: 0, clay: 0, stone: 0, gold: 0 },
+    unclaimed: { wood: 0, clay: 0, stone: 0, gold: 0 },
+    buildings: Object.fromEntries(BUILDING_IDS.map((id) => [id, 1])),
+    raids: 0,
+  };
+  const html = gameShell({
+    state,
+    runtimeMode: "demo",
+    worldApp: { installed: false },
+    worldBadge: "DEMO · LOCAL",
+    feedback: "",
+    activePanel: "build",
+    selectedBuilding: "townhall",
+    panel: "",
+    production: {},
+    capacity: 100,
+    displayState: state,
+    collection: { locked: false, detail: "FIELD" },
+    readyToClaim: 1234.5,
+    resourceDefs: {},
+    tokens: {},
+    format: String,
+    resourceFormat: (value) => new Intl.NumberFormat("en-US").format(value),
+    buildings: Object.fromEntries(
+      BUILDING_IDS.map((id) => [id, { label: id }]),
+    ),
+    busy: false,
+    locale: "en-US",
+    copy: civilizationMessages("en-US"),
+  });
+  assert.match(html, /aria-label="Village actions"/);
+  assert.match(html, /1,234\.5 collect/);
+  assert.match(html, /<option value="en-US" selected>English/);
 });
 
 test("World market UI requires a live on-chain quote and exposes fee and liquidity", () => {

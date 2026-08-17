@@ -8,6 +8,13 @@ import {
   type WalletAccessLocale,
   walletAccessMessages,
 } from "@/lib/wallet-access-locale";
+import {
+  CIVILIZATION_LOCALE_STORAGE_KEY,
+  civilizationMessages,
+  localeLanguageTag,
+  resolveCivilizationLocale,
+  type CivilizationLocale,
+} from "@/lib/civilization-locale";
 
 const CivilizationClient = dynamic(
   () => import("@/components/CivilizationClient"),
@@ -45,14 +52,41 @@ export const WalletAccess = ({
   environment,
   attemptWalletAccess,
   onWalletAccessGranted,
-  locale = "de-DE",
+  locale: controlledLocale,
 }: WalletAccessProps) => {
+  const [selectedLocale, setSelectedLocale] = useState<CivilizationLocale>(
+    () => {
+      if (typeof window === "undefined") return "de-DE";
+      const queryLocale = new URLSearchParams(window.location.search).get(
+        "lang",
+      );
+      return resolveCivilizationLocale(
+        queryLocale ??
+          window.localStorage.getItem(CIVILIZATION_LOCALE_STORAGE_KEY),
+      );
+    },
+  );
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [verifiedWalletAddress, setVerifiedWalletAddress] = useState<
     string | null
   >(null);
   const [status, setStatus] = useState<AccessStatus>("idle");
   const attemptInFlight = useRef(false);
+
+  const locale = controlledLocale ?? selectedLocale;
+  const gameCopy = civilizationMessages(locale);
+
+  useEffect(() => {
+    document.documentElement.lang = localeLanguageTag(locale);
+  }, [locale]);
+
+  const changeLocale = (nextLocale: CivilizationLocale) => {
+    window.localStorage.setItem(CIVILIZATION_LOCALE_STORAGE_KEY, nextLocale);
+    const url = new URL(window.location.href);
+    url.searchParams.set("lang", nextLocale === "en-US" ? "en" : "de");
+    window.history.replaceState(null, "", url);
+    setSelectedLocale(nextLocale);
+  };
 
   useEffect(() => {
     if (!verifiedWalletAddress) return;
@@ -97,6 +131,8 @@ export const WalletAccess = ({
         walletAddress={walletAddress}
         contractAddress={contractAddress}
         worldTokenAddress={worldTokenAddress}
+        locale={locale}
+        onLocaleChange={changeLocale}
       />
     );
   }
@@ -127,32 +163,39 @@ export const WalletAccess = ({
             <p className="civilization-login__eyebrow">Civilization</p>
             <p className="civilization-login__product">WORLD MINI APP</p>
           </div>
+          {!controlledLocale ? (
+            <label>
+              <span className="sr-only">{gameCopy.language}</span>
+              <select
+                value={locale}
+                onChange={(event) =>
+                  changeLocale(event.target.value as CivilizationLocale)
+                }
+                aria-label={gameCopy.language}
+              >
+                <option value="de-DE">{gameCopy.german}</option>
+                <option value="en-US">{gameCopy.english}</option>
+              </select>
+            </label>
+          ) : null}
           {environment === "development" ? (
             <span className="civilization-login__dev">DEV</span>
           ) : null}
         </header>
         <div className="civilization-login__intro">
-          <h1 id="civilization-login-title">Baue dein Reich. Zug um Zug.</h1>
-          <p>
-            Civilization bringt deine Strategie direkt in die World App –
-            bereit, wenn du es bist.
-          </p>
+          <h1 id="civilization-login-title">{gameCopy.loginTitle}</h1>
+          <p>{gameCopy.loginIntro}</p>
         </div>
         <section
           className="civilization-login__wallet"
-          aria-label="Wallet-Zugang"
+          aria-label={gameCopy.walletAccess}
         >
-          <p>
-            Bestätige deine World Wallet, damit diese Oberfläche deine Adresse
-            zuordnen kann.
+          <p>{gameCopy.walletExplanation}</p>
+          <p className="civilization-login__safety" role="note">
+            {gameCopy.walletSafetyContract}
           </p>
           <p className="civilization-login__safety" role="note">
-            Diese Bestätigung autorisiert keinen Smart Contract. Jede
-            On-chain-Aktion wird separat von deiner World Wallet signiert.
-          </p>
-          <p className="civilization-login__safety" role="note">
-            Civilization fragt niemals nach deiner Seed Phrase oder deinem
-            privaten Schlüssel.
+            {gameCopy.walletSafetySecret}
           </p>
           <button
             type="button"

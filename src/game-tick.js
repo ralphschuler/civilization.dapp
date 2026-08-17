@@ -16,6 +16,7 @@ export function refreshGameTick({
   collection,
   resourceFormat,
   remainingTime,
+  copy = { production: "Produktion", collect: "sammeln" },
 }) {
   const resourceIds = new Set([
     ...Object.keys(displayState.unclaimed ?? {}),
@@ -66,7 +67,7 @@ export function refreshGameTick({
     if (productionValue) productionValue.textContent = productionText;
     if (accessibleProduction) {
       accessibleProduction.textContent = hasProduction
-        ? `Produktion: ${accessibleProductionText}`
+        ? `${copy.production}: ${accessibleProductionText}`
         : "";
       accessibleProduction.hidden = !hasProduction;
     }
@@ -78,7 +79,7 @@ export function refreshGameTick({
   );
   const claimText = collection.locked
     ? collection.label
-    : `${resourceFormat(total)} sammeln`;
+    : `${resourceFormat(total)} ${copy.collect}`;
   const claim = root.querySelector("[data-ready-to-claim]");
   if (claim) claim.textContent = claimText;
   const accessibleClaim = root.querySelector(

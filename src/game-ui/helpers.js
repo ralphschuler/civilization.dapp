@@ -94,11 +94,18 @@ export function compactResourceValue(value, fullFormat) {
   return `${compactResourceNumber.format(value / unit.value)}${unit.suffix}`;
 }
 
-export function productionRateText({ resourceId, rate, mode, formatValue }) {
+export function productionRateText({
+  resourceId,
+  rate,
+  mode,
+  formatValue,
+  dayUnit = "Tag",
+  secondUnit = "s",
+}) {
   const hasNoAuthoritativeGoldProduction = resourceId === "gold" && rate === 0;
   if (!Number.isFinite(rate) || rate < 0 || hasNoAuthoritativeGoldProduction) {
     return "";
   }
 
-  return `+${formatValue(rate)}${mode === "world" ? "/Tag" : "/s"}`;
+  return `+${formatValue(rate)}${mode === "world" ? `/${dayUnit}` : `/${secondUnit}`}`;
 }
