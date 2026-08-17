@@ -17,17 +17,8 @@ services:
     environment:
       NODE_ENV: production
       CIVILIZATION_ENV: development
-      AUTH_URL: https://civilization-dev.nyphon.de
-      AUTH_TRUST_HOST: "true"
-      AUTH_SECRET: REPLACE_DEV_AUTH_SECRET
-      HMAC_SECRET_KEY: REPLACE_DEV_WALLET_NONCE_HMAC_SECRET
+      WALLET_AUTH_URL: https://civilization-dev.nyphon.de
       WORLD_APP_ID: app_c098bd46180834e598bd9cac8d1bd94d
-      WORLD_ID_APP_ID: app_c098bd46180834e598bd9cac8d1bd94d
-      WORLD_ID_ACTION: civilization-dev-play
-      WORLD_ID_PROOF_CONTEXT_URL: https://civilization-dev.nyphon.de/api/rp-signature
-      WORLD_ID_ENVIRONMENT: production
-      RP_ID: rp_de35f1ecb30715f9
-      RP_SIGNING_KEY: REPLACE_DEV_RP_SIGNING_KEY
       CIVILIZATION_CONTRACT_ADDRESS: REPLACE_DEV_WORLD_CHAIN_MAINNET_CONTRACT
       CIVILIZATION_CHAIN_ID: "480"
       CIVILIZATION_WORLD_TOKEN_ADDRESS: REPLACE_DEV_WORLD_CHAIN_WLD_TOKEN

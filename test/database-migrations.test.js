@@ -46,12 +46,13 @@ test("the shipped migration files have a deterministic ascending order", async (
       ["001", "001_wallet_auth_challenges.sql"],
       ["002", "002_wallet_login_tickets.sql"],
       ["003", "003_wallet_login_tickets_login_id.sql"],
+      ["004", "004_remove_wallet_login_tickets.sql"],
     ],
   );
   assert.ok(loaded.every(({ checksum }) => /^[a-f0-9]{64}$/.test(checksum)));
 });
 
-test("migration 003 backfills legacy login IDs without deleting tickets", async () => {
+test("migration 003 remains immutable and migration 004 retires its ticket table", async () => {
   const migration = await (
     await loadMigrations("migrations")
   ).find(({ version }) => version === "003");
@@ -60,6 +61,10 @@ test("migration 003 backfills legacy login IDs without deleting tickets", async 
   assert.match(migration.sql, /md5\(ticket_hash\)/);
   assert.match(migration.sql, /::uuid/);
   assert.doesNotMatch(migration.sql, /DELETE\s+FROM\s+wallet_login_tickets/i);
+  const removal = await (
+    await loadMigrations("migrations")
+  ).find(({ version }) => version === "004");
+  assert.match(removal.sql, /DROP TABLE IF EXISTS wallet_login_tickets/);
 });
 
 test("migrations run in order, are recorded, and skip already applied versions", async () => {
@@ -195,13 +200,14 @@ test("schema readiness requires every expected version in order", async () => {
       { version: "001" },
       { version: "002" },
       { version: "003" },
+      { version: "004" },
     ]),
     true,
   );
   assert.equal(
     hasRequiredWalletAuthSchemaVersions([
       { version: "001" },
-      { version: "003" },
+      { version: "004" },
     ]),
     false,
   );
@@ -209,13 +215,13 @@ test("schema readiness requires every expected version in order", async () => {
   assert.equal(
     await walletAuthSchemaReady(async (sql, parameters) => {
       query = { sql, parameters };
-      return { rows: [{ version: "001" }, { version: "003" }] };
+      return { rows: [{ version: "001" }, { version: "004" }] };
     }),
     false,
   );
   assert.match(query.sql, /^SELECT version FROM schema_migrations/);
   assert.match(query.sql, /ORDER BY version ASC$/);
-  assert.deepEqual(query.parameters, [["001", "002", "003"]]);
+  assert.deepEqual(query.parameters, [["001", "002", "003", "004"]]);
 });
 
 test("readyz preserves a schema check's false result", async () => {

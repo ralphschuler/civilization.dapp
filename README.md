@@ -40,15 +40,15 @@ second failure fails the job. Screenshots, video, and traces are retained only
 for failures, and CI retains those artifacts for seven days only when the job
 fails.
 
-Server-only production configuration includes `AUTH_SECRET`, `HMAC_SECRET_KEY`, `DATABASE_URL` or the documented `PG*` values, and `RP_SIGNING_KEY`. PostgreSQL stores only short-lived, one-time Wallet Auth challenges and login tickets. Public Mini App/World ID identifiers plus `CIVILIZATION_CHAIN_ID`, game contract, and WLD token addresses are read by Next at runtime and serialized into client props, so container image contains no deployment-specific App ID. Production accepts only World Chain `480` and the configured canonical WLD address; malformed or mismatched values disable the transaction UI. Never commit secrets.
+Server-only production configuration includes `WALLET_AUTH_URL`, `DATABASE_URL` or the documented `PG*` values. PostgreSQL stores only short-lived, one-time WalletAuth/SIWE challenges. `WORLD_APP_ID`, `CIVILIZATION_CHAIN_ID`, game contract, and WLD token addresses are read by Next at runtime and serialized into client props, so the container image contains no deployment-specific App ID. Production accepts only World Chain `480` and the configured canonical WLD address; malformed or mismatched values disable the transaction UI. Never commit secrets.
 
 ## Database migrations and probes
 
 Run `pnpm db:migrate` after PostgreSQL is reachable and before starting the app. It serializes concurrent runners with a PostgreSQL advisory lock, records each version and SHA-256 checksum in `schema_migrations`, and can safely be repeated. A changed checksum or any migration error fails closed; restore a verified database backup before changing migration history or attempting a manual rollback. Migrations are forward-only.
 
-The Compose and TrueNAS templates run the same migration command as a one-shot service before the app starts. `/api/healthz` is a cheap liveness probe and never touches configuration or PostgreSQL. `/api/readyz` is the read-only readiness probe: it requires runtime configuration, a DB connection, and schema version `003`; an empty or old database returns HTTP 503 without creating tables.
+The Compose and TrueNAS templates run the same migration command as a one-shot service before the app starts. `/api/healthz` is a cheap liveness probe and never touches configuration or PostgreSQL. `/api/readyz` is the read-only readiness probe: it requires runtime configuration, a DB connection, and schema version `004`; an empty or old database returns HTTP 503 without creating tables.
 
-Production has no backend game-mutation API. UI reads `previewPlayerState`/`balanceOf` from deployed `CivilizationGame` and sends wallet registration, claim, construction, boost, training, prestige, and raid transactions through MiniKit. Backend provides WalletAuth/SIWE verification with one-time challenge storage. Dormant Auth.js and World-ID compatibility routes are not part of the active client flow. Health and readiness endpoints remain at `/api/healthz` and `/api/readyz`.
+Production has no backend game-mutation API. UI reads `previewPlayerState`/`balanceOf` from deployed `CivilizationGame` and sends wallet registration, claim, construction, boost, training, prestige, and raid transactions through MiniKit. Backend provides WalletAuth/SIWE verification with one-time challenge storage. Health and readiness endpoints remain at `/api/healthz` and `/api/readyz`. See `docs/ADR-0046-auth-legacy-cleanup.md` for the retired paths and the isolated contract compatibility surface.
 
 ## World ID v3/v4 deployment
 
@@ -56,7 +56,6 @@ For a future reviewed redeployment, copy `contracts/world-id-deployment.example.
 
 - `worldActionId`, `worldRpId`, `worldIssuerSchemaId`, and the optional v4 credential genesis minimum;
 - a currently verified official World Chain v3 `WorldIDRouter` address as `worldIdLegacyRouterAddress`—the script deliberately has no fallback or guessed address;
-- `worldIdLegacyAppId` exactly equal to runtime `WORLD_ID_APP_ID`;
-- `worldIdLegacyActionId` exactly equal to both `worldActionId` and runtime `WORLD_ID_ACTION`.
+- `worldIdLegacyAppId` and `worldIdLegacyActionId` matching the reviewed deployment plan.
 
 The deployment preflight derives and prints both protocol field hashes and verifies all immutable verifier/router values after deployment. The current wallet-registration contract retains these legacy entrypoints only as dormant compatibility surface; the active client never calls them.

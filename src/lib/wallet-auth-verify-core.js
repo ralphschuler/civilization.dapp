@@ -1,12 +1,12 @@
-import { takeLegacyWalletAuthChallenge } from "./auth-challenge.js";
+import { takeWalletAuthChallenge } from "./auth-challenge.js";
 import {
-  isLegacyWalletAuthNonce,
-  verifyLegacyWalletAuthPayload,
+  isWalletAuthNonce,
+  verifyWalletAuthPayload,
 } from "./wallet-auth-verifier.js";
 
 export const MAX_WALLET_AUTH_BODY_BYTES = 16_384;
 
-/** Reads JSON without ever buffering more than the legacy endpoint's limit. */
+/** Reads JSON without ever buffering more than the endpoint's limit. */
 export async function readWalletAuthJson(request) {
   const contentType = request.headers
     .get("content-type")
@@ -69,14 +69,14 @@ export async function verifyWalletAuthRequest(body, dependencies = {}) {
   if (
     !candidate ||
     typeof nonce !== "string" ||
-    !isLegacyWalletAuthNonce(nonce) ||
+    !isWalletAuthNonce(nonce) ||
     !Object.hasOwn(candidate, "payload")
   ) {
     return { kind: "malformed" };
   }
 
-  const take = dependencies.takeChallenge ?? takeLegacyWalletAuthChallenge;
-  const verify = dependencies.verifyPayload ?? verifyLegacyWalletAuthPayload;
+  const take = dependencies.takeChallenge ?? takeWalletAuthChallenge;
+  const verify = dependencies.verifyPayload ?? verifyWalletAuthPayload;
   const challenge = await take(nonce);
   if (!challenge) return { kind: "invalid_nonce" };
 

@@ -1,4 +1,4 @@
-import { createLegacyWalletAuthChallenge } from "@/lib/auth-challenge";
+import { createWalletAuthChallenge } from "@/lib/auth-challenge";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -7,7 +7,7 @@ const noStoreHeaders = { "Cache-Control": "no-store" };
 
 export async function GET() {
   try {
-    const challenge = await createLegacyWalletAuthChallenge();
+    const challenge = await createWalletAuthChallenge();
     const expires_at = challenge.expiresAt.getTime();
 
     return Response.json(
