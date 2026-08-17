@@ -22,6 +22,7 @@ import { buildPanel } from "../src/game-ui/views/build.js";
 import { marketPanel } from "../src/game-ui/views/market.js";
 import { createWorldRuntime } from "../src/game-world-runtime.js";
 import { refreshGameTick } from "../src/game-tick.js";
+import { civilizationMessages } from "../src/lib/civilization-locale.ts";
 import { readFile } from "node:fs/promises";
 import { civilizationMessages } from "../src/lib/civilization-locale.ts";
 
@@ -303,7 +304,7 @@ test("resource HUD omits field stock while the collect button exposes it once", 
     raids: 0,
   };
   const common = {
-    locale: "de-DE",
+    copy: civilizationMessages("de-DE"),
     state,
     worldApp: { installed: false },
     worldBadge: "DEMO · LOKAL",
