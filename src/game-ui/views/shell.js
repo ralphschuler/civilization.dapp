@@ -4,6 +4,7 @@ import {
   CITY_MAPS,
   RESOURCE_ASSETS,
 } from "../constants.js";
+import { mapBuildingAnchorStyle } from "../map-coordinates.js";
 import { compactResourceValue, productionRateText } from "../helpers.js";
 
 export function accessGateView() {
@@ -127,7 +128,7 @@ function buildingSpot(id, ctx) {
   const { buildings, state, selectedBuilding, activePanel } = ctx;
   return `
     <button class="map-building map-${id} ${selectedBuilding === id && activePanel === "build" ? "is-selected" : ""}"
-      data-map-building="${id}" aria-label="${buildings[id].label}, Level ${state.buildings[id]}">
+      data-map-building="${id}" data-map-anchor="bottom-center" style="${mapBuildingAnchorStyle(id)}" aria-label="${buildings[id].label}, Level ${state.buildings[id]}">
       <img src="${BUILDING_ASSETS[id]}" alt="">
       <span>
 <b>${buildings[id].label}</b>
@@ -222,7 +223,7 @@ ${collectionStock}
 </button>
           <div class="map-buildings">
             ${spots}
-            <button class="map-building map-market ${activePanel === "market" ? "is-selected" : ""}" data-panel="market" aria-label="Tauschhalle öffnen">
+            <button class="map-building map-market ${activePanel === "market" ? "is-selected" : ""}" data-panel="market" data-map-anchor="bottom-center" style="${mapBuildingAnchorStyle("market")}" aria-label="Tauschhalle öffnen">
 <img src="${BUILDING_ASSETS.market}" alt="">
 <span>
 <b>Tauschhalle</b>
