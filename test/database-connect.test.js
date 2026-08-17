@@ -137,3 +137,13 @@ test("PostgreSQL container probes use TCP explicitly", async () => {
   for (const template of templates)
     assert.match(template, /pg_isready -h 127\.0\.0\.1 -p 5432/);
 });
+
+test("the Dev PostgreSQL probe uses the container's configured identity", async () => {
+  const template = await readFile("deploy/truenas.dev.example.yaml", "utf8");
+
+  assert.match(
+    template,
+    /pg_isready -h 127\.0\.0\.1 -p 5432 -U "\$\$POSTGRES_USER" -d "\$\$POSTGRES_DB"/,
+  );
+  assert.doesNotMatch(template, /-U civilization_dev -d civilization_dev/);
+});

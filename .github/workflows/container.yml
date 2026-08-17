@@ -96,8 +96,11 @@ jobs:
         run: |
           if [ "${{ github.ref_name }}" = "master" ]; then
             echo "release=latest" >> "$GITHUB_OUTPUT"
-          else
+          elif [ "${{ github.ref_name }}" = "develop" ]; then
             echo "release=dev" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref is not a release branch" >&2
+            exit 1
           fi
       - uses: docker/build-push-action@v7
         with:
