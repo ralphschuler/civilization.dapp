@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { startCivilizationApp, stopCivilizationApp } from "@/app";
 import { WalletVillageRegistrationGate } from "@/components/CivilizationClient/WalletVillageRegistrationGate";
 import { useWalletVillageRegistration } from "@/components/CivilizationClient/useWalletVillageRegistration";
+import type { CivilizationLocale } from "@/lib/civilization-locale";
 
 /**
  * This component is reached after WalletAuth/SIWE binds the UI to a checksum
@@ -15,18 +16,24 @@ type CivilizationClientProps = {
   walletAddress: string;
   contractAddress: string;
   worldTokenAddress: string;
+  locale: CivilizationLocale;
+  onLocaleChange: (locale: CivilizationLocale) => void;
 };
 
 export default function CivilizationClient({
   walletAddress,
   contractAddress,
   worldTokenAddress,
+  locale,
+  onLocaleChange,
 }: CivilizationClientProps) {
   return (
     <ProductionCivilizationClient
       walletAddress={walletAddress}
       contractAddress={contractAddress}
       worldTokenAddress={worldTokenAddress}
+      locale={locale}
+      onLocaleChange={onLocaleChange}
     />
   );
 }
@@ -35,9 +42,15 @@ function ProductionCivilizationClient({
   walletAddress,
   contractAddress,
   worldTokenAddress,
+  locale,
+  onLocaleChange,
 }: Pick<
   CivilizationClientProps,
-  "walletAddress" | "contractAddress" | "worldTokenAddress"
+  | "walletAddress"
+  | "contractAddress"
+  | "worldTokenAddress"
+  | "locale"
+  | "onLocaleChange"
 >) {
   const root = useRef<HTMLDivElement>(null);
   const { busy, checked, registered, registerVillage, status, worldAdapter } =
@@ -57,11 +70,13 @@ function ProductionCivilizationClient({
       worldAccessConfirmed: true,
       worldWalletAddress: walletAddress,
       worldAdapter,
+      locale,
+      onLocaleChange,
     });
     return () => {
       stopCivilizationApp();
     };
-  }, [registered, walletAddress, worldAdapter]);
+  }, [registered, walletAddress, worldAdapter, locale, onLocaleChange]);
 
   if (registered) {
     return <div ref={root} />;
@@ -72,6 +87,7 @@ function ProductionCivilizationClient({
       checked={checked}
       onRegisterVillage={registerVillage}
       status={status}
+      locale={locale}
     />
   );
 }

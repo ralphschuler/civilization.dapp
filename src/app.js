@@ -28,6 +28,10 @@ import { bindGameActions } from "./game-ui/bindings.js";
 import { createGameActions } from "./game-actions.js";
 import { createWorldRuntime } from "./game-world-runtime.js";
 import { refreshGameTick } from "./game-tick.js";
+import {
+  civilizationMessages,
+  formatCivilizationNumber,
+} from "./lib/civilization-locale.ts";
 
 let activeRuntime = null;
 
@@ -84,10 +88,12 @@ function createRuntime(options) {
     selectedOpponent: null,
     selectedBuilding: "townhall",
     activePanel: "build",
+    locale: options.locale || "de-DE",
+    onLocaleChange: options.onLocaleChange,
     feedback:
       options.runtimeMode === "world"
-        ? "On-chain-Spielstand wird geladen."
-        : "Wähle ein Gebäude auf dem Dorfplan.",
+        ? civilizationMessages(options.locale).loadingState
+        : civilizationMessages(options.locale).chooseBuilding,
     worldApp: installed
       ? { installed: true, walletAddress }
       : { installed: false },
@@ -96,7 +102,7 @@ function createRuntime(options) {
       : true,
     worldBadge: installed
       ? `WORLD APP${walletAddress ? ` · ${walletAddress.slice(0, 6)}…${walletAddress.slice(-4)}` : " · VERBUNDEN"}`
-      : "DEMO · LOKAL",
+      : civilizationMessages(options.locale).demoLocal,
     timer: null,
     visibilityHandler: null,
   };
@@ -147,12 +153,14 @@ function createController(runtime) {
       : getCapacity(runtime.state);
   const resourceFormat = (value) => {
     if (runtime.mode === "world") {
-      return new Intl.NumberFormat("de-DE", {
+      return formatCivilizationNumber(value, runtime.locale, {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
-      }).format(value);
+      });
     }
-    return format(value);
+    return formatCivilizationNumber(value, runtime.locale, {
+      maximumFractionDigits: value < 100 ? 1 : 0,
+    });
   };
   const collection = () => {
     const seconds = remaining(runtime.state.gatherAvailableAt || 0);
@@ -162,18 +170,25 @@ function createController(runtime) {
     ) {
       return {
         locked: true,
-        label: "Noch nichts übertragbar",
-        detail: "CONTRACT-PRÜFUNG · FELD, SPEICHER ODER ABKLINGZEIT",
+        label: civilizationMessages(runtime.locale).notTransferable,
+        detail: civilizationMessages(runtime.locale).contractCheck,
       };
     }
     if (seconds) {
       return {
         locked: true,
-        label: `Sammeln in ${clock(seconds)}`,
-        detail: `SAMMLER KEHREN IN ${clock(seconds)} ZURÜCK`,
+        label: civilizationMessages(runtime.locale).collectingIn(
+          clock(seconds),
+        ),
+        detail: civilizationMessages(runtime.locale).collectorsReturn(
+          clock(seconds),
+        ),
       };
     }
-    return { locked: false, detail: "FELDLAGER · RAIDBAR" };
+    return {
+      locked: false,
+      detail: civilizationMessages(runtime.locale).fieldRaidable,
+    };
   };
   const requireAccess = () => {
     if (
@@ -182,8 +197,7 @@ function createController(runtime) {
     ) {
       return true;
     }
-    runtime.feedback =
-      "Eine bestätigte World Wallet ist für den Spielzugang erforderlich.";
+    runtime.feedback = civilizationMessages(runtime.locale).accessDenied;
     render();
     return false;
   };
@@ -194,6 +208,8 @@ function createController(runtime) {
       state: runtime.state,
       runtimeMode: runtime.mode,
       busy: runtime.busy,
+      locale: runtime.locale,
+      copy: civilizationMessages(runtime.locale),
       selectedBuilding: runtime.selectedBuilding,
       selectedOpponent: runtime.selectedOpponent,
       buildings: BUILDINGS,
@@ -250,7 +266,9 @@ function createController(runtime) {
       return;
     }
     if (!hasAccess(runtime)) {
-      runtime.root.innerHTML = accessGateView();
+      runtime.root.innerHTML = accessGateView(
+        civilizationMessages(runtime.locale),
+      );
       return;
     }
     if (runtime.mode === "world" && (!runtime.ready || !runtime.state)) {
@@ -258,6 +276,7 @@ function createController(runtime) {
         loading: runtime.loading,
         feedback: runtime.feedback,
         escapeHtml,
+        copy: civilizationMessages(runtime.locale),
       });
       bindGameActions(runtime.root, {
         retry: () => world.refresh(),
@@ -296,6 +315,8 @@ function createController(runtime) {
       resourceFormat,
       buildings: BUILDINGS,
       busy: runtime.busy,
+      locale: runtime.locale,
+      copy: civilizationMessages(runtime.locale),
     });
     bindGameActions(runtime.root, actions);
     if (!runtime.state.construction?.pending) {
@@ -321,6 +342,7 @@ function createController(runtime) {
     errorText,
     isCurrent,
     buildings: BUILDINGS,
+    changeLocale: (locale) => runtime.onLocaleChange?.(locale),
   });
 
   const refreshTickValues = () => {
@@ -341,6 +363,7 @@ function createController(runtime) {
       collection: collection(),
       resourceFormat,
       remainingTime: remaining,
+      copy: civilizationMessages(runtime.locale),
     });
   };
   return { render, refreshWorld: world.refresh, refreshTickValues, actions };
@@ -348,7 +371,8 @@ function createController(runtime) {
 
 /**
  * @param {{ root: HTMLElement | null, runtimeMode?: "demo" | "world", worldAppInstalled?: boolean,
- *   worldAccessConfirmed?: boolean, worldWalletAddress?: string | null, worldAdapter?: object | null }} options
+ *   worldAccessConfirmed?: boolean, worldWalletAddress?: string | null, worldAdapter?: object | null,
+ *   locale?: "de-DE" | "en-US", onLocaleChange?: (locale: "de-DE" | "en-US") => void }} options
  */
 export function startCivilizationApp(options) {
   if (!options.root || activeRuntime) {

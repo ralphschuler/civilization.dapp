@@ -29,6 +29,7 @@ export function createGameActions(runtime, services) {
   return {
     troopIds: Object.keys(TROOPS),
     retry: () => services.refreshWorld(),
+    changeLocale: (locale) => services.changeLocale?.(locale),
     selectBuilding(id) {
       runtime.selectedBuilding = id;
       runtime.activePanel = "build";

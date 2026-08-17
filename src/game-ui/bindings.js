@@ -14,6 +14,11 @@ export function bindGameActions(root, actions) {
   on("#pick-raid-contact", actions.pickOpponent);
   on("#resolve-raid", actions.resolveRaid);
   on("#reset", actions.reset);
+  root
+    .querySelector("#civilization-locale")
+    ?.addEventListener("change", (event) =>
+      actions.changeLocale(event.currentTarget.value),
+    );
 
   all("[data-map-building]", (event) =>
     actions.selectBuilding(event.currentTarget.dataset.mapBuilding),
