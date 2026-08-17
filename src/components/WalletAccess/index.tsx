@@ -4,6 +4,10 @@ import { MiniKit } from "@worldcoin/minikit-js";
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 import { verifyWalletForDirectGame } from "@/lib/direct-wallet-game-flow";
+import {
+  type WalletAccessLocale,
+  walletAccessMessages,
+} from "@/lib/wallet-access-locale";
 
 const CivilizationClient = dynamic(
   () => import("@/components/CivilizationClient"),
@@ -18,36 +22,12 @@ type WalletAccessProps = {
   attemptWalletAccess?: WalletAccessAttempt;
   /** Keeps the E2E harness on the success state instead of loading the game. */
   onWalletAccessGranted?: (walletAddress: string) => void;
+  locale?: WalletAccessLocale;
 };
 
 export type WalletAccessAttempt = () => Promise<string>;
 
 type AccessStatus = "idle" | "pending" | "success" | "cancelled" | "failure";
-
-const accessCopy = {
-  idle: {
-    action: "Mit World Wallet fortfahren",
-    message: "",
-  },
-  pending: {
-    action: "Wallet-Bestätigung wird geöffnet …",
-    message: "Bestätige den Zugang sicher in deiner World App.",
-  },
-  success: {
-    action: "Wallet bestätigt",
-    message: "Deine Wallet wurde bestätigt. Civilization wird geöffnet …",
-  },
-  cancelled: {
-    action: "Erneut versuchen",
-    message:
-      "Die Wallet-Bestätigung wurde abgebrochen. Du kannst es erneut versuchen.",
-  },
-  failure: {
-    action: "Erneut versuchen",
-    message:
-      "Die Wallet-Bestätigung war nicht möglich. Bitte versuche es noch einmal.",
-  },
-} as const;
 
 function wasCancelled(error: unknown) {
   return (
@@ -65,6 +45,7 @@ export const WalletAccess = ({
   environment,
   attemptWalletAccess,
   onWalletAccessGranted,
+  locale = "de-DE",
 }: WalletAccessProps) => {
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [verifiedWalletAddress, setVerifiedWalletAddress] = useState<
@@ -122,7 +103,14 @@ export const WalletAccess = ({
 
   const isPending = status === "pending";
   const isLocked = isPending || status === "success";
-  const copy = accessCopy[status];
+  const copy = walletAccessMessages(locale).login;
+  const statusCopy = {
+    idle: { action: copy.action, message: "" },
+    pending: { action: copy.pendingAction, message: copy.pending },
+    success: { action: copy.successAction, message: copy.success },
+    cancelled: { action: copy.retryAction, message: copy.cancelled },
+    failure: { action: copy.retryAction, message: copy.failure },
+  }[status];
 
   return (
     <main className="civilization-login" aria-busy={isPending}>
@@ -173,7 +161,7 @@ export const WalletAccess = ({
             className="civilization-login__action"
             aria-describedby="wallet-access-status"
           >
-            {copy.action}
+            {statusCopy.action}
           </button>
           <p
             id="wallet-access-status"
@@ -183,7 +171,7 @@ export const WalletAccess = ({
             aria-live="polite"
             aria-atomic="true"
           >
-            {copy.message}
+            {statusCopy.message}
           </p>
         </section>
       </section>
