@@ -376,46 +376,6 @@ button {
   font-size: 0.48rem;
   letter-spacing: 0.08em;
 }
-.map-townhall {
-  left: 43%;
-  top: 28%;
-  width: clamp(7.2rem, 17%, 10rem);
-}
-.map-townhall img {
-  height: clamp(6.5rem, 12vw, 9rem);
-}
-.map-timber {
-  left: 10%;
-  top: 40%;
-}
-.map-claypit {
-  left: 25%;
-  top: 63%;
-}
-.map-quarry {
-  left: 7%;
-  top: 73%;
-}
-.map-warehouse {
-  left: 68%;
-  top: 63%;
-}
-.map-workshop {
-  left: 76%;
-  top: 31%;
-}
-.map-goldmine {
-  left: 60%;
-  top: 25%;
-}
-.map-barracks {
-  left: 43%;
-  top: 69%;
-}
-.map-market {
-  left: 72%;
-  top: 77%;
-}
 .map-feedback {
   position: absolute;
   z-index: 3;
@@ -841,22 +801,6 @@ button {
   .map-building {
     width: clamp(5rem, 15%, 7rem);
   }
-  .map-townhall {
-    left: 42%;
-    top: 30%;
-  }
-  .map-workshop {
-    left: 75%;
-    top: 34%;
-  }
-  .map-goldmine {
-    left: 60%;
-    top: 23%;
-  }
-  .map-market {
-    left: 72%;
-    top: 77%;
-  }
 }
 @media (max-width: 640px) {
   .game-shell {
@@ -981,46 +925,6 @@ button {
   }
   .map-building small {
     font-size: 0.42rem;
-  }
-  .map-townhall {
-    left: 37%;
-    top: 28%;
-    width: 6.4rem;
-  }
-  .map-townhall img {
-    height: 5.7rem;
-  }
-  .map-timber {
-    left: 2%;
-    top: 44%;
-  }
-  .map-claypit {
-    left: 24%;
-    top: 63%;
-  }
-  .map-quarry {
-    left: 3%;
-    top: 76%;
-  }
-  .map-warehouse {
-    left: 68%;
-    top: 64%;
-  }
-  .map-workshop {
-    left: 76%;
-    top: 37%;
-  }
-  .map-goldmine {
-    left: 60%;
-    top: 22%;
-  }
-  .map-barracks {
-    left: 42%;
-    top: 75%;
-  }
-  .map-market {
-    left: 74%;
-    top: 79%;
   }
   .map-feedback {
     right: 0.9rem;
@@ -1218,46 +1122,6 @@ button {
   opacity: 1;
   transform: translateY(0) scale(1);
 }
-.map-townhall {
-  left: 50%;
-  top: 49%;
-  width: clamp(6.3rem, 14.5%, 9.2rem);
-}
-.map-townhall img {
-  height: auto;
-}
-.map-timber {
-  left: 14%;
-  top: 43%;
-}
-.map-claypit {
-  left: 30%;
-  top: 82%;
-}
-.map-quarry {
-  left: 11%;
-  top: 70%;
-}
-.map-warehouse {
-  left: 82%;
-  top: 56%;
-}
-.map-workshop {
-  left: 79%;
-  top: 39%;
-}
-.map-goldmine {
-  left: 78%;
-  top: 20%;
-}
-.map-barracks {
-  left: 53%;
-  top: 80%;
-}
-.map-market {
-  left: 78%;
-  top: 79%;
-}
 .map-feedback {
   z-index: 5;
   right: 1rem;
@@ -1436,109 +1300,24 @@ button {
   filter: drop-shadow(0 0.45rem 0.35rem #091108a8);
 }
 
-/* Ground anchors keep every sprite's visible base on its terrain plot as the map scales. */
+/* Each sprite is positioned by its bottom centre on a normalized terrain point. */
 .map-building {
-  --ground-anchor: -100%;
-  transform: translate(-50%, var(--ground-anchor));
+  left: var(--map-anchor-x-desktop);
+  top: var(--map-anchor-y-desktop);
+  transform: translate(-50%, -100%);
 }
 .map-building:hover,
 .map-building.is-selected {
   z-index: 4;
-  transform: translate(-50%, calc(var(--ground-anchor) - 0.35rem)) scale(1.05);
+  transform: translate(-50%, calc(-100% - 0.35rem)) scale(1.05);
 }
 .map-building:active {
-  transform: translate(-50%, calc(var(--ground-anchor) - 0.1rem)) scale(0.96);
-}
-.map-townhall {
-  left: 50%;
-  top: 49%;
-  --ground-anchor: -99%;
-}
-.map-timber {
-  left: 14%;
-  top: 43%;
-  --ground-anchor: -99.5%;
-}
-.map-claypit {
-  left: 30%;
-  top: 82%;
-  --ground-anchor: -100%;
-}
-.map-quarry {
-  left: 11%;
-  top: 70%;
-  --ground-anchor: -90.5%;
-}
-.map-warehouse {
-  left: 82%;
-  top: 56%;
-  --ground-anchor: -91%;
-}
-.map-workshop {
-  left: 79%;
-  top: 39%;
-  --ground-anchor: -93.5%;
-}
-.map-goldmine {
-  left: 78%;
-  top: 20%;
-  --ground-anchor: -85.5%;
-}
-.map-barracks {
-  left: 53%;
-  top: 80%;
-  --ground-anchor: -96.5%;
-}
-.map-market {
-  left: 78%;
-  top: 79%;
-  --ground-anchor: -93.5%;
+  transform: translate(-50%, calc(-100% - 0.1rem)) scale(0.96);
 }
 @media (max-width: 640px) {
-  .map-townhall {
-    left: 50%;
-    top: 53%;
-    --ground-anchor: -99%;
-  }
-  .map-timber {
-    left: 24%;
-    top: 31%;
-    --ground-anchor: -99.5%;
-  }
-  .map-claypit {
-    left: 28%;
-    top: 83%;
-    --ground-anchor: -100%;
-  }
-  .map-quarry {
-    left: 12%;
-    top: 58%;
-    --ground-anchor: -90.5%;
-  }
-  .map-warehouse {
-    left: 82%;
-    top: 52%;
-    --ground-anchor: -91%;
-  }
-  .map-workshop {
-    left: 78%;
-    top: 34%;
-    --ground-anchor: -93.5%;
-  }
-  .map-goldmine {
-    left: 76%;
-    top: 22%;
-    --ground-anchor: -85.5%;
-  }
-  .map-barracks {
-    left: 53%;
-    top: 84%;
-    --ground-anchor: -96.5%;
-  }
-  .map-market {
-    left: 80%;
-    top: 78%;
-    --ground-anchor: -93.5%;
+  .map-building {
+    left: var(--map-anchor-x-mobile);
+    top: var(--map-anchor-y-mobile);
   }
 }
 
@@ -1549,6 +1328,12 @@ button {
   place-items: center;
   background:
     radial-gradient(circle at 50% 18%, #4b6834 0, transparent 28rem), #07100e;
+  animation: game-access-aurora 12s ease-in-out infinite alternate;
+}
+@keyframes game-access-aurora {
+  to {
+    background-position: 3rem -1rem;
+  }
 }
 .game-access-card {
   display: grid;
@@ -1624,6 +1409,12 @@ button {
 .game-access-card > .game-access-action:disabled {
   cursor: wait;
   opacity: 0.65;
+}
+.game-access-card h1:focus-visible,
+.game-access-card > .game-access-action:focus-visible,
+[data-testid="civilization-game-root"]:focus-visible {
+  outline: 3px solid #fff4bb;
+  outline-offset: 4px;
 }
 .target-select input {
   width: 100%;

@@ -1,7 +1,12 @@
 import { database } from "./database.mjs";
 
-export const REQUIRED_SCHEMA_VERSION = "003";
-export const REQUIRED_SCHEMA_VERSIONS = Object.freeze(["001", "002", "003"]);
+export const REQUIRED_SCHEMA_VERSION = "004";
+export const REQUIRED_SCHEMA_VERSIONS = Object.freeze([
+  "001",
+  "002",
+  "003",
+  "004",
+]);
 
 /** Pure evaluation of the ordered migration versions returned by PostgreSQL. */
 export function hasRequiredWalletAuthSchemaVersions(rows) {

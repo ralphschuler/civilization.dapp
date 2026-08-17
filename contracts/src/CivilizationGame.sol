@@ -69,6 +69,9 @@ contract CivilizationGame is Initializable {
     /// @dev Covers the bounded ten-recipient splitter payout, including ten
     /// ERC-20 transfers, while retaining a finite best-effort call budget.
     uint256 public constant MONTHLY_PAYOUT_CALL_GAS = 600_000;
+    /// @notice One resource unit is an integer village resource; prices are CGOLD wei per unit.
+    uint256 public constant MARKET_FEE_BPS = 150;
+    uint256 public constant MARKET_MAX_AMOUNT = 1e30;
 
     uint256 private constant BASIS_POINTS = 10_000;
     uint256 private constant PRESTIGE_BONUS_BPS = 1_000;
@@ -179,11 +182,25 @@ contract CivilizationGame is Initializable {
         address revenueSplitter;
         address timelock;
     }
+    /// @custom:storage-location erc7201:civilization.game.market.v2
+    /// @dev Deliberately separate from V1 state: upgrading a live proxy cannot
+    /// shift any player, ERC-20, or governance slot.
+    struct MarketStorage {
+        mapping(uint8 => uint256) priceWeiPerUnit;
+        mapping(uint8 => uint256) inventory;
+    }
     bytes32 private constant GAME_STORAGE_LOCATION =
         0xb9c5fb29a19a4c3e9d391dc26eaefcdaaec2a4fc6362d4bd27f1470fa2592b00;
+    bytes32 private constant MARKET_STORAGE_LOCATION =
+        0xcee92606729e5d492c2082be6bb48c8bd80e80fae11c8dd742ee28f82e210100;
     function _game() internal pure returns (GameStorage storage $) {
         assembly {
             $.slot := GAME_STORAGE_LOCATION
+        }
+    }
+    function _market() internal pure returns (MarketStorage storage $) {
+        assembly {
+            $.slot := MARKET_STORAGE_LOCATION
         }
     }
 
@@ -258,6 +275,25 @@ contract CivilizationGame is Initializable {
         address indexed splitter,
         bytes32 indexed reasonHash
     );
+    event MarketConfigured(
+        Resource indexed resource,
+        uint256 priceWeiPerUnit,
+        uint256 inventory
+    );
+    event MarketBought(
+        address indexed player,
+        Resource indexed resource,
+        uint256 resourceAmount,
+        uint256 goldIn,
+        uint256 fee
+    );
+    event MarketSold(
+        address indexed player,
+        Resource indexed resource,
+        uint256 resourceAmount,
+        uint256 goldOut,
+        uint256 fee
+    );
 
     error ZeroAddress();
     error AlreadyRegistered();
@@ -289,6 +325,15 @@ contract CivilizationGame is Initializable {
     error WorldTokenAmountMismatch();
     error InvalidBuildingLevel();
     error InvalidRevenueSplitter(address splitter);
+    error InvalidMarketResource();
+    error InvalidMarketPrice();
+    error MarketAmountTooLarge();
+    error MarketNotConfigured();
+    error MarketInsufficientInventory(uint256 available);
+    error MarketInsufficientGoldReserve(uint256 available);
+    error MarketSlippage(uint256 actual, uint256 limit);
+    error MarketDeadlineExpired(uint256 deadline);
+    error MarketStorageCapacityExceeded(uint256 available);
 
     constructor() {
         _disableInitializers();
@@ -387,9 +432,131 @@ contract CivilizationGame is Initializable {
         emit RevenueSplitterUpdated(oldSplitter, splitter);
     }
 
-    /// @notice Initializes msg.sender's village once, without a proof or relayer.
-    /// @dev This is the active wallet-only registration path. It deliberately
-    /// accepts no address argument: a wallet can create only its own village.
+    /// @notice Timelock-only market configuration. Inventory is a contract-owned
+    /// in-game resource pool; it never represents another player's custody.
+    /// @dev CGOLD reserve is not an accounting variable: it is balanceOf(this).
+    /// Governance seeds it by transferring real CGOLD to this proxy.
+    function configureMarket(
+        Resource resource,
+        uint256 priceWeiPerUnit,
+        uint256 inventory
+    ) external {
+        if (msg.sender != _game().timelock) revert UnauthorizedGovernance();
+        _requireMarketResource(resource);
+        if (priceWeiPerUnit == 0) revert InvalidMarketPrice();
+        if (inventory > MARKET_MAX_AMOUNT) revert MarketAmountTooLarge();
+        MarketStorage storage market = _market();
+        market.priceWeiPerUnit[uint8(resource)] = priceWeiPerUnit;
+        market.inventory[uint8(resource)] = inventory;
+        emit MarketConfigured(resource, priceWeiPerUnit, inventory);
+    }
+
+    /// @notice Live, deterministic quote. Buy is rounded up in the market's
+    /// favor; sell payout is rounded down. Fee remains in the CGOLD reserve.
+    function quoteMarket(
+        Resource resource,
+        uint256 resourceAmount
+    )
+        public
+        view
+        returns (
+            uint256 buyGoldIn,
+            uint256 buyFee,
+            uint256 sellGoldOut,
+            uint256 sellFee
+        )
+    {
+        _requireMarketResource(resource);
+        _requireMarketAmount(resourceAmount);
+        uint256 price = _market().priceWeiPerUnit[uint8(resource)];
+        if (price == 0) revert MarketNotConfigured();
+        uint256 gross = resourceAmount * price;
+        buyGoldIn = _ceilDiv(
+            gross * (BASIS_POINTS + MARKET_FEE_BPS),
+            BASIS_POINTS
+        );
+        buyFee = buyGoldIn - gross;
+        sellGoldOut = (gross * (BASIS_POINTS - MARKET_FEE_BPS)) / BASIS_POINTS;
+        sellFee = gross - sellGoldOut;
+    }
+
+    function marketInventory(
+        Resource resource
+    ) external view returns (uint256) {
+        _requireMarketResource(resource);
+        return _market().inventory[uint8(resource)];
+    }
+
+    /// @notice Actual CGOLD available for sell settlement, held by this proxy.
+    function marketGoldReserve() external view returns (uint256) {
+        return _game().balanceOf[address(this)];
+    }
+
+    function marketPrice(Resource resource) external view returns (uint256) {
+        _requireMarketResource(resource);
+        return _market().priceWeiPerUnit[uint8(resource)];
+    }
+
+    function buyResource(
+        Resource resource,
+        uint256 resourceAmount,
+        uint256 maxGoldIn,
+        uint256 deadline
+    ) external onlyRegistered {
+        _requireOpenDeadline(deadline);
+        (uint256 goldIn, uint256 fee, , ) = quoteMarket(
+            resource,
+            resourceAmount
+        );
+        if (goldIn > maxGoldIn) revert MarketSlippage(goldIn, maxGoldIn);
+        MarketStorage storage market = _market();
+        uint8 id = uint8(resource);
+        if (market.inventory[id] < resourceAmount)
+            revert MarketInsufficientInventory(market.inventory[id]);
+        Player storage player = _game().players[msg.sender];
+        _accrue(player);
+        uint256 available = _resourceRoom(
+            player.stored,
+            resource,
+            _capacity(player.buildings.warehouse)
+        );
+        if (available < resourceAmount)
+            revert MarketStorageCapacityExceeded(available);
+        _transferGold(msg.sender, address(this), goldIn);
+        market.inventory[id] -= resourceAmount;
+        _addStoredResource(player.stored, resource, resourceAmount);
+        emit MarketBought(msg.sender, resource, resourceAmount, goldIn, fee);
+    }
+
+    function sellResource(
+        Resource resource,
+        uint256 resourceAmount,
+        uint256 minGoldOut,
+        uint256 deadline
+    ) external onlyRegistered {
+        _requireOpenDeadline(deadline);
+        (, , uint256 goldOut, uint256 fee) = quoteMarket(
+            resource,
+            resourceAmount
+        );
+        if (goldOut < minGoldOut) revert MarketSlippage(goldOut, minGoldOut);
+        uint256 reserve = _game().balanceOf[address(this)];
+        if (reserve < goldOut) revert MarketInsufficientGoldReserve(reserve);
+        Player storage player = _game().players[msg.sender];
+        _accrue(player);
+        uint256 stored = _storedResource(player.stored, resource);
+        if (stored < resourceAmount) revert InsufficientResources();
+        _subtractStoredResource(player.stored, resource, resourceAmount);
+        _market().inventory[uint8(resource)] += resourceAmount;
+        _transferGold(address(this), msg.sender, goldOut);
+        emit MarketSold(msg.sender, resource, resourceAmount, goldOut, fee);
+    }
+
+    /// @notice Publicly initializes msg.sender's village once, without a proof or relayer.
+    /// @dev This permissionless path deliberately accepts no address argument:
+    /// a wallet can create only its own village. WalletAuth/SIWE is an
+    /// off-chain UI address binding, not an authorization checked here. There
+    /// is no World ID, server attestation, allowlist, or human-uniqueness check.
     function registerWallet() external {
         if (_game().players[msg.sender].registered) revert AlreadyRegistered();
         _initializePlayer();
@@ -1320,6 +1487,57 @@ contract CivilizationGame is Initializable {
         uint256 percent
     ) private pure returns (uint256) {
         return value == 0 ? 0 : (value * percent + 99) / 100;
+    }
+    function _requireMarketResource(Resource resource) private pure {
+        if (resource == Resource.Gold) revert InvalidMarketResource();
+    }
+    function _requireMarketAmount(uint256 amount) private pure {
+        if (amount == 0) revert InvalidAmount();
+        if (amount > MARKET_MAX_AMOUNT) revert MarketAmountTooLarge();
+    }
+    function _requireOpenDeadline(uint256 deadline) private view {
+        if (deadline == 0 || block.timestamp > deadline)
+            revert MarketDeadlineExpired(deadline);
+    }
+    function _storedResource(
+        Resources storage resources,
+        Resource resource
+    ) private view returns (uint256) {
+        if (resource == Resource.Wood) return resources.wood;
+        if (resource == Resource.Clay) return resources.clay;
+        return resources.stone;
+    }
+    function _resourceRoom(
+        Resources storage resources,
+        Resource resource,
+        uint256 capacity
+    ) private view returns (uint256) {
+        uint256 stored = _storedResource(resources, resource);
+        return capacity > stored ? capacity - stored : 0;
+    }
+    function _addStoredResource(
+        Resources storage resources,
+        Resource resource,
+        uint256 amount
+    ) private {
+        if (resource == Resource.Wood) resources.wood += amount;
+        else if (resource == Resource.Clay) resources.clay += amount;
+        else resources.stone += amount;
+    }
+    function _subtractStoredResource(
+        Resources storage resources,
+        Resource resource,
+        uint256 amount
+    ) private {
+        if (resource == Resource.Wood) resources.wood -= amount;
+        else if (resource == Resource.Clay) resources.clay -= amount;
+        else resources.stone -= amount;
+    }
+    function _ceilDiv(
+        uint256 numerator,
+        uint256 denominator
+    ) private pure returns (uint256) {
+        return numerator == 0 ? 0 : (numerator - 1) / denominator + 1;
     }
     function _min(uint256 a, uint256 b) private pure returns (uint256) {
         return a < b ? a : b;

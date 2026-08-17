@@ -10,11 +10,11 @@ import {
   CIVILIZATION_GAME_ADDRESS,
   TROOP_INDEX,
   WORLD_TOKEN_UNIT,
-  WORLD_TOKEN_ADDRESS,
 } from "./constants.js";
 import { readCivilizationState } from "./reads.js";
 
 const transaction = (to, data) => ({ to, data, value: "0x0" });
+const MARKET_RESOURCE_INDEX = { wood: 0, clay: 1, stone: 2 };
 const validUserOpHash = (hash) =>
   typeof hash === "string" && /^0x[0-9a-fA-F]{64}$/.test(hash);
 
@@ -32,39 +32,11 @@ export function encodeWalletRegistration(
   ];
 }
 
-export function encodeWorldIdRegistration(
-  registration,
-  contractAddress = CIVILIZATION_GAME_ADDRESS,
-) {
-  if (
-    !registration ||
-    !Array.isArray(registration.proof) ||
-    registration.proof.length !== 5
-  )
-    throw new Error("invalid_world_id_registration");
-  return [
-    transaction(
-      getAddress(contractAddress),
-      encodeFunctionData({
-        abi: CIVILIZATION_GAME_ABI,
-        functionName: "registerWorldId",
-        args: [
-          BigInt(registration.nullifierHash),
-          BigInt(registration.nonce),
-          BigInt(registration.signalHash),
-          BigInt(registration.expiresAtMin),
-          BigInt(registration.issuerSchemaId),
-          registration.proof.map(BigInt),
-        ],
-      }),
-    ),
-  ];
-}
-
 export function encodeWorldGameAction(
   type,
   payload = {},
   contractAddress = CIVILIZATION_GAME_ADDRESS,
+  worldTokenAddress = "",
 ) {
   const game = getAddress(contractAddress);
   if (type === "claim")
@@ -160,10 +132,11 @@ export function encodeWorldGameAction(
   if (type === "boost") {
     if (!Number.isSafeInteger(payload.hours) || payload.hours < 1)
       throw new Error("invalid_boost");
+    if (!isAddress(worldTokenAddress)) throw new Error("invalid_world_token");
     const amount = BigInt(payload.hours) * WORLD_TOKEN_UNIT;
     return [
       transaction(
-        WORLD_TOKEN_ADDRESS,
+        getAddress(worldTokenAddress),
         encodeFunctionData({
           abi: WORLD_TOKEN_ABI,
           functionName: "approve",
@@ -176,6 +149,32 @@ export function encodeWorldGameAction(
           abi: CIVILIZATION_GAME_ABI,
           functionName: "boostConstruction",
           args: [BigInt(payload.hours)],
+        }),
+      ),
+    ];
+  }
+  if (type === "market_buy" || type === "market_sell") {
+    if (
+      !Object.hasOwn(MARKET_RESOURCE_INDEX, payload.resource) ||
+      !Number.isSafeInteger(payload.amount) ||
+      payload.amount < 1 ||
+      typeof payload.limit !== "bigint" ||
+      !Number.isSafeInteger(payload.deadline) ||
+      payload.deadline < 1
+    )
+      throw new Error("invalid_market_order");
+    return [
+      transaction(
+        game,
+        encodeFunctionData({
+          abi: CIVILIZATION_GAME_ABI,
+          functionName: type === "market_buy" ? "buyResource" : "sellResource",
+          args: [
+            MARKET_RESOURCE_INDEX[payload.resource],
+            BigInt(payload.amount),
+            payload.limit,
+            BigInt(payload.deadline),
+          ],
         }),
       ),
     ];

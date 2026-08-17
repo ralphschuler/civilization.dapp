@@ -32,7 +32,11 @@ const construction = [
   { name: "completesAt", type: "uint64" },
 ];
 
-export const CIVILIZATION_WORLD_ID_REGISTRATION_ABI = [
+/**
+ * Dormant ABI compatibility for the already-published proxy. No active
+ * browser or server flow imports these registration functions.
+ */
+export const CIVILIZATION_WORLD_ID_COMPATIBILITY_ABI = [
   {
     type: "function",
     name: "registerWorldId",
@@ -62,7 +66,6 @@ export const CIVILIZATION_WORLD_ID_REGISTRATION_ABI = [
 ];
 
 export const CIVILIZATION_GAME_ABI = [
-  ...CIVILIZATION_WORLD_ID_REGISTRATION_ABI,
   {
     type: "function",
     name: "registerWallet",
@@ -110,6 +113,35 @@ export const CIVILIZATION_GAME_ABI = [
     outputs: [{ name: "", type: "uint256" }],
   },
   {
+    type: "function",
+    name: "quoteMarket",
+    stateMutability: "view",
+    inputs: [
+      { name: "resource", type: "uint8" },
+      { name: "resourceAmount", type: "uint256" },
+    ],
+    outputs: [
+      { name: "buyGoldIn", type: "uint256" },
+      { name: "buyFee", type: "uint256" },
+      { name: "sellGoldOut", type: "uint256" },
+      { name: "sellFee", type: "uint256" },
+    ],
+  },
+  {
+    type: "function",
+    name: "marketInventory",
+    stateMutability: "view",
+    inputs: [{ name: "resource", type: "uint8" }],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "marketGoldReserve",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
     // The contract is the sole authority for the rational, upward-rounded
     // construction curve; clients must read this instead of approximating it.
     type: "function",
@@ -126,6 +158,30 @@ export const CIVILIZATION_GAME_ABI = [
     name: "claim",
     stateMutability: "nonpayable",
     inputs: [],
+    outputs: [],
+  },
+  {
+    type: "function",
+    name: "buyResource",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "resource", type: "uint8" },
+      { name: "resourceAmount", type: "uint256" },
+      { name: "maxGoldIn", type: "uint256" },
+      { name: "deadline", type: "uint256" },
+    ],
+    outputs: [],
+  },
+  {
+    type: "function",
+    name: "sellResource",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "resource", type: "uint8" },
+      { name: "resourceAmount", type: "uint256" },
+      { name: "minGoldOut", type: "uint256" },
+      { name: "deadline", type: "uint256" },
+    ],
     outputs: [],
   },
   {

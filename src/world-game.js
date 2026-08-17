@@ -4,7 +4,6 @@ export {
   BUILDING_INDEX,
   CIVILIZATION_GAME_ADDRESS,
   TROOP_INDEX,
-  WORLD_TOKEN_ADDRESS,
 } from "./world-game/constants.js";
 export {
   decodeCivilizationState,
@@ -23,8 +22,11 @@ export {
 } from "./world-game/projections.js";
 export {
   encodeWalletRegistration,
-  encodeWorldIdRegistration,
   encodeWorldGameAction,
   registerWalletWithMiniKit,
 } from "./world-game/actions.js";
+export {
+  CONSTRUCTION_BOOST_SECONDS,
+  constructionBoostEligibility,
+} from "./world-game/boost-eligibility.js";
 export { createWorldGameAdapter } from "./world-game/adapter.js";

@@ -2,6 +2,7 @@ import {
   readWalletAuthJson,
   verifyWalletAuthRequest,
 } from "@/lib/wallet-auth-verify-core";
+import { runtimeConfiguration } from "@/lib/runtime-config";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,6 +30,12 @@ const verificationFailed = () =>
   );
 
 export async function POST(request: Request) {
+  if (!runtimeConfiguration().ready) {
+    return Response.json(
+      { error: "wallet_auth_unavailable" },
+      { status: 503, headers: noStoreHeaders },
+    );
+  }
   const parsed = await readWalletAuthJson(request);
   if (parsed.kind === "too_large") return tooLarge();
   if (parsed.kind !== "json") return malformed();

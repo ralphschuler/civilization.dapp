@@ -52,6 +52,14 @@ function errorText(error) {
         "Noch keine übertragbaren ganzen Ressourcen: Abklingzeit, Feldbestand und Speicher werden erneut geprüft.",
       transaction_pending:
         "Eine andere Transaktion wartet noch auf Chain-Bestätigung.",
+      no_boostable_construction:
+        "Es gibt keinen laufenden Bauauftrag zum Boosten.",
+      construction_complete:
+        "Der Bau ist bereits fertig und kann abgeschlossen werden.",
+      less_than_one_hour:
+        "Ein Boost ist erst ab mindestens 1 Stunde verbleibender Bauzeit möglich.",
+      construction_time_unavailable:
+        "Die verbleibende Bauzeit konnte nicht zuverlässig geprüft werden.",
     }[reason] || `World-Chain-Aktion fehlgeschlagen: ${reason}.`
   );
 }
@@ -72,6 +80,7 @@ function createRuntime(options) {
     refreshTicks: 0,
     worldStateEpoch: 0,
     durations: new Map(),
+    marketQuote: null,
     selectedOpponent: null,
     selectedBuilding: "townhall",
     activePanel: "build",
@@ -191,6 +200,7 @@ function createController(runtime) {
       troops: TROOPS,
       resourceDefs: RESOURCE_DEFS,
       tokens: TOKEN_REGISTRY,
+      marketQuote: runtime.marketQuote,
       format,
       remainingTime: remaining,
       buildDuration: (id, level) => runtime.durations.get(`${id}:${level}`),

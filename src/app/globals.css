@@ -19,23 +19,237 @@ body {
   font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
 
-.wallet-access {
+.civilization-login {
+  --login-ink: #f7f3df;
+  --login-muted: #c8d0bb;
+  --login-border: #b3a66a7a;
+  position: relative;
+  display: grid;
+  min-height: 100svh;
+  min-height: 100dvh;
+  padding: max(1rem, env(safe-area-inset-top))
+    max(1rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom))
+    max(1rem, env(safe-area-inset-left));
+  place-items: center;
+  isolation: isolate;
+  overflow: hidden;
+  background: #07100e;
+}
+
+.civilization-login__backdrop {
+  position: absolute;
+  z-index: -1;
+  inset: -15%;
+  background:
+    radial-gradient(circle at 15% 18%, #607a3d 0, transparent 32%),
+    radial-gradient(circle at 82% 80%, #2e542c 0, transparent 37%),
+    linear-gradient(145deg, #122315, #07100e 64%);
+}
+
+.civilization-login__card {
+  display: grid;
+  gap: clamp(1.25rem, 4vw, 2rem);
+  width: min(100%, 31.5rem);
+  padding: clamp(1.25rem, 6vw, 2.75rem);
+  border: 1px solid var(--login-border);
+  border-radius: 1.25rem;
+  background: #101b15f2;
+  box-shadow: 0 1.25rem 3rem #0008;
+}
+
+.civilization-login__header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.civilization-login__mark {
+  display: grid;
+  flex: 0 0 auto;
+  width: 2.75rem;
+  aspect-ratio: 1;
+  place-items: center;
+  border-radius: 0.8rem;
+  color: #34250b;
+  background: linear-gradient(135deg, #ffe590, #c58328);
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+}
+
+.civilization-login__eyebrow,
+.civilization-login__product,
+.civilization-login__intro p,
+.civilization-login__wallet p {
+  margin: 0;
+}
+
+.civilization-login__eyebrow {
+  color: var(--login-ink);
+  font-size: 0.9rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.civilization-login__product {
+  margin-top: 0.15rem;
+  color: #dbc975;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+}
+
+.civilization-login__dev {
+  margin-left: auto;
+  padding: 0.3rem 0.45rem;
+  border: 1px solid #e4aa64;
+  border-radius: 0.35rem;
+  color: #ffd695;
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+}
+
+.civilization-login__intro h1 {
+  max-width: 13ch;
+  margin: 0;
+  color: var(--login-ink);
+  font-size: clamp(2rem, 9vw, 3.35rem);
+  line-height: 0.98;
+  letter-spacing: -0.06em;
+}
+
+.civilization-login__intro p {
+  max-width: 36ch;
+  margin-top: 0.85rem;
+  color: var(--login-muted);
+  font-size: 0.94rem;
+  line-height: 1.55;
+}
+
+.civilization-login__wallet {
+  display: grid;
+  gap: 0.75rem;
+  padding-top: 1.1rem;
+  border-top: 1px solid #9f9b6d4a;
+}
+
+.civilization-login__wallet > p:first-child {
+  color: #e7eadc;
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.civilization-login__safety {
+  color: #b9d893;
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.civilization-login__action {
+  min-height: 2.75rem;
   width: 100%;
-  margin-top: 1rem;
-  overflow-wrap: anywhere;
+  margin-top: 0.25rem;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid #f3d56c;
+  border-radius: 0.7rem;
+  color: #2f250f;
+  background: #ebcf69;
+  box-shadow: inset 0 1px #fff5b8;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 850;
+  line-height: 1.2;
+  transition:
+    transform 0.16s ease,
+    filter 0.16s ease;
 }
 
-.wallet-access p {
-  margin: 0 0 0.5rem;
-  font-size: 0.875rem;
+.civilization-login__action:hover:not(:disabled) {
+  filter: brightness(1.08);
+  transform: translateY(-0.1rem);
 }
 
-.wallet-access button {
-  min-height: 44px;
-  max-width: 100%;
-  padding: 0.625rem 0.875rem;
-  border: 1px solid currentColor;
-  border-radius: 0.5rem;
-  background: transparent;
-  color: inherit;
+.civilization-login__action:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.civilization-login__action:disabled {
+  cursor: wait;
+  opacity: 0.78;
+}
+
+.civilization-login__status {
+  min-height: 1.35rem;
+  color: var(--login-muted);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.civilization-login__status[data-state="pending"] {
+  color: #e6d67f;
+}
+.civilization-login__status[data-state="success"] {
+  color: #b9e59e;
+}
+.civilization-login__status[data-state="cancelled"] {
+  color: #e3c887;
+}
+.civilization-login__status[data-state="failure"] {
+  color: #ffc1aa;
+}
+
+.civilization-login__action:focus-visible {
+  outline: 3px solid #fff4bb;
+  outline-offset: 3px;
+}
+
+.wallet-access-e2e-controls {
+  position: fixed;
+  right: 0.5rem;
+  bottom: 0.5rem;
+  z-index: 2;
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.5rem;
+  border: 1px solid #9f9b6d;
+  border-radius: 0.4rem;
+  color: #f7f3df;
+  background: #101b15;
+  font-size: 0.75rem;
+}
+
+@media (max-width: 350px) {
+  .civilization-login {
+    place-items: start center;
+  }
+  .civilization-login__card {
+    margin-block: 0.25rem;
+  }
+  .civilization-login__intro h1 {
+    font-size: 2rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .civilization-login__action {
+    transition: none;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .civilization-login__card {
+    background: #101b15;
+  }
+}
+
+@media (prefers-contrast: more) {
+  .civilization-login__card,
+  .civilization-login__wallet {
+    border-color: #fff5bd;
+  }
+  .civilization-login__intro p,
+  .civilization-login__status {
+    color: #f7f3df;
+  }
 }

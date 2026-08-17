@@ -42,7 +42,7 @@ export function createGameActions(runtime, services) {
         army: "Bilde Truppen aus, sobald die Kaserne bereit ist.",
         market:
           runtime.mode === "world"
-            ? "CGOLD ist on-chain; Settlement ist im aktuellen Contract deaktiviert."
+            ? "Lade eine Live-Quote; der Contract erzwingt Preis, Liquidität, Slippage und Ablaufzeit."
             : "Nur Holz, Lehm und Stein sind im Demo-Markt tauschbar.",
         raid: "Stelle eine Marschgruppe zusammen.",
       }[id];
@@ -125,6 +125,54 @@ export function createGameActions(runtime, services) {
         (result) =>
           `${format(result.output)} ${RESOURCE_DEFS[to].label} im Demo-Markt erhalten.`,
         "Tausch nicht möglich: Quelle, Ziel, Menge oder Speicher prüfen.",
+      );
+    },
+    async quoteMarket(resource, amount) {
+      if (!requireAccess() || runtime.mode !== "world") return;
+      if (!Number.isSafeInteger(amount) || amount < 1) {
+        runtime.feedback = "Bitte eine ganze Rohstoffmenge ab 1 eingeben.";
+        render();
+        return;
+      }
+      const token = runtime.token;
+      runtime.busy = true;
+      runtime.feedback = "Live-Quote und Contract-Liquidität werden gelesen.";
+      render();
+      try {
+        runtime.marketQuote = await runtime.adapter.quoteMarket(
+          resource,
+          amount,
+        );
+        if (isCurrent(token))
+          runtime.feedback =
+            "Live-Quote geladen. Prüfe Preis, Gebühr und Liquidität vor der Bestätigung.";
+      } catch (error) {
+        if (isCurrent(token)) runtime.feedback = errorText(error);
+      } finally {
+        if (!isCurrent(token)) return;
+        runtime.busy = false;
+        render();
+      }
+    },
+    marketOrder(side) {
+      if (!requireAccess() || runtime.mode !== "world") return;
+      const quote = runtime.marketQuote;
+      if (!quote || (side !== "buy" && side !== "sell")) {
+        runtime.feedback = "Lade zuerst eine aktuelle Live-Quote.";
+        render();
+        return;
+      }
+      return performWorldAction(
+        side === "buy" ? "market_buy" : "market_sell",
+        {
+          resource: quote.resource,
+          amount: quote.amount,
+          limit: side === "buy" ? quote.buyGoldIn : quote.sellGoldOut,
+          deadline: quote.deadline,
+        },
+        side === "buy"
+          ? "Rohstoffe atomar gegen CGOLD gekauft."
+          : "Rohstoffe atomar gegen CGOLD verkauft.",
       );
     },
     async pickOpponent() {

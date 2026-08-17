@@ -34,6 +34,14 @@ export function bindGameActions(root, actions) {
       Number(root.querySelector("#market-amount")?.value),
     ),
   );
+  on("#market-quote", () =>
+    actions.quoteMarket(
+      root.querySelector("#market-resource")?.value,
+      Number(root.querySelector("#market-amount")?.value),
+    ),
+  );
+  on("#market-buy", () => actions.marketOrder("buy"));
+  on("#market-sell", () => actions.marketOrder("sell"));
   on("#send-raid", () => {
     const target =
       root.querySelector("#raid-target-address")?.value.trim() ||

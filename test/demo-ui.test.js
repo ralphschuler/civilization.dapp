@@ -12,8 +12,14 @@ import {
   loadDemoState,
   saveDemoState,
 } from "../src/demo/storage.js";
-import { STORAGE_KEY } from "../src/game-ui/constants.js";
+import { BUILDING_IDS, STORAGE_KEY } from "../src/game-ui/constants.js";
+import {
+  MAP_BUILDING_ANCHORS,
+  mapBuildingAnchorStyle,
+} from "../src/game-ui/map-coordinates.js";
 import { gameShell } from "../src/game-ui/views/shell.js";
+import { buildPanel } from "../src/game-ui/views/build.js";
+import { marketPanel } from "../src/game-ui/views/market.js";
 import { createWorldRuntime } from "../src/game-world-runtime.js";
 import { refreshGameTick } from "../src/game-tick.js";
 import { readFile } from "node:fs/promises";
@@ -130,6 +136,116 @@ test("shell rendering receives explicit state and no controller callbacks", () =
   });
   assert.match(html, /data-panel="build"/);
   assert.match(html, /<p>panel<\/p>/);
+});
+
+test("World market UI requires a live on-chain quote and exposes fee and liquidity", () => {
+  const initial = marketPanel({
+    runtimeMode: "world",
+    tokens: {},
+    marketQuote: null,
+    busy: false,
+  });
+  assert.match(initial, /Live-Quote laden/);
+  assert.match(initial, /keine P2P-Orders/);
+  assert.doesNotMatch(initial, /Lokale Demo-Buchung/);
+  const quoted = marketPanel({
+    runtimeMode: "world",
+    tokens: {},
+    busy: false,
+    marketQuote: {
+      resource: "wood",
+      amount: 2,
+      buyGoldIn: 203n,
+      buyFee: 3n,
+      sellGoldOut: 197n,
+      sellFee: 3n,
+      inventory: 9n,
+      reserve: 500n,
+      deadline: 1234,
+    },
+  });
+  assert.match(quoted, /Gebühr 3 Wei/);
+  assert.match(quoted, /Inventar: 9/);
+  assert.match(quoted, /CGOLD-Reserve: 500/);
+  assert.match(quoted, /Kaufen \(max\. Quote\)/);
+});
+
+test("map buildings use normalized bottom-centre anchors across renders and atlases", async () => {
+  const ids = [...BUILDING_IDS, "market"];
+  assert.deepEqual(Object.keys(MAP_BUILDING_ANCHORS), ids);
+  for (const id of ids) {
+    for (const viewport of ["desktop", "mobile"]) {
+      const point = MAP_BUILDING_ANCHORS[id][viewport];
+      assert.equal(point.length, 2, `${id} has an x/y ${viewport} point`);
+      assert.ok(
+        point.every((coordinate) => coordinate >= 0 && coordinate <= 100),
+        `${id} ${viewport} point stays inside the map`,
+      );
+    }
+  }
+
+  const state = {
+    resources: { wood: 0, clay: 0, stone: 0, gold: 0 },
+    unclaimed: { wood: 0, clay: 0, stone: 0, gold: 0 },
+    buildings: Object.fromEntries(BUILDING_IDS.map((id) => [id, 1])),
+    raids: 0,
+  };
+  const context = {
+    state,
+    runtimeMode: "demo",
+    worldApp: { installed: false },
+    worldBadge: "DEMO · LOKAL",
+    feedback: "bereit",
+    activePanel: "build",
+    selectedBuilding: "townhall",
+    panel: "",
+    production: { wood: 0, clay: 0, stone: 0, gold: 0 },
+    capacity: 100,
+    displayState: state,
+    collection: { locked: false, detail: "FELD" },
+    readyToClaim: 0,
+    resourceDefs: {},
+    tokens: {},
+    format: String,
+    resourceFormat: String,
+    buildings: Object.fromEntries(
+      BUILDING_IDS.map((id) => [id, { label: id }]),
+    ),
+    busy: false,
+  };
+  const initial = gameShell(context);
+  const updated = gameShell({
+    ...context,
+    state: { ...state, buildings: { ...state.buildings, quarry: 2 } },
+    selectedBuilding: "quarry",
+  });
+
+  for (const id of ids) {
+    const style = mapBuildingAnchorStyle(id);
+    const anchor = new RegExp(
+      `map-${id}[^>]*data-map-anchor="bottom-center"[^>]*style="${style}"`,
+    );
+    assert.match(initial, anchor, `${id} is anchored on the initial render`);
+    assert.match(
+      updated,
+      anchor,
+      `${id} retains its point after state updates`,
+    );
+  }
+
+  const css = await readFile(
+    new URL("../src/styles.css", import.meta.url),
+    "utf8",
+  );
+  assert.match(
+    css,
+    /\.map-building\s*\{[\s\S]*?left: var\(--map-anchor-x-desktop\);[\s\S]*?top: var\(--map-anchor-y-desktop\);[\s\S]*?transform: translate\(-50%, -100%\)/,
+  );
+  assert.match(
+    css,
+    /@media \(max-width: 640px\)\s*\{[\s\S]*?\.map-building\s*\{[\s\S]*?left: var\(--map-anchor-x-mobile\);[\s\S]*?top: var\(--map-anchor-y-mobile\)/,
+  );
+  assert.doesNotMatch(css, /--ground-anchor/);
 });
 
 test("resource HUD omits field stock while the collect button exposes it once", () => {
@@ -407,6 +523,66 @@ test("second tick updates collect stock, claim, construction, and raid controls"
   assert.equal(complete.disabled, true);
   assert.equal(boost.disabled, false);
   assert.equal(gather.disabled, false);
+});
+
+test("boost UI is clickable at exactly one hour and explains guarded states", () => {
+  const context = (remainingSeconds, busy = false) => ({
+    state: {
+      construction: {
+        pending: true,
+        buildingId: "timber",
+        completesAt: 10_000_000,
+      },
+      buildings: { timber: 1 },
+    },
+    buildings: { timber: { label: "Holzfäller" } },
+    busy,
+    remainingTime: () => remainingSeconds,
+  });
+  const valid = buildPanel({
+    ...context(3_600),
+    selectedBuilding: "timber",
+    requirements: () => [],
+    buildingCost: () => ({}),
+    runtimeMode: "world",
+    resourceDefs: {},
+    format: String,
+    buildDuration: () => null,
+    nextBuildingProduction: () => ({}),
+  });
+  assert.match(
+    valid,
+    /id="boost-construction" aria-describedby="boost-construction-status" >/,
+  );
+  assert.match(valid, /1 WLD reduziert die Bauzeit um genau 1 Stunde/);
+
+  const tooShort = buildPanel({
+    ...context(3_599),
+    selectedBuilding: "timber",
+    requirements: () => [],
+    buildingCost: () => ({}),
+    runtimeMode: "world",
+    resourceDefs: {},
+    format: String,
+    buildDuration: () => null,
+    nextBuildingProduction: () => ({}),
+  });
+  assert.match(tooShort, /id="boost-construction"[^>]*disabled/);
+  assert.match(tooShort, /mindestens 1 Stunde Bauzeit verbleiben/);
+
+  const pending = buildPanel({
+    ...context(4_000, true),
+    selectedBuilding: "timber",
+    requirements: () => [],
+    buildingCost: () => ({}),
+    runtimeMode: "world",
+    resourceDefs: {},
+    format: String,
+    buildDuration: () => null,
+    nextBuildingProduction: () => ({}),
+  });
+  assert.match(pending, /id="boost-construction"[^>]*disabled/);
+  assert.match(pending, /laufende Transaktion wird noch bestätigt/);
 });
 
 test("ticks update collect stock and production independently without rerendering", () => {

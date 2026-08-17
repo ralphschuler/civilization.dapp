@@ -3,6 +3,8 @@ import {
   compactResourceValue,
   productionRateText,
 } from "./game-ui/helpers.js";
+import { boostConstructionStatus } from "./game-ui/boost-status.js";
+import { constructionBoostEligibility } from "./world-game/boost-eligibility.js";
 
 export function refreshGameTick({
   root,
@@ -121,11 +123,20 @@ function updateConstructionCountdown(root, state, busy, remainingTime) {
   countdown.textContent = seconds ? clock(seconds) : "Fertig";
   const complete = root.querySelector("#complete-upgrade");
   const boost = root.querySelector("#boost-construction");
+  const boostStatus = root.querySelector("[data-boost-construction-status]");
   if (complete) {
     complete.disabled = seconds > 0 || busy;
     complete.textContent = seconds ? "Bau läuft" : "Ausbau abschließen";
   }
   if (boost) {
-    boost.disabled = seconds <= 3_600 || busy;
+    const eligibility = constructionBoostEligibility({
+      construction: state.construction,
+      remainingSeconds: seconds,
+      busy,
+    });
+    boost.disabled = !eligibility.eligible;
+    if (boostStatus) {
+      boostStatus.textContent = boostConstructionStatus(eligibility.reason);
+    }
   }
 }

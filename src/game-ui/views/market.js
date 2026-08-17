@@ -1,12 +1,12 @@
 import { RESOURCE_ASSETS } from "../constants.js";
 
-export function marketPanel({ runtimeMode, tokens }) {
+export function marketPanel({ runtimeMode, tokens, marketQuote, busy }) {
   if (runtimeMode === "world")
     return `<div class="inspector market-inspector">
 <div class="inspector-title">
 <p>TAUSCHHALLE</p>
 <h2>CGOLD auf World Chain</h2>
-<span>Contract-Status</span>
+<span>Contract-Markt · keine P2P-Orders</span>
 </div>
 <div class="token-registry">
 <div class="token-row token-gold">
@@ -19,10 +19,13 @@ export function marketPanel({ runtimeMode, tokens }) {
 </div>
 </div>
 <div class="gold-boundary">
-<span>SETTLEMENT NOCH DEAKTIVIERT</span>
-<b>Dieser Contract enthält keinen Kauf-, Verkauf- oder Rohstoff-Swap.</b>
-<small>Ein 1,5-%-Sink und WLD/CGOLD-Handel benötigen einen separat geprüften Settlement-Contract. Hier wird keine Off-chain-Ersatzbuchung simuliert.</small>
-<button disabled>Handel nicht verfügbar</button>
+<span>CONTRACT-LIQUIDITÄT · 1,5 % SPREAD</span>
+<b>Kaufe oder verkaufe Holz, Lehm und Stein direkt gegen CGOLD.</b>
+<small>Ressourcen sind ganze Dorf-Einheiten. Preis und Quote sind CGOLD-Wei pro Einheit; Gebühren bleiben als CGOLD-Reserve im Contract.</small>
+<label>Rohstoff<select id="market-resource"><option value="wood">Holz</option><option value="clay">Lehm</option><option value="stone">Stein</option></select></label>
+<label>Menge<input id="market-amount" type="number" min="1" value="1" inputmode="numeric"></label>
+<button class="primary-action" id="market-quote" ${busy ? "disabled" : ""}>Live-Quote laden</button>
+${marketQuote ? `<div class="market-quote"><b>Quote für ${marketQuote.amount} ${marketQuote.resource}</b><small>Kauf: ${marketQuote.buyGoldIn} Wei CGOLD · Gebühr ${marketQuote.buyFee} Wei</small><small>Verkauf: ${marketQuote.sellGoldOut} Wei CGOLD · Gebühr ${marketQuote.sellFee} Wei</small><small>Inventar: ${marketQuote.inventory} · CGOLD-Reserve: ${marketQuote.reserve} · gültig bis Blockzeit ${marketQuote.deadline}</small><button id="market-buy" ${busy ? "disabled" : ""}>Kaufen (max. Quote)</button><button id="market-sell" ${busy ? "disabled" : ""}>Verkaufen (min. Quote)</button></div>` : "<small>Vor der Wallet-Bestätigung muss eine Live-Quote geladen werden.</small>"}
 </div>
 </div>`;
   const rows = Object.entries(tokens)

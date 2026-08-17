@@ -362,6 +362,265 @@ async function upgrade(f, implementation, at, salt = zero32()) {
   );
 }
 
+async function timelockCall(f, data, at, salt = zero32()) {
+  ok(
+    await call(
+      f.timelock,
+      deployer,
+      "schedule",
+      [f.game.address.toString(), 0n, data, zero32(), salt, 60n],
+      at,
+    ),
+  );
+  ok(
+    await call(
+      f.timelock,
+      deployer,
+      "execute",
+      [f.game.address.toString(), 0n, data, zero32(), salt],
+      at + 60n,
+    ),
+  );
+}
+
+async function configureMarket(f, resource, price, inventory, at, salt) {
+  await timelockCall(
+    f,
+    encodeFunctionData({
+      abi: f.game.abi,
+      functionName: "configureMarket",
+      args: [resource, price, inventory],
+    }),
+    at,
+    salt,
+  );
+}
+
+async function seedGoldForMarketTest(f, account, value) {
+  // Tests seed the existing ERC-20 mapping directly; production reserve is
+  // seeded only by an actual timelock-controlled CGOLD transfer.
+  const base = BigInt(
+    "0xb9c5fb29a19a4c3e9d391dc26eaefcdaaec2a4fc6362d4bd27f1470fa2592b00",
+  );
+  const balanceSlot = keccak256(
+    encodeAbiParameters(
+      [{ type: "address" }, { type: "uint256" }],
+      [account, base + 1n],
+    ),
+  );
+  await f.vm.stateManager.putStorage(
+    f.game.address,
+    hexToBytes(balanceSlot),
+    hexToBytes(toHex(value, { size: 32 })),
+  );
+  await f.vm.stateManager.putStorage(
+    f.game.address,
+    hexToBytes(toHex(base, { size: 32 })),
+    hexToBytes(toHex(value, { size: 32 })),
+  );
+}
+
+async function setGoldTotalSupplyForMarketTest(f, value) {
+  const base = BigInt(
+    "0xb9c5fb29a19a4c3e9d391dc26eaefcdaaec2a4fc6362d4bd27f1470fa2592b00",
+  );
+  await f.vm.stateManager.putStorage(
+    f.game.address,
+    hexToBytes(toHex(base, { size: 32 })),
+    hexToBytes(toHex(value, { size: 32 })),
+  );
+}
+
+test("timelock-governed market atomically exchanges only contract inventory for CGOLD", async () => {
+  const f = await fixture();
+  ok(await call(f.game, alice, "registerWallet", [], 1_000n));
+  await configureMarket(f, 0, 100n, 10n, 1_100n, `0x${"01".repeat(32)}`);
+  await seedGoldForMarketTest(f, alice, 10_000n);
+  const quote = await read(f.game, "quoteMarket", [0, 3n], 1_160n);
+  assert.deepEqual(
+    quote,
+    [305n, 5n, 295n, 5n],
+    "buy rounds up and sell rounds down at 1.5%",
+  );
+  ok(await call(f.game, alice, "buyResource", [0, 3n, 305n, 1_300n], 1_160n));
+  assert.equal(await read(f.game, "marketInventory", [0]), 7n);
+  assert.equal(await read(f.game, "marketGoldReserve"), 305n);
+  let state = await read(f.game, "playerState", [alice], 1_160n);
+  assert.equal(state[3].wood, 83n);
+  ok(await call(f.game, alice, "sellResource", [0, 2n, 197n, 1_300n], 1_161n));
+  assert.equal(await read(f.game, "marketInventory", [0]), 9n);
+  assert.equal(await read(f.game, "marketGoldReserve"), 108n);
+  state = await read(f.game, "playerState", [alice], 1_161n);
+  assert.equal(state[3].wood, 81n);
+  assert.equal(await read(f.game, "balanceOf", [alice]), 9_892n);
+});
+
+test("market rejects invalid resources, zero/expired/slipped orders and preserves state on failure", async () => {
+  const f = await fixture();
+  ok(await call(f.game, alice, "registerWallet", [], 1_000n));
+  await configureMarket(f, 1, 100n, 1n, 1_100n, `0x${"02".repeat(32)}`);
+  await seedGoldForMarketTest(f, alice, 1_000n);
+  for (const args of [
+    [3, 1n],
+    [1, 0n],
+  ]) {
+    const failure = await call(
+      f.game,
+      alice,
+      "quoteMarket",
+      args,
+      1_160n,
+      true,
+    );
+    assert.ok(failure.execResult.exceptionError);
+  }
+  const beforeInventory = await read(f.game, "marketInventory", [1]);
+  const beforeGold = await read(f.game, "balanceOf", [alice]);
+  for (const args of [
+    [1, 1n, 101n, 1_159n],
+    [1, 1n, 100n, 1_300n],
+  ]) {
+    const failure = await call(f.game, alice, "buyResource", args, 1_160n);
+    assert.ok(failure.execResult.exceptionError);
+  }
+  assert.equal(await read(f.game, "marketInventory", [1]), beforeInventory);
+  assert.equal(await read(f.game, "balanceOf", [alice]), beforeGold);
+  const reserveFailure = await call(
+    f.game,
+    alice,
+    "sellResource",
+    [1, 1n, 1n, 1_300n],
+    1_160n,
+  );
+  assert.ok(
+    reserveFailure.execResult.exceptionError,
+    "sell cannot create CGOLD when the reserve is empty",
+  );
+  assert.equal(await read(f.game, "marketInventory", [1]), beforeInventory);
+});
+
+const STATE_MACHINE_SEEDS = Object.freeze([
+  0x43c0ffee, 0x00000001, 0x12345678, 0xdeadbeef, 0x0badc0de, 0xcafebabe,
+  0xfeedface, 0x31415926, 0x27182818, 0x9e3779b9, 0xa5a5a5a5, 0x5a5a5a5a,
+  0x01020304, 0x89abcdef, 0xfedcba98, 0xffffffff,
+]);
+const STATE_MACHINE_STEPS = 32;
+
+async function runAdversarialStateMachine(seed) {
+  // This is intentionally a sequence test: an incorrect mutation in any step
+  // corrupts independently tracked inventory/supply state for later steps.
+  const f = await fixture();
+  const at = 2_000n;
+  ok(await call(f.game, alice, "registerWallet", [], at));
+  ok(await call(f.game, bob, "registerWallet", [], at));
+  const aliceStart = await read(f.game, "playerState", [alice], at);
+  const bobStart = await read(f.game, "playerState", [bob], at);
+  const duplicate = await call(f.game, alice, "registerWallet", [], at);
+  assert.ok(
+    duplicate.execResult.exceptionError,
+    "duplicate registration reverts",
+  );
+  assert.deepEqual(
+    await read(f.game, "playerState", [bob], at),
+    bobStart,
+    "alice's failed registration cannot mutate bob",
+  );
+
+  await configureMarket(f, 0, 100n, 40n, 2_100n, `0x${"43".repeat(32)}`);
+  await seedGoldForMarketTest(f, alice, 100_000n);
+  await seedGoldForMarketTest(f, f.game.address.toString(), 100_000n);
+  await setGoldTotalSupplyForMarketTest(f, 200_000n);
+  let expectedInventory = 40n;
+  let expectedWood = aliceStart[3].wood;
+  let expectedAliceGold = 100_000n;
+  let expectedReserve = 100_000n;
+  let state = seed;
+  const next = () => {
+    state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+    return state;
+  };
+  for (let step = 0; step < STATE_MACHINE_STEPS; step += 1) {
+    const amount = BigInt((next() % 3) + 1);
+    const cost = (amount * 100n * 10_150n + 9_999n) / 10_000n;
+    const proceeds = (amount * 100n * 9_850n) / 10_000n;
+    const wantsBuy = ((next() >>> 31) & 1) === 0;
+    const buy =
+      (wantsBuy || expectedWood < amount || expectedReserve < proceeds) &&
+      expectedInventory >= amount &&
+      expectedAliceGold >= cost;
+    if (buy) {
+      ok(
+        await call(
+          f.game,
+          alice,
+          "buyResource",
+          [0, amount, cost, 3_000n],
+          2_160n,
+        ),
+      );
+      expectedInventory -= amount;
+      expectedWood += amount;
+      expectedAliceGold -= cost;
+      expectedReserve += cost;
+    } else {
+      assert.ok(
+        expectedWood >= amount && expectedReserve >= proceeds,
+        `seed 0x${seed.toString(16).padStart(8, "0")} has a valid sell at step ${step}`,
+      );
+      ok(
+        await call(
+          f.game,
+          alice,
+          "sellResource",
+          [0, amount, proceeds, 3_000n],
+          2_160n,
+        ),
+      );
+      expectedInventory += amount;
+      expectedWood -= amount;
+      expectedAliceGold += proceeds;
+      expectedReserve -= proceeds;
+    }
+    const aliceState = await read(f.game, "playerState", [alice], 2_160n);
+    const trace = `seed 0x${seed.toString(16).padStart(8, "0")}, step ${step}`;
+    assert.equal(aliceState[3].wood, expectedWood, `wood after ${trace}`);
+    assert.equal(await read(f.game, "marketInventory", [0]), expectedInventory);
+    assert.equal(await read(f.game, "balanceOf", [alice]), expectedAliceGold);
+    assert.equal(await read(f.game, "marketGoldReserve"), expectedReserve);
+    assert.equal(
+      expectedInventory + aliceState[3].wood,
+      40n + aliceStart[3].wood,
+      "market trades conserve the configured pool and player stored wood",
+    );
+    assert.equal(
+      expectedAliceGold + expectedReserve,
+      await read(f.game, "totalSupply"),
+      "market trades cannot create or lose CGOLD",
+    );
+    assert.deepEqual(
+      await read(f.game, "playerState", [bob], 2_160n),
+      bobStart,
+      "alice's sequence cannot change another wallet's village",
+    );
+  }
+  const earlyClaim = await call(f.game, alice, "claim", [], 2_160n);
+  assert.ok(
+    earlyClaim.execResult.exceptionError,
+    "empty/early claim cannot alter cooldown",
+  );
+  const afterEarlyClaim = await read(f.game, "playerState", [alice], 2_160n);
+  assert.equal(
+    afterEarlyClaim[2],
+    aliceStart[2],
+    "failed claim preserves cooldown",
+  );
+}
+
+for (const seed of STATE_MACHINE_SEEDS) {
+  test(`adversarial state machine (seed 0x${seed.toString(16).padStart(8, "0")}, ${STATE_MACHINE_STEPS} steps) preserves wallet, resource, and CGOLD boundaries`, () =>
+    runAdversarialStateMachine(seed));
+}
+
 test("pinned Solidity/OZ sources compile deterministically; implementation is locked and EIP-170 safe", async () => {
   await compile();
   assert.equal(solc.version(), "0.8.30+commit.73712a01.Emscripten.clang");
@@ -512,6 +771,24 @@ test("real OZ proxy atomically initializes, locks its implementation, and expose
   assert.equal(state[2], 4_660n);
   const cooldown = await call(f.game, alice, "claim", [], 4_659n);
   assert.ok(cooldown.execResult.exceptionError);
+});
+
+test("registerWallet is explicitly public: a direct caller needs no WalletAuth or World ID proof", async () => {
+  const f = await fixture();
+  const before = await read(f.game, "playerState", [bob], 1_000n);
+  assert.equal(before[0], false, "unrelated wallet starts unregistered");
+
+  // This local-EVM call supplies only bob as msg.sender. It has no UI session,
+  // WalletAuth/SIWE payload, World ID proof, relayer, or backend interaction.
+  ok(await call(f.game, bob, "registerWallet", [], 1_000n));
+  const after = await read(f.game, "playerState", [bob], 1_000n);
+  assert.equal(after[0], true, "the direct caller is registered");
+
+  const duplicate = await call(f.game, bob, "registerWallet", [], 1_000n);
+  assert.ok(
+    duplicate.execResult.exceptionError,
+    "one village per caller is the only registration admission check",
+  );
 });
 
 test("all buildings use the accepted fixed-point minute curve, upward seconds rounding, and 365-day cap", async () => {

@@ -15,12 +15,12 @@ import {
   BUILDING_INDEX,
   CIVILIZATION_GAME_ADDRESS,
   TROOP_INDEX,
-  WORLD_TOKEN_ADDRESS,
   decodeCivilizationState,
   encodeWalletRegistration,
   encodeWorldGameAction,
   readContractBuildDuration,
   createWorldGameAdapter,
+  constructionBoostEligibility,
   claimEligibility,
   projectCivilizationState,
   registerWalletWithMiniKit,
@@ -28,6 +28,7 @@ import {
 
 const defender = "0x2222222222222222222222222222222222222222";
 const alternateGame = "0x3333333333333333333333333333333333333333";
+const configuredWorldToken = "0x2cFc85d8E48F8EAB294be644d9E25C3030863003";
 const userOpHash = `0x${"ab".repeat(32)}`;
 
 function functionSelector(signature) {
@@ -439,12 +440,20 @@ test("terminally failed wallet registration clears pending operation before a ne
   assert.equal(sends, 0);
 });
 
-test("construction boost batches exact WLD approval before boostConstruction", () => {
-  const transactions = encodeWorldGameAction("boost", { hours: 2 });
+test("construction boost uses the supplied validated WLD configuration", () => {
+  const transactions = encodeWorldGameAction(
+    "boost",
+    { hours: 2 },
+    CIVILIZATION_GAME_ADDRESS,
+    configuredWorldToken,
+  );
   const amount = 2n * 10n ** 18n;
 
   assert.equal(transactions.length, 2);
-  assert.equal(getAddress(transactions[0].to), getAddress(WORLD_TOKEN_ADDRESS));
+  assert.equal(
+    getAddress(transactions[0].to),
+    getAddress(configuredWorldToken),
+  );
   assert.equal(
     transactions[0].data.slice(0, 10),
     functionSelector("approve(address,uint256)"),
@@ -476,9 +485,43 @@ test("construction boost batches exact WLD approval before boostConstruction", (
   );
 });
 
-test("runtime contract address drives registration and every game transaction target", () => {
+test("construction boost eligibility matches the contract boundary and rejects invalid states", () => {
+  const construction = { pending: true, completesAt: 3_600_000 };
+  assert.deepEqual(
+    constructionBoostEligibility({ construction, now: 0 }),
+    { eligible: true, reason: null, remainingSeconds: 3_600 },
+    "the contract permits a boost when exactly one full hour remains",
+  );
+  assert.equal(
+    constructionBoostEligibility({
+      construction: { ...construction, completesAt: 3_599_000 },
+      now: 0,
+    }).reason,
+    "less_than_one_hour",
+  );
+  assert.equal(
+    constructionBoostEligibility({ construction, now: 3_600_000 }).reason,
+    "construction_complete",
+  );
+  assert.equal(
+    constructionBoostEligibility({ construction: { pending: false }, now: 0 })
+      .reason,
+    "no_boostable_construction",
+  );
+  assert.equal(
+    constructionBoostEligibility({ construction, now: 0, busy: true }).reason,
+    "transaction_pending",
+  );
+});
+
+test("runtime contract and WLD addresses drive every game transaction target", () => {
   const claim = encodeWorldGameAction("claim", {}, alternateGame);
-  const boost = encodeWorldGameAction("boost", { hours: 1 }, alternateGame);
+  const boost = encodeWorldGameAction(
+    "boost",
+    { hours: 1 },
+    alternateGame,
+    configuredWorldToken,
+  );
 
   assert.equal(getAddress(claim[0].to), getAddress(alternateGame));
   assert.equal(getAddress(boost[1].to), getAddress(alternateGame));
@@ -498,6 +541,20 @@ test("World contract adapter refuses local market swaps and malformed actions", 
   assert.throws(
     () => encodeWorldGameAction("boost", { hours: 0 }),
     /invalid_boost/,
+  );
+  assert.throws(
+    () => encodeWorldGameAction("boost", { hours: 1 }),
+    /invalid_world_token/,
+  );
+  assert.throws(
+    () =>
+      encodeWorldGameAction(
+        "boost",
+        { hours: 1 },
+        CIVILIZATION_GAME_ADDRESS,
+        "not-an-address",
+      ),
+    /invalid_world_token/,
   );
   assert.throws(
     () => encodeWorldGameAction("upgrade", { building: "market" }),
@@ -671,6 +728,50 @@ test("zero claim is rejected before MiniKit and a pending claim rejects a differ
   await assert.rejects(
     pending.execute("upgrade", { building: "quarry" }),
     /transaction_pending/,
+  );
+});
+
+test("boost preflight admits an exact hour and blocks invalid chain state before MiniKit", async () => {
+  const wallet = "0x1111111111111111111111111111111111111111";
+  const boostableState = {
+    ...projectedSnapshot(),
+    chainTimestamp: 1_000_000,
+    construction: { pending: true, completesAt: 4_600_000 },
+  };
+  let sends = 0;
+  const adapter = createWorldGameAdapter({
+    walletAddress: wallet,
+    contractAddress: alternateGame,
+    worldTokenAddress: configuredWorldToken,
+    readState: async () => boostableState,
+    pollReceipt: async () => ({ receipt: { status: "success", logs: [] } }),
+    miniKit: {
+      sendTransaction: async () => {
+        sends += 1;
+        return {
+          executedWith: "minikit",
+          data: { status: "success", userOpHash, from: wallet },
+        };
+      },
+    },
+  });
+  await adapter.execute("boost", { hours: 1 });
+  assert.equal(sends, 1, "an exact one-hour remainder opens the wallet prompt");
+
+  const invalid = createWorldGameAdapter({
+    walletAddress: wallet,
+    contractAddress: alternateGame,
+    worldTokenAddress: configuredWorldToken,
+    readState: async () => ({
+      ...boostableState,
+      construction: { pending: true, completesAt: 4_599_000 },
+    }),
+    pollReceipt: async () => ({ receipt: { status: "success", logs: [] } }),
+    miniKit: { sendTransaction: async () => ({}) },
+  });
+  await assert.rejects(
+    invalid.execute("boost", { hours: 1 }),
+    /less_than_one_hour/,
   );
 });
 

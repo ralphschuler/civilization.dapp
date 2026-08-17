@@ -1,11 +1,19 @@
 import { BUILDING_ASSETS, MAX_BUILDING_LEVEL } from "../constants.js";
 import { clock, costLine, escapeHtml, requirementsLine } from "../helpers.js";
+import { boostConstructionStatus } from "../boost-status.js";
+import { constructionBoostEligibility } from "../../world-game/boost-eligibility.js";
 
 function pendingConstructionAction({ state, buildings, busy, remainingTime }) {
   const seconds = remainingTime(state.construction.completesAt);
+  const boost = constructionBoostEligibility({
+    construction: state.construction,
+    remainingSeconds: seconds,
+    busy,
+  });
   const building = buildings[state.construction.buildingId];
   const label = building?.label || "Gebäude";
   const actionLabel = seconds ? "Bau läuft" : "Ausbau abschließen";
+  const boostDetail = boostConstructionStatus(boost.reason);
 
   return `<div class="requirement-box">
     <span>BAU LÄUFT · ${escapeHtml(label)}</span>
@@ -13,7 +21,8 @@ function pendingConstructionAction({ state, buildings, busy, remainingTime }) {
     <small>Der Contract erhöht die Stufe erst nach Abschluss.</small>
   </div>
   <button class="primary-action" id="complete-upgrade" ${seconds || busy ? "disabled" : ""}>${actionLabel}</button>
-  <button class="primary-action" id="boost-construction" ${seconds <= 3_600 || busy ? "disabled" : ""}>1 Stunde für 1 WLD boosten</button>`;
+  <button class="primary-action" id="boost-construction" aria-describedby="boost-construction-status" ${!boost.eligible ? "disabled" : ""}>1 Stunde für 1 WLD boosten</button>
+  <small id="boost-construction-status" data-boost-construction-status>${boostDetail}</small>`;
 }
 
 function maximumLevelAction(context, building) {

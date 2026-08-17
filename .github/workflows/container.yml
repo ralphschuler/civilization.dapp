@@ -38,10 +38,38 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Record deterministic offline contract-assurance manifest
+        env:
+          SECURITY_ASSURANCE_REF: ${{ github.sha }}
+        run: pnpm security:offline
+      - name: Install pinned Slither and Solidity compiler
+        run: |
+          solc_path="$RUNNER_TEMP/solc-linux-amd64-v0.8.30+commit.73712a01"
+          curl --fail --location --retry 3 --silent --show-error \
+            --output "$solc_path" \
+            https://binaries.soliditylang.org/linux-amd64/solc-linux-amd64-v0.8.30+commit.73712a01
+          echo "f3e987dc6ecebd4bd350c48edcbc320b46cf9e3109bd3fc3d88f1acaf4c428f7  $solc_path" | sha256sum --check --strict
+          chmod 0755 "$solc_path"
+          python3 -m pip install --user --disable-pip-version-check 'slither-analyzer==0.11.3'
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Run pinned Slither analysis
+        run: SOLC_BINARY="$RUNNER_TEMP/solc-linux-amd64-v0.8.30+commit.73712a01" pnpm security:slither
       - run: pnpm test
       - run: pnpm check
       - run: pnpm build
       - run: pnpm build:demo
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Run WalletAccess browser E2E
+        run: pnpm test:e2e:wallet
+      - name: Upload WalletAccess E2E failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wallet-access-playwright-artifacts
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 7
       - run: docker build -t civilization-dapp-test:ci .
       - name: Migration CLI fails safely without database configuration
         run: |
@@ -68,8 +96,11 @@ jobs:
         run: |
           if [ "${{ github.ref_name }}" = "master" ]; then
             echo "release=latest" >> "$GITHUB_OUTPUT"
-          else
+          elif [ "${{ github.ref_name }}" = "develop" ]; then
             echo "release=dev" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref is not a release branch" >&2
+            exit 1
           fi
       - uses: docker/build-push-action@v7
         with:
