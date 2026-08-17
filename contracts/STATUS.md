@@ -14,6 +14,12 @@ On success, the report proves the current proxy address, implementation and EIP-
 
 This establishes only the directly observable ProxyAdmin owner and proxy timelock evidence. It cannot infer any role membership beyond the ProxyAdmin owner without the relevant ABI and role identifiers (for example, TimelockController role constants). Capture a new snapshot only after the verifier succeeds; never infer implementation, admin, authority, or code hashes from source configuration.
 
+## V2 market upgrade operator workflow
+
+`pnpm plan:worldchain:market-v2 -- --rpc-url <https-url> --implementation <already-deployed-v2-address> --safe <proposer-safe>` is a **dry-run-only**, sanitized JSON planner. It refuses `--send` and `--execute`; it never reads keys or prints environment values. Before emitting a bundle it requires chain `480`, the exact production proxy, the recorded proxy/admin/V1 implementation code hashes, the exact old implementation address, equality of the proxy's configured timelock and ProxyAdmin owner, a non-zero Timelock delay, a compiled-source/runtime hash match at the supplied V2 implementation address, and exact ABI-shaped role reads. CGOLD is the ERC-20 implemented at the CivilizationGame proxy itself, so reserve funding targets that proxy directly; the planner does not read or use `worldToken` (WLD) for the CGOLD reserve. It compiles `contracts/src/CivilizationGame.sol` during every run and records source SHA-256 plus creation/runtime hashes.
+
+The plan exposes a creation-bytecode deployment action (which must be completed and codehash-verified before planning), then produces five individually salted Timelock `schedule`/`execute` calls: `upgradeAndCall` with empty initializer data, Wood/Clay/Stone configuration at 0.05/0.075/0.10 CGOLD per whole resource, 5,000 inventory each, and a real `transfer(proxy, 1000e18)` CGOLD reserve seed. It never claims an EOA can execute governance. The embedded Safe-compatible bundle is unsigned: use it only from an address that has the reported `PROPOSER_ROLE`; execution needs `EXECUTOR_ROLE` or an open executor. Schedule first, wait for the returned on-chain delay, then execute. A false role result is deliberately reported rather than worked around.
+
 ### Live verification snapshot — 2026-08-16 UTC
 
 Observation from a read-only check against a public RPC endpoint (no secrets used): chain ID `480`; proxy `0x0E6689d0649Ad9037465d178231b10F18518D2b0` codehash `0x6ef08fd1df9261908a3870c0e7c652b38d4394eb5d5eff6cf86b82fb1b0209f9` (1114 bytes); implementation `0x7330C22d7b61CCcDB7794435535aaB349D9aFF79` codehash `0x0a2ceb5853ae7ba5d020948baf97c08526f7d19ef990c3e3fc61c35ac794b12a` (20474 bytes); EIP-1967 admin/ProxyAdmin `0x8351d16672bD54eAe8cd51Fc00E08aD8Adc4469D` codehash `0x596a47f00033112fa6862ce8f8af0ab95443ea529e74be94637d5bab676420d2` (1018 bytes). The proxy timelock and ProxyAdmin owner both read as `0x47CaD4ed6765e2aec7c569b2b1E7142D29d1530B`; `paused()` was unsupported/reverted. This is an observation at that time, not a continuing guarantee.
@@ -24,10 +30,10 @@ The source adds `registerWallet()` for one-time, `msg.sender`-only village initi
 
 `GET /api/contracts/status` exposes machine-readable source metadata from `server/contract-status.js`. It is intentionally descriptive only and cannot initiate an on-chain action.
 
-| Source | Status | Release boundary |
-| --- | --- | --- |
-| `contracts/src/CivilizationGame.sol` | Source-only; not independently audited | Wallet-only registration, direct player-signed game state, plus V2 timelock-configured CGOLD resource market. |
-| `contracts/src/GoldSettlementRegistry.sol` | Draft, not deployed, allowlist only | Cannot custody assets or execute a swap. |
+| Source                                     | Status                                 | Release boundary                                                                                              |
+| ------------------------------------------ | -------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `contracts/src/CivilizationGame.sol`       | Source-only; not independently audited | Wallet-only registration, direct player-signed game state, plus V2 timelock-configured CGOLD resource market. |
+| `contracts/src/GoldSettlementRegistry.sol` | Draft, not deployed, allowlist only    | Cannot custody assets or execute a swap.                                                                      |
 
 The `worldchain.tokens.example.json` addresses are reference data only, not an allowlist or deployment configuration. Re-verify them against the official World Chain registry before any future review.
 
