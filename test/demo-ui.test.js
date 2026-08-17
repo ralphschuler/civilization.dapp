@@ -12,7 +12,11 @@ import {
   loadDemoState,
   saveDemoState,
 } from "../src/demo/storage.js";
-import { STORAGE_KEY } from "../src/game-ui/constants.js";
+import { BUILDING_IDS, STORAGE_KEY } from "../src/game-ui/constants.js";
+import {
+  MAP_BUILDING_ANCHORS,
+  mapBuildingAnchorStyle,
+} from "../src/game-ui/map-coordinates.js";
 import { gameShell } from "../src/game-ui/views/shell.js";
 import { buildPanel } from "../src/game-ui/views/build.js";
 import { createWorldRuntime } from "../src/game-world-runtime.js";
@@ -131,6 +135,84 @@ test("shell rendering receives explicit state and no controller callbacks", () =
   });
   assert.match(html, /data-panel="build"/);
   assert.match(html, /<p>panel<\/p>/);
+});
+
+test("map buildings use normalized bottom-centre anchors across renders and atlases", async () => {
+  const ids = [...BUILDING_IDS, "market"];
+  assert.deepEqual(Object.keys(MAP_BUILDING_ANCHORS), ids);
+  for (const id of ids) {
+    for (const viewport of ["desktop", "mobile"]) {
+      const point = MAP_BUILDING_ANCHORS[id][viewport];
+      assert.equal(point.length, 2, `${id} has an x/y ${viewport} point`);
+      assert.ok(
+        point.every((coordinate) => coordinate >= 0 && coordinate <= 100),
+        `${id} ${viewport} point stays inside the map`,
+      );
+    }
+  }
+
+  const state = {
+    resources: { wood: 0, clay: 0, stone: 0, gold: 0 },
+    unclaimed: { wood: 0, clay: 0, stone: 0, gold: 0 },
+    buildings: Object.fromEntries(BUILDING_IDS.map((id) => [id, 1])),
+    raids: 0,
+  };
+  const context = {
+    state,
+    runtimeMode: "demo",
+    worldApp: { installed: false },
+    worldBadge: "DEMO · LOKAL",
+    feedback: "bereit",
+    activePanel: "build",
+    selectedBuilding: "townhall",
+    panel: "",
+    production: { wood: 0, clay: 0, stone: 0, gold: 0 },
+    capacity: 100,
+    displayState: state,
+    collection: { locked: false, detail: "FELD" },
+    readyToClaim: 0,
+    resourceDefs: {},
+    tokens: {},
+    format: String,
+    resourceFormat: String,
+    buildings: Object.fromEntries(
+      BUILDING_IDS.map((id) => [id, { label: id }]),
+    ),
+    busy: false,
+  };
+  const initial = gameShell(context);
+  const updated = gameShell({
+    ...context,
+    state: { ...state, buildings: { ...state.buildings, quarry: 2 } },
+    selectedBuilding: "quarry",
+  });
+
+  for (const id of ids) {
+    const style = mapBuildingAnchorStyle(id);
+    const anchor = new RegExp(
+      `map-${id}[^>]*data-map-anchor="bottom-center"[^>]*style="${style}"`,
+    );
+    assert.match(initial, anchor, `${id} is anchored on the initial render`);
+    assert.match(
+      updated,
+      anchor,
+      `${id} retains its point after state updates`,
+    );
+  }
+
+  const css = await readFile(
+    new URL("../src/styles.css", import.meta.url),
+    "utf8",
+  );
+  assert.match(
+    css,
+    /\.map-building\s*\{[\s\S]*?left: var\(--map-anchor-x-desktop\);[\s\S]*?top: var\(--map-anchor-y-desktop\);[\s\S]*?transform: translate\(-50%, -100%\)/,
+  );
+  assert.match(
+    css,
+    /@media \(max-width: 640px\)\s*\{[\s\S]*?\.map-building\s*\{[\s\S]*?left: var\(--map-anchor-x-mobile\);[\s\S]*?top: var\(--map-anchor-y-mobile\)/,
+  );
+  assert.doesNotMatch(css, /--ground-anchor/);
 });
 
 test("resource HUD omits field stock while the collect button exposes it once", () => {
