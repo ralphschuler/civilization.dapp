@@ -2,27 +2,37 @@
 
 ## Wallet-only revision and deployment boundary
 
-The current source introduces `registerWallet()`: a public, zero-argument function that initializes only `msg.sender` once with the standard starter village. It emits `WalletRegistered`. All gameplay mutations remain protected by `onlyRegistered`. `registerWorldId` and `registerWorldIdLegacy` remain available solely for ABI/state compatibility; the active Civilization client does not import, request, or gate on IDKit/RP proof handling.
+The current source introduces `registerWallet()`: a public, zero-argument function that initializes only `msg.sender` once with the standard starter village. It emits `WalletRegistered`. Registration is deliberately permissionless; later gameplay mutations are authorized by the contract's per-function checks (normally `onlyRegistered`) and the transaction signature of the acting wallet. `registerWorldId` and `registerWorldIdLegacy` remain available solely for ABI/state compatibility; the active production Civilization client does not import, request, or gate on IDKit/RP proof handling.
 
-After server-side WalletAuth/SIWE has produced the checksum wallet, the client reads `previewPlayerState`. Registered wallets render the game immediately. Unregistered wallets submit exactly one MiniKit transaction for `registerWallet()`, require `executedWith === 'minikit'`, a successful status, `userOpHash`, and a checksum-equal `from`, then wait for a successful receipt and a registered readback before rendering the map. Any rejection, timeout, failed receipt, or false readback stays on the fixed retry UI; retries read state before another submission.
+After server-side WalletAuth/SIWE has produced the checksum wallet, the client reads `previewPlayerState`. This binds the UI to an address only; it is not an authorization input to `registerWallet()`, nor does the contract know that it happened. Registered wallets render the game immediately. Unregistered wallets submit exactly one MiniKit transaction for `registerWallet()`, require `executedWith === 'minikit'`, a successful status, `userOpHash`, and a checksum-equal `from`, then wait for a successful receipt and a registered readback before rendering the map. Any rejection, timeout, failed receipt, or false readback stays on the fixed retry UI; retries read state before another submission.
 
 The active client and production target use proxy `0x0E6689d0649Ad9037465d178231b10F18518D2b0`. The transaction [`0xf9f5164392011c80cf5a510e055f255fbcfe2166e39f537d2e18cf8a48f0e750`](https://worldscan.org/tx/0xf9f5164392011c80cf5a510e055f255fbcfe2166e39f537d2e18cf8a48f0e750), block `33697221`, belongs to the earlier directly deployed contract at `0x71564689Fa320bA010561A880CfE2896b6Dc8f8b`; it is not a proxy-deployment transaction. The earlier runtime was 16,276 bytes and `registerWallet()` was simulated successfully against World Chain mainnet after that deployment. This repository does not establish that the earlier direct deployment is the active proxy's implementation.
 
 The replaced dual World ID v3/v4 deployment at `0xfCdB50926c3c6b2CDF3ACE76B13c9383A2DC3199` remains historical. It had zero events, zero registered wallets, and zero CGOLD supply before replacement; no player-state migration was needed. Neither deployment has been independently audited or enables settlement.
 
+## Permissionless wallet-registration threat model
+
+The protected asset is a player's existing on-chain village and its state, not admission to the starter village. An arbitrary caller can bypass this UI and call `registerWallet()` directly. The contract will initialize that caller's address once; it cannot initialize a different address, and a second call from the same address reverts. This is expected behavior, not a missing WalletAuth integration.
+
+WalletAuth/SIWE protects the UI's address binding and avoids presenting one wallet's state as another's. It has no authority in the EVM and must not be described as authentication or authorization for the contract. MiniKit's transaction result, its `from` field, the wallet signature/user operation, and the contract's `msg.sender` checks are distinct layers: only the signed transaction and contract logic mutate state.
+
+The deliberate trade-off is Sybil/farming exposure. A user or automation can create many wallets and obtain the same registration path for each. Any starter allocation, airdrop-like reward, referral credit, matchmaking advantage, or other value granted at or shortly after registration can therefore be farmed. Current safeguards are only one village per address and the contract's normal mutation checks. Before adding material registration-linked value, product and security review must model multi-wallet farming, define an explicit mitigation outside this trust boundary or revise the contract policy, and add monitoring/incident handling. World ID is not a current requirement or fallback gate for this path.
+
 ## Authority boundary
 
 ```text
-Mini App client -> server-side WalletAuth/SIWE verification -> checksum wallet
-                -> MiniKit registerWallet() -> active Civilization proxy
+Mini App client -> server-side WalletAuth/SIWE verification -> checksum UI address binding
+                -> MiniKit-signed registerWallet() -> active Civilization proxy
                 -> successful receipt and registered readback -> village rendered
+
+Any wallet ------> direct signed registerWallet() -------> active Civilization proxy
 
 Dormant contract ABI compatibility only:
 registerWorldId (v4) / registerWorldIdLegacy (v3) -> verifier/router -> legacy nullifier checks
 Mini App client --------------------------------------> claim / upgrade / completeUpgrade / prestige / train / startRaid / resolveRaid
 ```
 
-The backend only signs short-lived RP proof context with its protected RP signing key. It does not verify proofs, issue attestations, decide access, or receive game-state mutation authority. `registerWorldId` calls the configured World ID v4 verifier with the action hash, RP ID, credential schema, freshness policy, and proof. `registerWorldIdLegacy` calls the constructor-configured v3 router with Orb group `1` and the official legacy external nullifier `hashToField(hashToField(app_id) || action)`. Both paths require `hashToField(msg.sender)` as the proof signal, use one player-registration flag and one nullifier-owner map, and persist state only after the external verifier succeeds.
+The backend only signs short-lived RP proof context with its protected RP signing key. It does not verify proofs, issue attestations, decide access, or receive game-state mutation authority. In particular, WalletAuth/SIWE never reaches `registerWallet()` and cannot authorize it. `registerWorldId` calls the configured World ID v4 verifier with the action hash, RP ID, credential schema, freshness policy, and proof. `registerWorldIdLegacy` calls the constructor-configured v3 router with Orb group `1` and the official legacy external nullifier `hashToField(hashToField(app_id) || action)`. Both paths require `hashToField(msg.sender)` as the proof signal, use one player-registration flag and one nullifier-owner map, and persist state only after the external verifier succeeds.
 
 The backend has no contract entrypoint for claim, resource production, upgrade, construction completion, prestige, training, raid start, raid resolution, player resources, troops, buildings, or CGOLD. It must never accept a client-provided state snapshot or report a game result as authoritative. World nullifiers are stored in the contract only to enforce one-person-one-village for the configured action.
 

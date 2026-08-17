@@ -640,6 +640,24 @@ test("real OZ proxy atomically initializes, locks its implementation, and expose
   assert.ok(cooldown.execResult.exceptionError);
 });
 
+test("registerWallet is explicitly public: a direct caller needs no WalletAuth or World ID proof", async () => {
+  const f = await fixture();
+  const before = await read(f.game, "playerState", [bob], 1_000n);
+  assert.equal(before[0], false, "unrelated wallet starts unregistered");
+
+  // This local-EVM call supplies only bob as msg.sender. It has no UI session,
+  // WalletAuth/SIWE payload, World ID proof, relayer, or backend interaction.
+  ok(await call(f.game, bob, "registerWallet", [], 1_000n));
+  const after = await read(f.game, "playerState", [bob], 1_000n);
+  assert.equal(after[0], true, "the direct caller is registered");
+
+  const duplicate = await call(f.game, bob, "registerWallet", [], 1_000n);
+  assert.ok(
+    duplicate.execResult.exceptionError,
+    "one village per caller is the only registration admission check",
+  );
+});
+
 test("all buildings use the accepted fixed-point minute curve, upward seconds rounding, and 365-day cap", async () => {
   const f = await fixture();
   const expectedKeyValues = new Map([

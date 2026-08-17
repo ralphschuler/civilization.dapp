@@ -13,9 +13,10 @@ import {
 } from "@/world-game";
 
 /**
- * This component is reached only after the server has verified WalletAuth/SIWE.
- * Its wallet is therefore the server-verified checksum identity; it never
- * accepts an address supplied to a registration call.
+ * This component is reached after WalletAuth/SIWE binds the UI to a checksum
+ * wallet. That off-chain binding is not contract authorization: every state
+ * mutation is separately signed by the World wallet, and registerWallet is
+ * publicly callable by any wallet for itself.
  */
 type CivilizationClientProps = {
   walletAddress: string;
