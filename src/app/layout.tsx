@@ -1,4 +1,5 @@
 import { runtimeConfiguration } from "@/lib/runtime-config";
+import { miniKitProviderConfiguration } from "@/lib/minikit-configuration";
 import ClientProviders from "@/providers";
 import type { Metadata } from "next";
 import { connection } from "next/server";
@@ -26,11 +27,11 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   await connection();
-  const { world } = runtimeConfiguration();
+  const configuration = runtimeConfiguration();
   return (
     <html lang="de">
       <body className={`${geistSans.variable} ${geistMono.variable} `}>
-        <ClientProviders worldAppId={world.worldAppId}>
+        <ClientProviders miniKit={miniKitProviderConfiguration(configuration)}>
           {children}
         </ClientProviders>
       </body>

@@ -5,8 +5,6 @@ import { WORLD_CHAIN_ID } from "../world-chain.js";
 export const LIVE_CONTRACT = "0x0E6689d0649Ad9037465d178231b10F18518D2b0";
 /** WLD's World Chain mainnet contract; clients receive it through runtime config. */
 export const LIVE_WORLD_TOKEN = "0x2cFc85d8E48F8EAB294be644d9E25C3030863003";
-export const DEVELOPMENT_WORLD_APP_ID = "app_c098bd46180834e598bd9cac8d1bd94d";
-export const DEVELOPMENT_ORIGIN = "https://civilization-dev.nyphon.de";
 
 export type CivilizationEnvironment = "production" | "development";
 
@@ -22,62 +20,97 @@ export type RuntimeConfiguration = Readonly<{
   ready: boolean;
   missing: string[];
   world: PublicWorldRuntimeConfiguration;
+  walletAuthUrl: string;
 }>;
 
 type Environment = Record<string, string | undefined>;
 const APP_ID = /^app_[A-Za-z0-9]+$/;
 const value = (env: Environment, name: string) => env[name] || "";
 
-/** Unknown selectors deliberately resolve to production, preserving the live default. */
+/** Profiles are opt-in. An absent or misspelled selector is never production. */
 export function civilizationEnvironment(
   env: Environment = process.env,
-): CivilizationEnvironment {
-  return env.CIVILIZATION_ENV === "development" ? "development" : "production";
+): CivilizationEnvironment | null {
+  const selected = value(env, "CIVILIZATION_ENV");
+  return selected === "production" || selected === "development"
+    ? selected
+    : null;
 }
 
-function hasHttpsOrigin(raw: string, expectedOrigin?: string) {
+function hasHttpsOrigin(raw: string) {
   try {
-    const parsed = new URL(raw);
+    return new URL(raw).protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+/** Development must use a separately configured HTTPS origin. */
+function hasIsolatedDevelopmentHttpsOrigin(raw: string) {
+  try {
+    const url = new URL(raw);
     return (
-      parsed.protocol === "https:" &&
-      (expectedOrigin === undefined || parsed.origin === expectedOrigin)
+      url.protocol === "https:" &&
+      url.origin !== "https://civilization.nyphon.de"
     );
   } catch {
     return false;
   }
 }
 
+function profileValue(
+  env: Environment,
+  environment: CivilizationEnvironment | null,
+  productionName: string,
+) {
+  return environment === "development"
+    ? value(env, `DEV_${productionName}`)
+    : value(env, productionName);
+}
+
 function publicWorld(
   env: Environment,
-  environment: CivilizationEnvironment,
+  environment: CivilizationEnvironment | null,
 ): PublicWorldRuntimeConfiguration {
+  // This value is never exposed while the configuration is unready.
+  const safeEnvironment = environment ?? "production";
   return {
-    environment,
-    worldAppId: value(env, "WORLD_APP_ID"),
-    civilizationContractAddress: value(env, "CIVILIZATION_CONTRACT_ADDRESS"),
-    worldTokenAddress: value(env, "CIVILIZATION_WORLD_TOKEN_ADDRESS"),
-    worldChainId: Number(value(env, "CIVILIZATION_CHAIN_ID")),
+    environment: safeEnvironment,
+    worldAppId: profileValue(env, environment, "WORLD_APP_ID"),
+    civilizationContractAddress: profileValue(
+      env,
+      environment,
+      "CIVILIZATION_CONTRACT_ADDRESS",
+    ),
+    worldTokenAddress: profileValue(
+      env,
+      environment,
+      "CIVILIZATION_WORLD_TOKEN_ADDRESS",
+    ),
+    worldChainId: Number(
+      profileValue(env, environment, "CIVILIZATION_CHAIN_ID"),
+    ),
   };
 }
 
-function sharedMissing(
-  env: Environment,
+function commonMissing(
   world: PublicWorldRuntimeConfiguration,
+  walletAuthUrl: string,
+  prefix = "",
 ) {
   const missing: string[] = [];
-  if (!hasHttpsOrigin(value(env, "WALLET_AUTH_URL")))
-    missing.push("WALLET_AUTH_URL");
-  if (!APP_ID.test(world.worldAppId)) missing.push("WORLD_APP_ID");
+  if (!hasHttpsOrigin(walletAuthUrl)) missing.push(`${prefix}WALLET_AUTH_URL`);
+  if (!APP_ID.test(world.worldAppId)) missing.push(`${prefix}WORLD_APP_ID`);
   if (world.worldChainId !== WORLD_CHAIN_ID)
-    missing.push("CIVILIZATION_CHAIN_ID");
+    missing.push(`${prefix}CIVILIZATION_CHAIN_ID`);
   return missing;
 }
 
 function productionMissing(
-  env: Environment,
   world: PublicWorldRuntimeConfiguration,
+  walletAuthUrl: string,
 ) {
-  const missing = sharedMissing(env, world);
+  const missing = commonMissing(world, walletAuthUrl);
   if (
     !isAddress(world.civilizationContractAddress) ||
     getAddress(world.civilizationContractAddress) !== getAddress(LIVE_CONTRACT)
@@ -91,31 +124,27 @@ function productionMissing(
   return missing;
 }
 
-/**
- * Development accepts only its own complete identity set. This prevents a
- * typo from sending a development transaction to production.
- */
+/** Development reads only DEV_* values, so it cannot inherit production. */
 function developmentMissing(
   env: Environment,
   world: PublicWorldRuntimeConfiguration,
+  walletAuthUrl: string,
 ) {
-  const missing = sharedMissing(env, world);
-  const authUrl = value(env, "WALLET_AUTH_URL");
-  if (!hasHttpsOrigin(authUrl, DEVELOPMENT_ORIGIN))
-    missing.push("WALLET_AUTH_URL");
-  if (world.worldAppId !== DEVELOPMENT_WORLD_APP_ID)
-    missing.push("WORLD_APP_ID");
+  const missing = commonMissing(world, walletAuthUrl, "DEV_");
+  if (!hasIsolatedDevelopmentHttpsOrigin(walletAuthUrl))
+    missing.push("DEV_WALLET_AUTH_URL");
   if (
     !isAddress(world.civilizationContractAddress) ||
     getAddress(world.civilizationContractAddress) === getAddress(LIVE_CONTRACT)
   )
-    missing.push("CIVILIZATION_CONTRACT_ADDRESS");
+    missing.push("DEV_CIVILIZATION_CONTRACT_ADDRESS");
   if (!isAddress(world.worldTokenAddress))
-    missing.push("CIVILIZATION_WORLD_TOKEN_ADDRESS");
-  if (value(env, "PGDATABASE") === "civilization" || !value(env, "PGDATABASE"))
-    missing.push("PGDATABASE");
-  if (!value(env, "PGHOST")) missing.push("PGHOST");
-  if (!value(env, "PGUSER")) missing.push("PGUSER");
+    missing.push("DEV_CIVILIZATION_WORLD_TOKEN_ADDRESS");
+  for (const name of ["PGHOST", "PGDATABASE", "PGUSER"]) {
+    const developmentValue = value(env, `DEV_${name}`);
+    if (!developmentValue || value(env, name) !== developmentValue)
+      missing.push(`DEV_${name}`);
+  }
   return [...new Set(missing)];
 }
 
@@ -124,9 +153,12 @@ export function runtimeConfiguration(
 ): RuntimeConfiguration {
   const environment = civilizationEnvironment(env);
   const world = publicWorld(env, environment);
+  const walletAuthUrl = profileValue(env, environment, "WALLET_AUTH_URL");
   const missing =
-    environment === "development"
-      ? developmentMissing(env, world)
-      : productionMissing(env, world);
-  return { ready: missing.length === 0, missing, world };
+    environment === null
+      ? ["CIVILIZATION_ENV"]
+      : environment === "development"
+        ? developmentMissing(env, world, walletAuthUrl)
+        : productionMissing(world, walletAuthUrl);
+  return { ready: missing.length === 0, missing, world, walletAuthUrl };
 }

@@ -2,6 +2,7 @@ import { verifySiweMessage } from "@worldcoin/minikit-js/siwe";
 import { getAddress, isAddress } from "viem";
 import { WALLET_AUTH_STATEMENT } from "./auth-challenge.js";
 import { hasValidSiweBinding } from "../auth/siwe-binding.js";
+import { runtimeConfiguration } from "./runtime-config.ts";
 
 const MAX_MESSAGE_LENGTH = 16_384;
 const MAX_SIGNATURE_LENGTH = 1_024;
@@ -37,7 +38,7 @@ export async function verifyWalletAuthPayload(
   nonce,
   statement,
   verifier = verifySiweMessage,
-  authUrl = process.env.WALLET_AUTH_URL,
+  authUrl = runtimeConfiguration().walletAuthUrl,
 ) {
   if (
     !isWalletAuthNonce(nonce) ||

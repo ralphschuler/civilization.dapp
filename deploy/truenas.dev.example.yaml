@@ -4,10 +4,10 @@ services:
     image: ghcr.io/ralphschuler/civilization.dapp:dev
     command: ["node", "scripts/db-migrate.mjs"]
     environment:
-      PGHOST: civilization-dev-postgres
+      PGHOST: REPLACE_DEV_PGHOST
       PGPORT: "5432"
-      PGDATABASE: civilization_dev
-      PGUSER: civilization_dev
+      PGDATABASE: REPLACE_DEV_PGDATABASE
+      PGUSER: REPLACE_DEV_PGUSER
       PGPASSWORD: REPLACE_DEV_POSTGRES_PASSWORD
     depends_on:
       civilization-dev-postgres: { condition: service_healthy }
@@ -17,15 +17,18 @@ services:
     environment:
       NODE_ENV: production
       CIVILIZATION_ENV: development
-      WALLET_AUTH_URL: https://civilization-dev.nyphon.de
-      WORLD_APP_ID: app_c098bd46180834e598bd9cac8d1bd94d
-      CIVILIZATION_CONTRACT_ADDRESS: REPLACE_DEV_WORLD_CHAIN_MAINNET_CONTRACT
-      CIVILIZATION_CHAIN_ID: "480"
-      CIVILIZATION_WORLD_TOKEN_ADDRESS: REPLACE_DEV_WORLD_CHAIN_WLD_TOKEN
-      PGHOST: civilization-dev-postgres
+      DEV_WALLET_AUTH_URL: REPLACE_DEV_HTTPS_ORIGIN
+      DEV_WORLD_APP_ID: REPLACE_DEV_WORLD_APP_ID
+      DEV_CIVILIZATION_CONTRACT_ADDRESS: REPLACE_DEV_WORLD_CHAIN_CONTRACT
+      DEV_CIVILIZATION_CHAIN_ID: "480"
+      DEV_CIVILIZATION_WORLD_TOKEN_ADDRESS: REPLACE_DEV_WORLD_TOKEN_ADDRESS
+      DEV_PGHOST: REPLACE_DEV_PGHOST
+      DEV_PGDATABASE: REPLACE_DEV_PGDATABASE
+      DEV_PGUSER: REPLACE_DEV_PGUSER
+      PGHOST: REPLACE_DEV_PGHOST
       PGPORT: "5432"
-      PGDATABASE: civilization_dev
-      PGUSER: civilization_dev
+      PGDATABASE: REPLACE_DEV_PGDATABASE
+      PGUSER: REPLACE_DEV_PGUSER
       PGPASSWORD: REPLACE_DEV_POSTGRES_PASSWORD
     ports: ["31058:31057"]
     depends_on:
@@ -34,15 +37,15 @@ services:
   civilization-dev-postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: civilization_dev
-      POSTGRES_USER: civilization_dev
+      POSTGRES_DB: REPLACE_DEV_PGDATABASE
+      POSTGRES_USER: REPLACE_DEV_PGUSER
       POSTGRES_PASSWORD: REPLACE_DEV_POSTGRES_PASSWORD
     volumes: ["civilization_dev_postgres:/var/lib/postgresql/data"]
     healthcheck:
       test:
         [
           "CMD-SHELL",
-          "pg_isready -h 127.0.0.1 -p 5432 -U civilization_dev -d civilization_dev",
+          'pg_isready -h 127.0.0.1 -p 5432 -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"',
         ]
       interval: 5s
       timeout: 3s
