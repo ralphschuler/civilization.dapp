@@ -32,13 +32,14 @@
     "deploy:worldchain:mainnet": "CONFIRM_MAINNET_DEPLOY=yes node scripts/deploy-worldchain-mainnet.mjs --send"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.11.0",
     "@ethereumjs/block": "10.1.2",
     "@ethereumjs/util": "10.1.2",
     "@ethereumjs/vm": "10.1.2",
     "@openzeppelin/contracts": "5.6.1",
     "@openzeppelin/contracts-upgradeable": "5.6.1",
+    "@playwright/test": "1.57.0",
     "@tailwindcss/postcss": "^4.0.0",
-    "@axe-core/playwright": "4.11.0",
     "@types/node": "^26.2.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
@@ -47,16 +48,13 @@
     "eslint-config-next": "16.3.0",
     "prettier": "3.9.6",
     "prettier-plugin-solidity": "2.4.1",
-    "@playwright/test": "1.57.0",
     "solc": "0.8.30",
     "typescript": "^6.0.3"
   },
   "dependencies": {
-    "@worldcoin/idkit": "^4.2.2",
     "@worldcoin/minikit-js": "^2.0.3",
     "@worldcoin/minikit-react": "2.0.3",
     "next": "16.3.0",
-    "next-auth": "5.0.0-beta.32",
     "pg": "^8.16.3",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",

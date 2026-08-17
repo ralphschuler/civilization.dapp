@@ -1,13 +1,13 @@
 import { verifySiweMessage } from "@worldcoin/minikit-js/siwe";
 import { getAddress, isAddress } from "viem";
-import { LEGACY_WALLET_AUTH_STATEMENT } from "./auth-challenge.js";
+import { WALLET_AUTH_STATEMENT } from "./auth-challenge.js";
 import { hasValidSiweBinding } from "../auth/siwe-binding.js";
 
 const MAX_MESSAGE_LENGTH = 16_384;
 const MAX_SIGNATURE_LENGTH = 1_024;
 const NONCE_PATTERN = /^[A-Za-z0-9]{8,128}$/;
 
-export function isLegacyWalletAuthNonce(nonce) {
+export function isWalletAuthNonce(nonce) {
   return typeof nonce === "string" && NONCE_PATTERN.test(nonce);
 }
 
@@ -28,20 +28,20 @@ function requireHttpsAuthUrl(authUrl) {
 }
 
 /**
- * Verifies precisely the legacy native Wallet Auth callback. This grants no
+ * Verifies precisely the native WalletAuth callback. This grants no
  * session or application authority; the injected verifier keeps its behavior
  * unit-testable without changing production verification.
  */
-export async function verifyLegacyWalletAuthPayload(
+export async function verifyWalletAuthPayload(
   payload,
   nonce,
   statement,
   verifier = verifySiweMessage,
-  authUrl = process.env.AUTH_URL,
+  authUrl = process.env.WALLET_AUTH_URL,
 ) {
   if (
-    !isLegacyWalletAuthNonce(nonce) ||
-    statement !== LEGACY_WALLET_AUTH_STATEMENT ||
+    !isWalletAuthNonce(nonce) ||
+    statement !== WALLET_AUTH_STATEMENT ||
     !payload ||
     typeof payload !== "object" ||
     Array.isArray(payload) ||
@@ -56,7 +56,7 @@ export async function verifyLegacyWalletAuthPayload(
 
   let verified;
   try {
-    verified = await verifier(payload, nonce, LEGACY_WALLET_AUTH_STATEMENT);
+    verified = await verifier(payload, nonce, WALLET_AUTH_STATEMENT);
   } catch {
     return null;
   }

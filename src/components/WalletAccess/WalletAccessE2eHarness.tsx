@@ -34,8 +34,6 @@ export function WalletAccessE2eHarness() {
         contractAddress={TEST_WALLET_ADDRESS}
         worldTokenAddress="0x0000000000000000000000000000000000000002"
         environment="development"
-        worldIdAppId=""
-        worldIdAction=""
         attemptWalletAccess={attempt}
         onWalletAccessGranted={handleAccessGranted}
       />

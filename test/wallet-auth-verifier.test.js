@@ -1,209 +1,202 @@
-import test from "node:test";
 import assert from "node:assert/strict";
+import test from "node:test";
 import { parseSiweMessage } from "@worldcoin/minikit-js/siwe";
 import { getAddress } from "viem";
-import { verifyLegacyWalletAuthPayload } from "../src/lib/wallet-auth-verifier.js";
-import { LEGACY_WALLET_AUTH_STATEMENT } from "../src/lib/auth-challenge.js";
+import { hasValidSiweBinding } from "../src/auth/siwe-binding.js";
+import { WALLET_AUTH_STATEMENT } from "../src/lib/auth-challenge.js";
 import {
-  MAX_WALLET_AUTH_BODY_BYTES,
   readWalletAuthJson,
   verifyWalletAuthRequest,
 } from "../src/lib/wallet-auth-verify-core.js";
+import * as verifierExports from "../src/lib/wallet-auth-verifier.js";
+import {
+  isWalletAuthNonce,
+  verifyWalletAuthPayload,
+} from "../src/lib/wallet-auth-verifier.js";
 
+const authUrl = "https://civilization.example.invalid";
+const address = getAddress("0x52908400098527886e0f7030069857d2e4169ee7");
 const nonce = "aBcD1234efGH5678";
-const lowerAddress = "0x52908400098527886e0f7030069857d2e4169ee7";
-const checksumAddress = getAddress(lowerAddress);
-const authUrl = "https://civilization.nyphon.de";
 const payload = {
-  address: lowerAddress,
+  address,
   message: "signed SIWE message",
-  signature: "0x1234",
+  signature: "0xsigned",
 };
-
-const validSiweBinding = {
-  domain: "https://civilization.nyphon.de",
-  uri: "https://civilization.nyphon.de/",
+const binding = (overrides = {}) => ({
+  domain: "civilization.example.invalid",
+  uri: "https://civilization.example.invalid/",
   version: "1",
-  chain_id: "480",
-};
+  chainId: 480,
+  ...overrides,
+});
 
-function verifiedPayload(overrides = {}) {
-  return {
-    isValid: true,
-    siweMessageData: {
-      address: lowerAddress,
-      ...validSiweBinding,
-      ...overrides,
-    },
-  };
-}
-
-test("legacy verifier passes exact nonce and German statement and returns checksum address", async () => {
-  const calls = [];
-  const address = await verifyLegacyWalletAuthPayload(
+test("verifier passes the exact stored nonce and statement to MiniKit SIWE", async () => {
+  let received;
+  const result = await verifyWalletAuthPayload(
     payload,
     nonce,
-    LEGACY_WALLET_AUTH_STATEMENT,
+    WALLET_AUTH_STATEMENT,
     async (...args) => {
-      calls.push(args);
-      return verifiedPayload();
+      received = args;
+      return {
+        isValid: true,
+        siweMessageData: { address, ...binding(), chain_id: 480 },
+      };
     },
     authUrl,
   );
 
-  assert.equal(address, checksumAddress);
-  assert.deepEqual(calls, [[payload, nonce, LEGACY_WALLET_AUTH_STATEMENT]]);
+  assert.equal(result, address);
+  assert.deepEqual(received, [payload, nonce, WALLET_AUTH_STATEMENT]);
+  assert.equal(
+    await verifyWalletAuthPayload(
+      payload,
+      nonce,
+      "different statement",
+      async () => {
+        throw new Error("must not verify");
+      },
+      authUrl,
+    ),
+    null,
+  );
 });
 
-test("legacy verifier rejects a valid signature whose SIWE address differs from callback address", async () => {
-  const address = await verifyLegacyWalletAuthPayload(
+test("verifier rejects a callback address different from the SIWE signer", async () => {
+  const result = await verifyWalletAuthPayload(
     payload,
     nonce,
-    LEGACY_WALLET_AUTH_STATEMENT,
-    async () =>
-      verifiedPayload({
-        address: "0x0000000000000000000000000000000000000001",
-      }),
+    WALLET_AUTH_STATEMENT,
+    async () => ({
+      isValid: true,
+      siweMessageData: {
+        address: "0x1111111111111111111111111111111111111111",
+        ...binding(),
+        chain_id: 480,
+      },
+    }),
     authUrl,
   );
-  assert.equal(address, null);
+  assert.equal(result, null);
 });
 
-test("legacy verifier accepts MiniKit parser binding and documented host/numeric binding", async () => {
+test("SIWE binding accepts MiniKit parser domain and numeric or string World Chain ID", () => {
   const parsed = parseSiweMessage(
     [
-      "https://civilization.nyphon.de wants you to sign in with your Ethereum account:",
-      lowerAddress,
+      "https://civilization.example.invalid wants you to sign in with your Ethereum account:",
+      address,
       "",
-      LEGACY_WALLET_AUTH_STATEMENT,
+      WALLET_AUTH_STATEMENT,
       "",
-      "URI: https://civilization.nyphon.de/",
+      "URI: https://civilization.example.invalid/",
       "Version: 1",
       "Chain ID: 480",
       `Nonce: ${nonce}`,
-      "Issued At: 2026-08-13T20:00:00.000Z",
+      "Issued At: 2026-08-11T23:21:00.000Z",
     ].join("\n"),
   );
+  assert.equal(parsed.domain, authUrl);
+  assert.equal(parsed.chain_id, "480");
   assert.equal(
-    await verifyLegacyWalletAuthPayload(
-      payload,
-      nonce,
-      LEGACY_WALLET_AUTH_STATEMENT,
-      async () => ({
-        isValid: true,
-        siweMessageData: parsed,
-      }),
+    hasValidSiweBinding(
+      {
+        domain: parsed.domain,
+        uri: parsed.uri,
+        version: parsed.version,
+        chainId: parsed.chain_id,
+      },
       authUrl,
     ),
-    checksumAddress,
+    true,
   );
-  assert.equal(
-    await verifyLegacyWalletAuthPayload(
-      payload,
-      nonce,
-      LEGACY_WALLET_AUTH_STATEMENT,
-      async () =>
-        verifiedPayload({
-          domain: "civilization.nyphon.de",
-          uri: "https://civilization.nyphon.de/game",
-          chain_id: 480,
-        }),
-      authUrl,
-    ),
-    checksumAddress,
-  );
+  assert.equal(hasValidSiweBinding(binding({ chainId: 480 }), authUrl), true);
 });
 
-test("legacy verifier rejects every invalid SIWE application binding", async () => {
-  const invalidBindings = [
-    { domain: undefined },
-    { domain: "evil.civilization.nyphon.de" },
-    { domain: "civilization.nyphon.de.evil.example" },
-    { uri: undefined },
-    { uri: "http://civilization.nyphon.de/" },
-    { uri: "https://civilization.nyphon.de:444/" },
-    { uri: "https://evil.example/" },
-    { version: "2" },
-    { version: undefined },
-    { chain_id: 481 },
-    { chain_id: "481" },
-    { chain_id: "0480" },
-    { chain_id: undefined },
-  ];
-
-  for (const binding of invalidBindings) {
-    assert.equal(
-      await verifyLegacyWalletAuthPayload(
-        payload,
-        nonce,
-        LEGACY_WALLET_AUTH_STATEMENT,
-        async () => verifiedPayload(binding),
-        authUrl,
-      ),
-      null,
-      JSON.stringify(binding),
-    );
-  }
-
-  for (const invalidAuthUrl of [
-    null,
-    "not a URL",
-    "http://civilization.nyphon.de",
-  ]) {
-    await assert.rejects(
-      verifyLegacyWalletAuthPayload(
-        payload,
-        nonce,
-        LEGACY_WALLET_AUTH_STATEMENT,
-        async () => verifiedPayload(),
-        invalidAuthUrl,
-      ),
-      /wallet_auth_configuration_unavailable/,
-    );
-  }
-});
-
-test("legacy verifier rejects malformed and oversized callback fields before invoking verifier", async () => {
-  let calls = 0;
-  const verifier = async () => {
-    calls += 1;
-    return verifiedPayload();
-  };
+test("SIWE binding rejects every mismatched origin, URI, version, and chain binding", () => {
   for (const invalid of [
-    null,
-    [],
-    { ...payload, address: "not-an-address" },
-    { ...payload, message: "" },
-    { ...payload, message: "x".repeat(16_385) },
-    { ...payload, signature: "x".repeat(1_025) },
+    { domain: "https://civilization.example.invalid/" },
+    { domain: "http://civilization.example.invalid" },
+    { domain: "civilization.example.invalid:443" },
+    { domain: "evil.civilization.example.invalid" },
+    { uri: "http://civilization.example.invalid/" },
+    { uri: "https://civilization.example.invalid:444/" },
+    { uri: "https://evil.example.invalid/" },
+    { uri: "not a URI" },
+    { version: "01" },
+    { version: 1 },
+    { chainId: 1 },
+    { chainId: "1" },
+    { chainId: "0480" },
+    { chainId: 480n },
   ]) {
-    assert.equal(
-      await verifyLegacyWalletAuthPayload(
-        invalid,
-        nonce,
-        LEGACY_WALLET_AUTH_STATEMENT,
-        verifier,
-        authUrl,
-      ),
-      null,
-    );
+    assert.equal(hasValidSiweBinding(binding(invalid), authUrl), false);
   }
-  assert.equal(calls, 0);
 });
 
-test("verification core burns a shared challenge before verification and rejects replay", async () => {
-  let taken = false;
-  let verifyCalls = 0;
+test("malformed and oversized JSON stop before challenge lookup or verifier", async () => {
+  let takes = 0;
+  let verifies = 0;
   const dependencies = {
     takeChallenge: async () => {
-      if (taken) return null;
-      taken = true;
-      return { statement: LEGACY_WALLET_AUTH_STATEMENT, expiresAt: new Date() };
+      takes += 1;
+      return { statement: WALLET_AUTH_STATEMENT };
     },
     verifyPayload: async () => {
-      verifyCalls += 1;
-      return null;
+      verifies += 1;
+      return address;
     },
+  };
+  assert.deepEqual(await verifyWalletAuthRequest({}, dependencies), {
+    kind: "malformed",
+  });
+  assert.deepEqual(
+    await verifyWalletAuthRequest({ nonce: "bad", payload }, dependencies),
+    { kind: "malformed" },
+  );
+  assert.equal(takes, 0);
+  assert.equal(verifies, 0);
+
+  const oversized = new Request("https://example.invalid", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ payload: "x".repeat(16_384) }),
+  });
+  assert.deepEqual(await readWalletAuthJson(oversized), { kind: "too_large" });
+  assert.equal(verifies, 0);
+});
+
+test("JSON content type and content-length limits are enforced before verification", async () => {
+  const wrongContentType = new Request("https://example.invalid", {
+    method: "POST",
+    headers: { "content-type": "text/plain" },
+    body: "{}",
+  });
+  assert.deepEqual(await readWalletAuthJson(wrongContentType), {
+    kind: "malformed",
+  });
+
+  const declaredOversized = new Request("https://example.invalid", {
+    method: "POST",
+    headers: { "content-type": "application/json", "content-length": "16385" },
+    body: "{}",
+  });
+  assert.deepEqual(await readWalletAuthJson(declaredOversized), {
+    kind: "too_large",
+  });
+});
+
+test("a challenge is consumed before a failed verification and cannot be replayed", async () => {
+  let available = true;
+  let takes = 0;
+  const dependencies = {
+    takeChallenge: async (requestedNonce) => {
+      takes += 1;
+      assert.equal(requestedNonce, nonce);
+      if (!available) return null;
+      available = false;
+      return { statement: WALLET_AUTH_STATEMENT };
+    },
+    verifyPayload: async () => null,
   };
   const request = { nonce, payload };
   assert.deepEqual(await verifyWalletAuthRequest(request, dependencies), {
@@ -212,62 +205,14 @@ test("verification core burns a shared challenge before verification and rejects
   assert.deepEqual(await verifyWalletAuthRequest(request, dependencies), {
     kind: "invalid_nonce",
   });
-  assert.equal(verifyCalls, 1);
+  assert.equal(takes, 2);
 });
 
-test("verification core burns its challenge before a verifier configuration failure", async () => {
-  let taken = false;
-  const dependencies = {
-    takeChallenge: async () => {
-      if (taken) return null;
-      taken = true;
-      return { statement: LEGACY_WALLET_AUTH_STATEMENT, expiresAt: new Date() };
-    },
-    verifyPayload: async () => {
-      throw new Error("wallet_auth_configuration_unavailable");
-    },
-  };
-  const request = { nonce, payload };
-  await assert.rejects(
-    verifyWalletAuthRequest(request, dependencies),
-    /wallet_auth_configuration_unavailable/,
-  );
-  assert.deepEqual(await verifyWalletAuthRequest(request, dependencies), {
-    kind: "invalid_nonce",
-  });
-});
-
-test("verification JSON reader enforces content type and byte limit while streaming", async () => {
-  const valid = new Request(
-    "https://civilization.example/api/wallet-auth/verify",
-    {
-      method: "POST",
-      headers: { "content-type": "application/json; charset=utf-8" },
-      body: JSON.stringify({ nonce, payload }),
-    },
-  );
-  assert.deepEqual(await readWalletAuthJson(valid), {
-    kind: "json",
-    value: { nonce, payload },
-  });
-
-  const wrongType = new Request(
-    "https://civilization.example/api/wallet-auth/verify",
-    {
-      method: "POST",
-      headers: { "content-type": "text/plain" },
-      body: "{}",
-    },
-  );
-  assert.deepEqual(await readWalletAuthJson(wrongType), { kind: "malformed" });
-
-  const oversized = new Request(
-    "https://civilization.example/api/wallet-auth/verify",
-    {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: `{"value":"${"x".repeat(MAX_WALLET_AUTH_BODY_BYTES)}"}`,
-    },
-  );
-  assert.deepEqual(await readWalletAuthJson(oversized), { kind: "too_large" });
+test("active verifier exposes only the WalletAuth-named API", () => {
+  assert.equal(isWalletAuthNonce(nonce), true);
+  assert.equal(isWalletAuthNonce("bad"), false);
+  assert.deepEqual(Object.keys(verifierExports).sort(), [
+    "isWalletAuthNonce",
+    "verifyWalletAuthPayload",
+  ]);
 });

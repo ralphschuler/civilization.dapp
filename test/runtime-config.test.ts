@@ -7,17 +7,8 @@ import {
 } from "../src/lib/runtime-config.ts";
 
 const productionEnvironment = () => ({
-  AUTH_SECRET: "a".repeat(32),
-  HMAC_SECRET_KEY: "b".repeat(32),
-  AUTH_URL: "https://civilization.nyphon.de",
-  AUTH_TRUST_HOST: "true",
+  WALLET_AUTH_URL: "https://civilization.nyphon.de",
   WORLD_APP_ID: "app_civilization",
-  WORLD_ID_APP_ID: "app_civilization",
-  WORLD_ID_ACTION: "play",
-  WORLD_ID_PROOF_CONTEXT_URL: "https://civilization.nyphon.de/api/rp-signature",
-  WORLD_ID_ENVIRONMENT: "production",
-  RP_ID: "rp_a84548cb908798cf",
-  RP_SIGNING_KEY: `0x${"ab".repeat(32)}`,
   CIVILIZATION_CONTRACT_ADDRESS: LIVE_CONTRACT,
   CIVILIZATION_CHAIN_ID: "480",
   CIVILIZATION_WORLD_TOKEN_ADDRESS: LIVE_WORLD_TOKEN,

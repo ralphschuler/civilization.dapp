@@ -32,7 +32,11 @@ const construction = [
   { name: "completesAt", type: "uint64" },
 ];
 
-export const CIVILIZATION_WORLD_ID_REGISTRATION_ABI = [
+/**
+ * Dormant ABI compatibility for the already-published proxy. No active
+ * browser or server flow imports these registration functions.
+ */
+export const CIVILIZATION_WORLD_ID_COMPATIBILITY_ABI = [
   {
     type: "function",
     name: "registerWorldId",
@@ -62,7 +66,6 @@ export const CIVILIZATION_WORLD_ID_REGISTRATION_ABI = [
 ];
 
 export const CIVILIZATION_GAME_ABI = [
-  ...CIVILIZATION_WORLD_ID_REGISTRATION_ABI,
   {
     type: "function",
     name: "registerWallet",

@@ -1,7 +1,7 @@
 import { getAddress, isAddress } from "viem";
+import { WALLET_AUTH_STATEMENT } from "../auth/wallet-auth-statement.js";
 
-export const walletAuthStatement =
-  "Bestätige deine World-Wallet für den Civilization-Spielzugang.";
+export const walletAuthStatement = WALLET_AUTH_STATEMENT;
 
 function isWalletAuthPayload(value) {
   return (
@@ -32,7 +32,6 @@ function readChallenge(value) {
 export async function verifyWalletForDirectGame({ fetchImpl, walletAuth }) {
   const nonceResponse = await fetchImpl("/api/wallet-auth/nonce", {
     cache: "no-store",
-    credentials: "same-origin",
   });
   if (!nonceResponse.ok) throw new Error("nonce_unavailable");
   const { nonce, expirationTime } = readChallenge(await nonceResponse.json());
@@ -48,7 +47,6 @@ export async function verifyWalletForDirectGame({ fetchImpl, walletAuth }) {
 
   const verificationResponse = await fetchImpl("/api/wallet-auth/verify", {
     method: "POST",
-    credentials: "same-origin",
     cache: "no-store",
     headers: {
       "Content-Type": "application/json",

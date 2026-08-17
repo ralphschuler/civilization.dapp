@@ -14,8 +14,6 @@ type WalletAccessProps = {
   contractAddress: string;
   worldTokenAddress: string;
   environment: "production" | "development";
-  worldIdAppId: string;
-  worldIdAction: string;
   /** Test-only dependency supplied by the server-gated E2E harness. */
   attemptWalletAccess?: WalletAccessAttempt;
   /** Keeps the E2E harness on the success state instead of loading the game. */
@@ -65,8 +63,6 @@ export const WalletAccess = ({
   contractAddress,
   worldTokenAddress,
   environment,
-  worldIdAppId,
-  worldIdAction,
   attemptWalletAccess,
   onWalletAccessGranted,
 }: WalletAccessProps) => {
@@ -120,9 +116,6 @@ export const WalletAccess = ({
         walletAddress={walletAddress}
         contractAddress={contractAddress}
         worldTokenAddress={worldTokenAddress}
-        environment={environment}
-        worldIdAppId={worldIdAppId}
-        worldIdAction={worldIdAction}
       />
     );
   }

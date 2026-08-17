@@ -22,8 +22,6 @@ export default function Home() {
       contractAddress={world.civilizationContractAddress}
       worldTokenAddress={world.worldTokenAddress}
       environment={world.environment}
-      worldIdAppId={world.worldIdAppId}
-      worldIdAction={world.worldIdAction}
     />
   );
 }
