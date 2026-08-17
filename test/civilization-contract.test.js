@@ -362,6 +362,132 @@ async function upgrade(f, implementation, at, salt = zero32()) {
   );
 }
 
+async function timelockCall(f, data, at, salt = zero32()) {
+  ok(
+    await call(
+      f.timelock,
+      deployer,
+      "schedule",
+      [f.game.address.toString(), 0n, data, zero32(), salt, 60n],
+      at,
+    ),
+  );
+  ok(
+    await call(
+      f.timelock,
+      deployer,
+      "execute",
+      [f.game.address.toString(), 0n, data, zero32(), salt],
+      at + 60n,
+    ),
+  );
+}
+
+async function configureMarket(f, resource, price, inventory, at, salt) {
+  await timelockCall(
+    f,
+    encodeFunctionData({
+      abi: f.game.abi,
+      functionName: "configureMarket",
+      args: [resource, price, inventory],
+    }),
+    at,
+    salt,
+  );
+}
+
+async function seedGoldForMarketTest(f, account, value) {
+  // Tests seed the existing ERC-20 mapping directly; production reserve is
+  // seeded only by an actual timelock-controlled CGOLD transfer.
+  const base = BigInt(
+    "0xb9c5fb29a19a4c3e9d391dc26eaefcdaaec2a4fc6362d4bd27f1470fa2592b00",
+  );
+  const balanceSlot = keccak256(
+    encodeAbiParameters(
+      [{ type: "address" }, { type: "uint256" }],
+      [account, base + 1n],
+    ),
+  );
+  await f.vm.stateManager.putStorage(
+    f.game.address,
+    hexToBytes(balanceSlot),
+    hexToBytes(toHex(value, { size: 32 })),
+  );
+  await f.vm.stateManager.putStorage(
+    f.game.address,
+    hexToBytes(toHex(base, { size: 32 })),
+    hexToBytes(toHex(value, { size: 32 })),
+  );
+}
+
+test("timelock-governed market atomically exchanges only contract inventory for CGOLD", async () => {
+  const f = await fixture();
+  ok(await call(f.game, alice, "registerWallet", [], 1_000n));
+  await configureMarket(f, 0, 100n, 10n, 1_100n, `0x${"01".repeat(32)}`);
+  await seedGoldForMarketTest(f, alice, 10_000n);
+  const quote = await read(f.game, "quoteMarket", [0, 3n], 1_160n);
+  assert.deepEqual(
+    quote,
+    [305n, 5n, 295n, 5n],
+    "buy rounds up and sell rounds down at 1.5%",
+  );
+  ok(await call(f.game, alice, "buyResource", [0, 3n, 305n, 1_300n], 1_160n));
+  assert.equal(await read(f.game, "marketInventory", [0]), 7n);
+  assert.equal(await read(f.game, "marketGoldReserve"), 305n);
+  let state = await read(f.game, "playerState", [alice], 1_160n);
+  assert.equal(state[3].wood, 83n);
+  ok(await call(f.game, alice, "sellResource", [0, 2n, 197n, 1_300n], 1_161n));
+  assert.equal(await read(f.game, "marketInventory", [0]), 9n);
+  assert.equal(await read(f.game, "marketGoldReserve"), 108n);
+  state = await read(f.game, "playerState", [alice], 1_161n);
+  assert.equal(state[3].wood, 81n);
+  assert.equal(await read(f.game, "balanceOf", [alice]), 9_892n);
+});
+
+test("market rejects invalid resources, zero/expired/slipped orders and preserves state on failure", async () => {
+  const f = await fixture();
+  ok(await call(f.game, alice, "registerWallet", [], 1_000n));
+  await configureMarket(f, 1, 100n, 1n, 1_100n, `0x${"02".repeat(32)}`);
+  await seedGoldForMarketTest(f, alice, 1_000n);
+  for (const args of [
+    [3, 1n],
+    [1, 0n],
+  ]) {
+    const failure = await call(
+      f.game,
+      alice,
+      "quoteMarket",
+      args,
+      1_160n,
+      true,
+    );
+    assert.ok(failure.execResult.exceptionError);
+  }
+  const beforeInventory = await read(f.game, "marketInventory", [1]);
+  const beforeGold = await read(f.game, "balanceOf", [alice]);
+  for (const args of [
+    [1, 1n, 101n, 1_159n],
+    [1, 1n, 100n, 1_300n],
+  ]) {
+    const failure = await call(f.game, alice, "buyResource", args, 1_160n);
+    assert.ok(failure.execResult.exceptionError);
+  }
+  assert.equal(await read(f.game, "marketInventory", [1]), beforeInventory);
+  assert.equal(await read(f.game, "balanceOf", [alice]), beforeGold);
+  const reserveFailure = await call(
+    f.game,
+    alice,
+    "sellResource",
+    [1, 1n, 1n, 1_300n],
+    1_160n,
+  );
+  assert.ok(
+    reserveFailure.execResult.exceptionError,
+    "sell cannot create CGOLD when the reserve is empty",
+  );
+  assert.equal(await read(f.game, "marketInventory", [1]), beforeInventory);
+});
+
 test("pinned Solidity/OZ sources compile deterministically; implementation is locked and EIP-170 safe", async () => {
   await compile();
   assert.equal(solc.version(), "0.8.30+commit.73712a01.Emscripten.clang");

@@ -18,7 +18,10 @@ import {
   readCivilizationState,
   readContractBuildDuration,
   readRawState,
+  worldGameClient,
 } from "./reads.js";
+
+const marketResources = { wood: 0, clay: 1, stone: 2 };
 
 function pendingStorage(wallet, game) {
   const key = `civilization:pending-user-op:${wallet.toLowerCase()}:${game.toLowerCase()}`;
@@ -232,6 +235,49 @@ export function createWorldGameAdapter({
         : null;
     },
     readState,
+    async quoteMarket(resource, amount) {
+      if (
+        !Object.hasOwn(marketResources, resource) ||
+        !Number.isSafeInteger(amount) ||
+        amount < 1
+      )
+        throw new Error("invalid_market_order");
+      const blockNumber = await worldGameClient.getBlockNumber();
+      const [quote, inventory, reserve, block] = await Promise.all([
+        worldGameClient.readContract({
+          address: game,
+          abi: CIVILIZATION_GAME_ABI,
+          functionName: "quoteMarket",
+          args: [marketResources[resource], BigInt(amount)],
+          blockNumber,
+        }),
+        worldGameClient.readContract({
+          address: game,
+          abi: CIVILIZATION_GAME_ABI,
+          functionName: "marketInventory",
+          args: [marketResources[resource]],
+          blockNumber,
+        }),
+        worldGameClient.readContract({
+          address: game,
+          abi: CIVILIZATION_GAME_ABI,
+          functionName: "marketGoldReserve",
+          blockNumber,
+        }),
+        worldGameClient.getBlock({ blockNumber }),
+      ]);
+      return {
+        resource,
+        amount,
+        buyGoldIn: quote[0],
+        buyFee: quote[1],
+        sellGoldOut: quote[2],
+        sellFee: quote[3],
+        inventory,
+        reserve,
+        deadline: Number(block.timestamp) + 120,
+      };
+    },
     async pickOpponent() {
       const result = await miniKit.shareContacts({
         isMultiSelectEnabled: false,
