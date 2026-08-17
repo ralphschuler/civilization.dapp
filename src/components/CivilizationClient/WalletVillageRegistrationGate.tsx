@@ -17,6 +17,11 @@ export function WalletVillageRegistrationGate({
         <span className="game-access-mark">CD</span>
         <p>WORLD MINI APP</p>
         <h1>Dein Dorf erstellen</h1>
+        <p>
+          Die Registrierung ist öffentlich: Der Contract registriert nur die
+          World Wallet, die diese Transaktion signiert. WalletAuth autorisiert
+          den Contract nicht.
+        </p>
         <span role="status" aria-live="polite" aria-atomic="true">
           {status}
         </span>

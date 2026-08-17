@@ -76,7 +76,46 @@ test("WalletAuth is completed before CivilizationClient is loaded", async () => 
     stage9,
     /if \(walletAddress\)[\s\S]*?<CivilizationClient[\s\S]*?walletAddress=\{walletAddress\}[\s\S]*?contractAddress=\{contractAddress\}/,
   );
-  assert.match(client, /server has verified WalletAuth\/SIWE/);
+  assert.match(client, /reached after WalletAuth\/SIWE binds the UI/);
+});
+
+test("UI describes WalletAuth as address binding, not on-chain authorization", async () => {
+  const [access, client, gate, registration] = await Promise.all([
+    readFile(
+      new URL("../src/components/WalletAccess/index.tsx", import.meta.url),
+      "utf8",
+    ),
+    readFile(
+      new URL("../src/components/CivilizationClient.tsx", import.meta.url),
+      "utf8",
+    ),
+    readFile(
+      new URL(
+        "../src/components/CivilizationClient/WalletVillageRegistrationGate.tsx",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+    readFile(
+      new URL(
+        "../src/components/CivilizationClient/useWalletVillageRegistration.ts",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+  ]);
+  assert.match(access, /Diese Bestätigung autorisiert keinen Smart Contract/);
+  assert.match(
+    access,
+    /On-chain-Aktion wird separat von deiner World Wallet signiert/,
+  );
+  assert.match(client, /off-chain binding is not contract authorization/);
+  assert.match(
+    registration,
+    /WalletAuth\/SIWE binds the UI to an address; it does/,
+  );
+  assert.match(gate, /Die Registrierung ist öffentlich/);
+  assert.match(gate, /WalletAuth autorisiert\s+den Contract nicht/);
 });
 
 test("wallet access presents accessible, retryable authentication states", async () => {

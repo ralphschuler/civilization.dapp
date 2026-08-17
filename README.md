@@ -2,6 +2,12 @@
 
 Civilization is a Next.js World Mini App. Its active production target is proxy `0x0E6689d0649Ad9037465d178231b10F18518D2b0`, which lets the connected World wallet create its own village once through `registerWallet()`. Access uses the proven native WalletAuth/SIWE flow, reads `playerState`, and renders the game on the same page after registration. The active client uses no IDKit, Auth.js session, or `/game` redirect.
 
+## Wallet-registration trust boundary
+
+`registerWallet()` is intentionally public and permissionless. Any wallet may call it directly and can initialize only `msg.sender` once; no WalletAuth/SIWE result, backend session, server attestation, World ID proof, allowlist, or relayer is consulted by the contract. WalletAuth binds this Mini App UI to a checksum address so it can display and submit for that address. It does **not** authorize an on-chain action. Every registration and later game mutation must instead be signed by the acting World wallet and is authorized by the deployed contract's own checks.
+
+This is a per-wallet starter-village policy, not proof of personhood or Sybil resistance. Automated creation of many wallets can farm any value available to a newly registered village. Economics, rewards, rate limits outside the contract, and monitoring must assume that risk; do not represent WalletAuth as a mitigation. See the threat model in [on-chain architecture](docs/ONCHAIN_ARCHITECTURE.md#permissionless-wallet-registration-threat-model).
+
 GitHub Pages publishes a separate walletless Next static export from `apps/demo`. It uses the shared Civilization UI and game domain in explicit `demo` mode; it never calls production game APIs.
 
 ## Release channels

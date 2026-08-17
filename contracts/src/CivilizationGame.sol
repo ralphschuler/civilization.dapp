@@ -552,9 +552,11 @@ contract CivilizationGame is Initializable {
         emit MarketSold(msg.sender, resource, resourceAmount, goldOut, fee);
     }
 
-    /// @notice Initializes msg.sender's village once, without a proof or relayer.
-    /// @dev This is the active wallet-only registration path. It deliberately
-    /// accepts no address argument: a wallet can create only its own village.
+    /// @notice Publicly initializes msg.sender's village once, without a proof or relayer.
+    /// @dev This permissionless path deliberately accepts no address argument:
+    /// a wallet can create only its own village. WalletAuth/SIWE is an
+    /// off-chain UI address binding, not an authorization checked here. There
+    /// is no World ID, server attestation, allowlist, or human-uniqueness check.
     function registerWallet() external {
         if (_game().players[msg.sender].registered) revert AlreadyRegistered();
         _initializePlayer();

@@ -162,8 +162,12 @@ export const WalletAccess = ({
           aria-label="Wallet-Zugang"
         >
           <p>
-            Bestätige deine World Wallet, damit wir deinen Spielzugang sicher
-            zuordnen können.
+            Bestätige deine World Wallet, damit diese Oberfläche deine Adresse
+            zuordnen kann.
+          </p>
+          <p className="civilization-login__safety" role="note">
+            Diese Bestätigung autorisiert keinen Smart Contract. Jede
+            On-chain-Aktion wird separat von deiner World Wallet signiert.
           </p>
           <p className="civilization-login__safety" role="note">
             Civilization fragt niemals nach deiner Seed Phrase oder deinem

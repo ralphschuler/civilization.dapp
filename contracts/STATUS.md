@@ -26,7 +26,7 @@ Observation from a read-only check against a public RPC endpoint (no secrets use
 
 ## Wallet-only source behavior
 
-The source adds `registerWallet()` for one-time, `msg.sender`-only village initialization and emits `WalletRegistered`. The two World ID functions remain compiled only as dormant compatibility surface; the active frontend has no IDKit/RP proof flow and uses the WalletAuth/SIWE-verified wallet with MiniKit to call `registerWallet()`.
+The source adds permissionless `registerWallet()` for one-time, `msg.sender`-only village initialization and emits `WalletRegistered`. Direct calls from any wallet are expected: WalletAuth/SIWE binds the UI to an address but is not checked on-chain and grants no contract authority. Each registration and game mutation is authorized by the acting World wallet's signature plus contract logic. This remains one-village-per-wallet rather than proof-of-personhood, so registration-linked value is exposed to multi-wallet farming; see the threat model in `docs/ONCHAIN_ARCHITECTURE.md`. The two World ID functions remain compiled only as dormant compatibility surface; the active frontend has no IDKit/RP proof flow and uses the WalletAuth/SIWE-bound wallet with MiniKit to call `registerWallet()`.
 
 `GET /api/contracts/status` exposes machine-readable source metadata from `server/contract-status.js`. It is intentionally descriptive only and cannot initiate an on-chain action.
 

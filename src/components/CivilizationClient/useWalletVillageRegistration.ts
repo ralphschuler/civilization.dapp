@@ -54,8 +54,9 @@ function useReceiptPolling() {
 
 /**
  * Manages the one-time wallet registration before the contract-authoritative
- * game runtime is mounted. The wallet address originates from verified
- * WalletAuth/SIWE and is never accepted from a registration action.
+ * game runtime is mounted. WalletAuth/SIWE binds the UI to an address; it does
+ * not authorize this contract call. The contract accepts a public call only
+ * for msg.sender, whose World wallet signs the submitted transaction.
  */
 export function useWalletVillageRegistration(
   walletAddress: string,
