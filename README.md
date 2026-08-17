@@ -26,13 +26,17 @@ pnpm build:demo
 
 ## WalletAccess browser E2E
 
-`pnpm test:e2e:wallet` runs the focused Chromium-only WalletAccess suite at
-desktop and 390px mobile widths. Its harness is enabled only for a Next
+`pnpm test:e2e:wallet` runs the focused Chromium-only WalletAccess/SIWE,
+registration-gate, and same-page game suite at 1440×900 desktop and 390×844
+mobile widths. Its harness is enabled only for a Next
 development server with the private server environment flag
 `CIVILIZATION_WALLET_E2E_TEST_MODE=enabled`; it cannot be enabled through a
 browser parameter and is disabled for production builds/starts. The harness
-injects a deterministic result and never calls MiniKit, wallet providers, or
-authentication endpoints.
+injects deterministic WalletAuth/SIWE and registration results, renders the
+existing game UI in an isolated local runtime, and never calls MiniKit, wallet
+providers, authentication endpoints, RPC, or production chain routes. The
+suite aborts any external browser request and fails if it observes same-origin
+`/api/*` traffic.
 
 CI runs the suite after the normal test/check/build steps and installs only
 Chromium. It retries each test once in CI to absorb infrastructure flakes; a

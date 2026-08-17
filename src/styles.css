@@ -1328,6 +1328,12 @@ button {
   place-items: center;
   background:
     radial-gradient(circle at 50% 18%, #4b6834 0, transparent 28rem), #07100e;
+  animation: game-access-aurora 12s ease-in-out infinite alternate;
+}
+@keyframes game-access-aurora {
+  to {
+    background-position: 3rem -1rem;
+  }
 }
 .game-access-card {
   display: grid;
@@ -1403,6 +1409,12 @@ button {
 .game-access-card > .game-access-action:disabled {
   cursor: wait;
   opacity: 0.65;
+}
+.game-access-card h1:focus-visible,
+.game-access-card > .game-access-action:focus-visible,
+[data-testid="civilization-game-root"]:focus-visible {
+  outline: 3px solid #fff4bb;
+  outline-offset: 4px;
 }
 .target-select input {
   width: 100%;

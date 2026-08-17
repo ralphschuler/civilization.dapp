@@ -1,89 +1,110 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
-const action = (page: Page) =>
-  page.getByRole("button", {
-    name: /^(Mit World Wallet fortfahren|Wallet-Bestätigung wird geöffnet …|Wallet bestätigt|Erneut versuchen)$/,
-  });
+const loginAction = (page: Page) =>
+  page.locator(".civilization-login__action");
+const gateAction = (page: Page) => page.locator(".game-access-action");
+const unexpectedRequests = new WeakMap<Page, string[]>();
 
-const apiRequests = new WeakMap<Page, string[]>();
+async function expectNoSeriousAxe(page: Page, selector: string) {
+  const results = await new AxeBuilder({ page }).include(selector).analyze();
+  expect(
+    results.violations.filter(
+      (violation) => violation.impact === "serious" || violation.impact === "critical",
+    ),
+  ).toEqual([]);
+}
+
+async function expectReachable(page: Page, target: Locator) {
+  await expect(target).toBeVisible();
+  const box = await target.boundingBox();
+  expect(box).not.toBeNull();
+  expect(box!.x).toBeGreaterThanOrEqual(0);
+  expect(box!.x + box!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+  expect(await page.locator("html").evaluate((node) => node.scrollWidth <= window.innerWidth)).toBe(true);
+}
+
+async function enterGame(page: Page, scenario: string) {
+  await page.getByTestId("wallet-access-e2e-scenario").selectOption(scenario);
+  await loginAction(page).click();
+}
 
 test.beforeEach(async ({ page }) => {
-  const requests: string[] = [];
-  apiRequests.set(page, requests);
-  page.on("request", (request) => {
-    const url = new URL(request.url());
-    if (
-      url.origin === "http://127.0.0.1:31058" &&
-      url.pathname.startsWith("/api/")
-    ) {
-      requests.push(url.pathname);
+  const unexpectedApi: string[] = [];
+  unexpectedRequests.set(page, unexpectedApi);
+  await page.route("**/*", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.origin !== "http://127.0.0.1:31058") {
+      await route.abort();
+      return;
     }
+    if (url.pathname.startsWith("/api/")) unexpectedApi.push(url.pathname);
+    await route.continue();
   });
   await page.goto("/");
 });
 
 test.afterEach(async ({ page }) => {
-  expect(apiRequests.get(page)).toEqual([]);
+  expect(unexpectedRequests.get(page)).toEqual([]);
 });
 
-test("is ready for keyboard access and has no serious axe violations", async ({
-  page,
-}) => {
-  for (let tabPresses = 0; tabPresses < 3; tabPresses += 1) {
+test("login is keyboard reachable, localized in German, and accessible", async ({ page }) => {
+  for (let tabPresses = 0; tabPresses < 4; tabPresses += 1) {
     await page.keyboard.press("Tab");
-    if (
-      await action(page).evaluate((button) => document.activeElement === button)
-    ) {
-      break;
-    }
+    if (await loginAction(page).evaluate((node) => document.activeElement === node)) break;
   }
-  await expect(action(page)).toBeFocused();
-
-  const results = await new AxeBuilder({ page })
-    .include(".civilization-login")
-    .analyze();
-  const serious = results.violations.filter(
-    (violation) =>
-      violation.impact === "serious" || violation.impact === "critical",
-  );
-  expect(serious).toEqual([]);
+  await expect(loginAction(page)).toBeFocused();
+  await expect(loginAction(page)).toHaveText("Mit World Wallet fortfahren");
+  await expectReachable(page, loginAction(page));
+  await expectNoSeriousAxe(page, ".civilization-login");
 });
 
-test("shows pending and success without contacting a wallet or auth endpoint", async ({
-  page,
-}) => {
-  await action(page).press("Enter");
-  await expect(page.locator("#wallet-access-status")).toHaveAttribute(
-    "data-state",
-    "pending",
-  );
-  await expect(action(page)).toBeDisabled();
-  await expect(page.locator("#wallet-access-status")).toHaveAttribute(
-    "data-state",
-    "success",
-  );
+test("native WalletAuth/SIWE seam reaches an already registered game on the same page", async ({ page }) => {
+  await enterGame(page, "registered");
+  const root = page.getByTestId("civilization-game-root");
+  await expect(root).toBeFocused();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.locator("#gather")).toBeVisible();
+  await expectReachable(page, page.locator("#gather"));
+  await page.locator("#gather").press("Enter");
+  await expectNoSeriousAxe(page, "[data-testid='civilization-game-root']");
 });
 
-test("recovers from a user rejection and retries", async ({ page }) => {
-  await page.getByTestId("wallet-access-e2e-scenario").selectOption("rejected");
-  await action(page).click();
-  await expect(page.locator("#wallet-access-status")).toHaveAttribute(
-    "data-state",
-    "cancelled",
-  );
+test("unregistered wallet shows the gate, rejects, and retries to the game", async ({ page }) => {
+  await enterGame(page, "unregistered-rejected");
+  const heading = page.getByTestId("registration-gate-heading");
+  await expect(heading).toBeFocused();
+  await expectReachable(page, gateAction(page));
+  await expectNoSeriousAxe(page, ".game-access-gate");
 
-  await page.getByTestId("wallet-access-e2e-scenario").selectOption("success");
-  await action(page).click();
-  await expect(page.locator("#wallet-access-status")).toHaveAttribute(
-    "data-state",
-    "success",
-  );
+  await gateAction(page).press("Enter");
+  await expect(gateAction(page)).toBeDisabled();
+  await expect(heading).toBeFocused();
+  await expect(page.getByRole("status")).toContainText("nicht bestätigt");
+  await page.getByTestId("wallet-access-e2e-scenario").selectOption("unregistered-success");
+  await gateAction(page).press("Enter");
+  await expect(page.getByTestId("civilization-game-root")).toBeFocused();
 });
 
-test("disables login motion when reduced motion is preferred", async ({
-  page,
-}) => {
+test("wallet rejection remains retryable without auth or chain requests", async ({ page }) => {
+  await enterGame(page, "wallet-rejected");
+  await expect(page.locator("#wallet-access-status")).toHaveAttribute("data-state", "cancelled");
+  await page.getByTestId("wallet-access-e2e-scenario").selectOption("registered");
+  await loginAction(page).press("Enter");
+  await expect(page.getByTestId("civilization-game-root")).toBeFocused();
+});
+
+test("English is an explicit test locale with locale-specific formatting", async ({ page }) => {
+  await page.getByTestId("wallet-access-e2e-locale").selectOption("en-US");
+  await expect(loginAction(page)).toHaveText("Continue with World Wallet");
+  await expect(page.locator("html")).toHaveAttribute("lang", "en-US");
+  await enterGame(page, "unregistered-success");
+  await expect(page.getByTestId("registration-gate-heading")).toHaveText("Create your village");
+  await expect(gateAction(page)).toHaveText("Create village on-chain");
+});
+
+test("reduced motion disables the animated registration surface", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await expect(action(page)).toHaveCSS("transition-duration", "0s");
+  await enterGame(page, "unregistered-success");
+  await expect(page.locator(".game-access-gate")).toHaveCSS("animation-name", "none");
 });
