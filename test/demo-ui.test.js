@@ -303,6 +303,7 @@ test("resource HUD omits field stock while the collect button exposes it once", 
     raids: 0,
   };
   const common = {
+    locale: "de-DE",
     state,
     worldApp: { installed: false },
     worldBadge: "DEMO · LOKAL",
