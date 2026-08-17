@@ -5,7 +5,7 @@
  */
 export const CIVILIZATION_LOCALES = ["de-DE", "en-US"] as const;
 export type CivilizationLocale = (typeof CIVILIZATION_LOCALES)[number];
-export const DEFAULT_CIVILIZATION_LOCALE: CivilizationLocale = "de-DE";
+export const DEFAULT_CIVILIZATION_LOCALE: CivilizationLocale = "en-US";
 export const CIVILIZATION_LOCALE_STORAGE_KEY = "civilization-locale";
 
 const copy = {

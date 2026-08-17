@@ -56,7 +56,7 @@ export const WalletAccess = ({
 }: WalletAccessProps) => {
   const [selectedLocale, setSelectedLocale] = useState<CivilizationLocale>(
     () => {
-      if (typeof window === "undefined") return "de-DE";
+      if (typeof window === "undefined") return "en-US";
       const queryLocale = new URLSearchParams(window.location.search).get(
         "lang",
       );

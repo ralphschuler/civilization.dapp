@@ -32,8 +32,8 @@ test("WalletAccess format helpers are explicit and locale-stable", () => {
   assert.equal(formatWalletDuration(125), "02:05");
 });
 
-test("shared Civilization locale boundary defaults to German and has complete English dynamic copy", () => {
-  assert.equal(resolveCivilizationLocale(undefined), "de-DE");
+test("shared Civilization locale boundary defaults to English and has complete English dynamic copy", () => {
+  assert.equal(resolveCivilizationLocale(undefined), "en-US");
   assert.equal(resolveCivilizationLocale("en"), "en-US");
   assert.equal(localeLanguageTag("en-US"), "en");
   assert.equal(
