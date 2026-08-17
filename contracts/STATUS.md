@@ -1,6 +1,6 @@
 # Contract release status
 
-**Current status: source hardening only; no deployment was performed by this workspace.** The source supports wallet-only `registerWallet()` and retains the older World ID entrypoints only as dormant compatibility surface. No WLD/CGOLD settlement, liquidity, redemption, withdrawal, fee routing, or game custody is enabled by this source patch.
+**Current status: source hardening only; no deployment was performed by this workspace.** The V2 source adds a timelock-governed, contract-inventory market for wood/clay/stone against actual CGOLD held by the proxy. It has no WLD pair, P2P/orderbook, off-chain balance, redemption, withdrawal, or custody of another player's assets. The active proxy is not asserted to run this implementation.
 
 ## Included future proxy-release tooling
 
@@ -26,7 +26,7 @@ The source adds `registerWallet()` for one-time, `msg.sender`-only village initi
 
 | Source | Status | Release boundary |
 | --- | --- | --- |
-| `contracts/src/CivilizationGame.sol` | Source-only; not independently audited | Wallet-only `registerWallet()`, dormant legacy World ID ABI compatibility, and direct player-signed game state. |
+| `contracts/src/CivilizationGame.sol` | Source-only; not independently audited | Wallet-only registration, direct player-signed game state, plus V2 timelock-configured CGOLD resource market. |
 | `contracts/src/GoldSettlementRegistry.sol` | Draft, not deployed, allowlist only | Cannot custody assets or execute a swap. |
 
 The `worldchain.tokens.example.json` addresses are reference data only, not an allowlist or deployment configuration. Re-verify them against the official World Chain registry before any future review.
@@ -36,7 +36,7 @@ The `worldchain.tokens.example.json` addresses are reference data only, not an a
 1. Independent security review of final sources and deployment configuration.
 2. Full MiniKit/World-ID integration testing must cover real v3 and v4 proofs against the deployed address.
 3. Review World MiniKit approval/payment UX, WLD token address and validated revenue-splitter configuration before any wider WLD-boost release.
-4. Separate audited settlement adapter with independent pricing/slippage controls before any WLD purchase, redemption, fee, liquidity, or custody function.
+4. Independent review of market pricing, reserve seeding, inventory policy, slippage/deadline controls and timelock configuration before scheduling the V2 upgrade.
 5. Monitoring, incident handling, and product/legal approval.
 
 ## Local Solidity verification

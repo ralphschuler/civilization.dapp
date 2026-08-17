@@ -19,6 +19,7 @@ import {
 } from "../src/game-ui/map-coordinates.js";
 import { gameShell } from "../src/game-ui/views/shell.js";
 import { buildPanel } from "../src/game-ui/views/build.js";
+import { marketPanel } from "../src/game-ui/views/market.js";
 import { createWorldRuntime } from "../src/game-world-runtime.js";
 import { refreshGameTick } from "../src/game-tick.js";
 import { readFile } from "node:fs/promises";
@@ -135,6 +136,38 @@ test("shell rendering receives explicit state and no controller callbacks", () =
   });
   assert.match(html, /data-panel="build"/);
   assert.match(html, /<p>panel<\/p>/);
+});
+
+test("World market UI requires a live on-chain quote and exposes fee and liquidity", () => {
+  const initial = marketPanel({
+    runtimeMode: "world",
+    tokens: {},
+    marketQuote: null,
+    busy: false,
+  });
+  assert.match(initial, /Live-Quote laden/);
+  assert.match(initial, /keine P2P-Orders/);
+  assert.doesNotMatch(initial, /Lokale Demo-Buchung/);
+  const quoted = marketPanel({
+    runtimeMode: "world",
+    tokens: {},
+    busy: false,
+    marketQuote: {
+      resource: "wood",
+      amount: 2,
+      buyGoldIn: 203n,
+      buyFee: 3n,
+      sellGoldOut: 197n,
+      sellFee: 3n,
+      inventory: 9n,
+      reserve: 500n,
+      deadline: 1234,
+    },
+  });
+  assert.match(quoted, /Gebühr 3 Wei/);
+  assert.match(quoted, /Inventar: 9/);
+  assert.match(quoted, /CGOLD-Reserve: 500/);
+  assert.match(quoted, /Kaufen \(max\. Quote\)/);
 });
 
 test("map buildings use normalized bottom-centre anchors across renders and atlases", async () => {

@@ -14,6 +14,7 @@ import {
 import { readCivilizationState } from "./reads.js";
 
 const transaction = (to, data) => ({ to, data, value: "0x0" });
+const MARKET_RESOURCE_INDEX = { wood: 0, clay: 1, stone: 2 };
 const validUserOpHash = (hash) =>
   typeof hash === "string" && /^0x[0-9a-fA-F]{64}$/.test(hash);
 
@@ -177,6 +178,32 @@ export function encodeWorldGameAction(
           abi: CIVILIZATION_GAME_ABI,
           functionName: "boostConstruction",
           args: [BigInt(payload.hours)],
+        }),
+      ),
+    ];
+  }
+  if (type === "market_buy" || type === "market_sell") {
+    if (
+      !Object.hasOwn(MARKET_RESOURCE_INDEX, payload.resource) ||
+      !Number.isSafeInteger(payload.amount) ||
+      payload.amount < 1 ||
+      typeof payload.limit !== "bigint" ||
+      !Number.isSafeInteger(payload.deadline) ||
+      payload.deadline < 1
+    )
+      throw new Error("invalid_market_order");
+    return [
+      transaction(
+        game,
+        encodeFunctionData({
+          abi: CIVILIZATION_GAME_ABI,
+          functionName: type === "market_buy" ? "buyResource" : "sellResource",
+          args: [
+            MARKET_RESOURCE_INDEX[payload.resource],
+            BigInt(payload.amount),
+            payload.limit,
+            BigInt(payload.deadline),
+          ],
         }),
       ),
     ];
