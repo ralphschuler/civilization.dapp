@@ -13,8 +13,10 @@ type Scenario =
   | "registered"
   | "unregistered-success"
   | "unregistered-rejected"
+  | "status-loading"
+  | "status-unavailable"
   | "wallet-rejected";
-type Screen = "login" | "gate" | "game";
+type Screen = "login" | "checking" | "gate" | "status-unavailable" | "game";
 
 const TEST_WALLET_ADDRESS = "0x0000000000000000000000000000000000000001";
 
@@ -77,9 +79,22 @@ export function WalletAccessE2eHarness() {
     [scenario],
   );
 
-  const handleAccessGranted = useCallback(() => {
-    setScreen(scenario === "registered" ? "game" : "gate");
+  const checkRegistration = useCallback(() => {
+    setScreen("checking");
+    setRegistrationStatus("");
+    window.setTimeout(() => {
+      if (scenario === "status-loading") return;
+      if (scenario === "status-unavailable") {
+        setScreen("status-unavailable");
+        return;
+      }
+      setScreen(scenario === "registered" ? "game" : "gate");
+    }, 120);
   }, [scenario]);
+
+  const handleAccessGranted = useCallback(() => {
+    checkRegistration();
+  }, [checkRegistration]);
 
   const registerVillage = useCallback(() => {
     setRegistering(true);
@@ -112,8 +127,23 @@ export function WalletAccessE2eHarness() {
         <WalletVillageRegistrationGate
           busy={registering}
           checked
+          checking={false}
+          checkFailed={false}
           onRegisterVillage={registerVillage}
+          onRetryRegistrationCheck={checkRegistration}
           status={gateStatus}
+          locale={locale}
+        />
+      ) : null}
+      {screen === "checking" || screen === "status-unavailable" ? (
+        <WalletVillageRegistrationGate
+          busy={false}
+          checked={false}
+          checking={screen === "checking"}
+          checkFailed={screen === "status-unavailable"}
+          onRegisterVillage={() => {}}
+          onRetryRegistrationCheck={checkRegistration}
+          status=""
           locale={locale}
         />
       ) : null}
@@ -129,6 +159,10 @@ export function WalletAccessE2eHarness() {
           <option value="registered">Already registered</option>
           <option value="unregistered-success">Registration succeeds</option>
           <option value="unregistered-rejected">Registration rejected</option>
+          <option value="status-loading">On-chain status loading</option>
+          <option value="status-unavailable">
+            On-chain status unavailable
+          </option>
           <option value="wallet-rejected">Wallet rejected</option>
         </select>
         <label htmlFor="wallet-access-e2e-locale">Test locale</label>

@@ -1,16 +1,17 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
-const loginAction = (page: Page) =>
-  page.locator(".civilization-login__action");
+const loginAction = (page: Page) => page.locator(".civilization-login__action");
 const gateAction = (page: Page) => page.locator(".game-access-action");
 const unexpectedRequests = new WeakMap<Page, string[]>();
+const testOrigin = `http://127.0.0.1:${process.env.PLAYWRIGHT_PORT ?? "31058"}`;
 
 async function expectNoSeriousAxe(page: Page, selector: string) {
   const results = await new AxeBuilder({ page }).include(selector).analyze();
   expect(
     results.violations.filter(
-      (violation) => violation.impact === "serious" || violation.impact === "critical",
+      (violation) =>
+        violation.impact === "serious" || violation.impact === "critical",
     ),
   ).toEqual([]);
 }
@@ -21,7 +22,11 @@ async function expectReachable(page: Page, target: Locator) {
   expect(box).not.toBeNull();
   expect(box!.x).toBeGreaterThanOrEqual(0);
   expect(box!.x + box!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
-  expect(await page.locator("html").evaluate((node) => node.scrollWidth <= window.innerWidth)).toBe(true);
+  expect(
+    await page
+      .locator("html")
+      .evaluate((node) => node.scrollWidth <= window.innerWidth),
+  ).toBe(true);
 }
 
 async function enterGame(page: Page, scenario: string) {
@@ -34,7 +39,7 @@ test.beforeEach(async ({ page }) => {
   unexpectedRequests.set(page, unexpectedApi);
   await page.route("**/*", async (route) => {
     const url = new URL(route.request().url());
-    if (url.origin !== "http://127.0.0.1:31058") {
+    if (url.origin !== testOrigin) {
       await route.abort();
       return;
     }
@@ -48,10 +53,17 @@ test.afterEach(async ({ page }) => {
   expect(unexpectedRequests.get(page)).toEqual([]);
 });
 
-test("login is keyboard reachable, localized in German, and accessible", async ({ page }) => {
+test("login is keyboard reachable, localized in German, and accessible", async ({
+  page,
+}) => {
   for (let tabPresses = 0; tabPresses < 4; tabPresses += 1) {
     await page.keyboard.press("Tab");
-    if (await loginAction(page).evaluate((node) => document.activeElement === node)) break;
+    if (
+      await loginAction(page).evaluate(
+        (node) => document.activeElement === node,
+      )
+    )
+      break;
   }
   await expect(loginAction(page)).toBeFocused();
   await expect(loginAction(page)).toHaveText("Mit World Wallet fortfahren");
@@ -59,7 +71,9 @@ test("login is keyboard reachable, localized in German, and accessible", async (
   await expectNoSeriousAxe(page, ".civilization-login");
 });
 
-test("native WalletAuth/SIWE seam reaches an already registered game on the same page", async ({ page }) => {
+test("native WalletAuth/SIWE seam reaches an already registered game on the same page", async ({
+  page,
+}) => {
   await enterGame(page, "registered");
   const root = page.getByTestId("civilization-game-root");
   await expect(root).toBeFocused();
@@ -70,9 +84,52 @@ test("native WalletAuth/SIWE seam reaches an already registered game on the same
   await expectNoSeriousAxe(page, "[data-testid='civilization-game-root']");
 });
 
-test("unregistered wallet shows the gate, rejects, and retries to the game", async ({ page }) => {
+test("an in-progress on-chain read cannot offer village creation", async ({
+  page,
+}) => {
+  await enterGame(page, "status-loading");
+  await expect(page.getByTestId("registration-gate-heading")).toHaveText(
+    "On-chain-Dorf wird geprüft",
+  );
+  await expect(gateAction(page)).toHaveText("On-chain-Status wird geprüft …");
+  await expect(gateAction(page)).toBeDisabled();
+});
+
+test("an unavailable on-chain read stays out of the registration flow and can be retried", async ({
+  page,
+}) => {
+  await enterGame(page, "status-unavailable");
+  const heading = page.getByTestId("registration-gate-heading");
+  await expect(heading).toHaveText("On-chain-Status nicht verfügbar");
+  await expect(gateAction(page)).toHaveText("Status erneut prüfen");
+  await expect(gateAction(page)).toBeEnabled();
+
+  await page
+    .getByTestId("wallet-access-e2e-scenario")
+    .selectOption("registered");
+  await gateAction(page).press("Enter");
+  await expect(heading).toHaveText("On-chain-Dorf wird geprüft");
+  await expect(page.getByTestId("civilization-game-root")).toBeFocused();
+});
+
+test("a page reload starts a new authoritative status check without a registration request", async ({
+  page,
+}) => {
+  await enterGame(page, "unregistered-success");
+  await expect(page.getByTestId("registration-gate-heading")).toHaveText(
+    "Dein Dorf erstellen",
+  );
+  await page.reload();
+  await enterGame(page, "registered");
+  await expect(page.getByTestId("civilization-game-root")).toBeFocused();
+});
+
+test("unregistered wallet shows the gate, rejects, and retries to the game", async ({
+  page,
+}) => {
   await enterGame(page, "unregistered-rejected");
   const heading = page.getByTestId("registration-gate-heading");
+  await expect(heading).toBeVisible();
   await expect(heading).toBeFocused();
   await expectReachable(page, gateAction(page));
   await expectNoSeriousAxe(page, ".game-access-gate");
@@ -81,30 +138,48 @@ test("unregistered wallet shows the gate, rejects, and retries to the game", asy
   await expect(gateAction(page)).toBeDisabled();
   await expect(heading).toBeFocused();
   await expect(page.getByRole("status")).toContainText("nicht bestätigt");
-  await page.getByTestId("wallet-access-e2e-scenario").selectOption("unregistered-success");
+  await page
+    .getByTestId("wallet-access-e2e-scenario")
+    .selectOption("unregistered-success");
   await gateAction(page).press("Enter");
   await expect(page.getByTestId("civilization-game-root")).toBeFocused();
 });
 
-test("wallet rejection remains retryable without auth or chain requests", async ({ page }) => {
+test("wallet rejection remains retryable without auth or chain requests", async ({
+  page,
+}) => {
   await enterGame(page, "wallet-rejected");
-  await expect(page.locator("#wallet-access-status")).toHaveAttribute("data-state", "cancelled");
-  await page.getByTestId("wallet-access-e2e-scenario").selectOption("registered");
+  await expect(page.locator("#wallet-access-status")).toHaveAttribute(
+    "data-state",
+    "cancelled",
+  );
+  await page
+    .getByTestId("wallet-access-e2e-scenario")
+    .selectOption("registered");
   await loginAction(page).press("Enter");
   await expect(page.getByTestId("civilization-game-root")).toBeFocused();
 });
 
-test("English is an explicit test locale with locale-specific formatting", async ({ page }) => {
+test("English is an explicit test locale with locale-specific formatting", async ({
+  page,
+}) => {
   await page.getByTestId("wallet-access-e2e-locale").selectOption("en-US");
   await expect(loginAction(page)).toHaveText("Continue with World Wallet");
   await expect(page.locator("html")).toHaveAttribute("lang", "en-US");
   await enterGame(page, "unregistered-success");
-  await expect(page.getByTestId("registration-gate-heading")).toHaveText("Create your village");
+  await expect(page.getByTestId("registration-gate-heading")).toHaveText(
+    "Create your village",
+  );
   await expect(gateAction(page)).toHaveText("Create village on-chain");
 });
 
-test("reduced motion disables the animated registration surface", async ({ page }) => {
+test("reduced motion disables the animated registration surface", async ({
+  page,
+}) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await enterGame(page, "unregistered-success");
-  await expect(page.locator(".game-access-gate")).toHaveCSS("animation-name", "none");
+  await expect(page.locator(".game-access-gate")).toHaveCSS(
+    "animation-name",
+    "none",
+  );
 });

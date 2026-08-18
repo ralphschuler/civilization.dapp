@@ -53,12 +53,21 @@ function ProductionCivilizationClient({
   | "onLocaleChange"
 >) {
   const root = useRef<HTMLDivElement>(null);
-  const { busy, checked, registered, registerVillage, status, worldAdapter } =
-    useWalletVillageRegistration(
-      walletAddress,
-      contractAddress,
-      worldTokenAddress,
-    );
+  const {
+    busy,
+    checked,
+    checking,
+    checkFailed,
+    registered,
+    retryRegistrationCheck,
+    registerVillage,
+    status,
+    worldAdapter,
+  } = useWalletVillageRegistration(
+    walletAddress,
+    contractAddress,
+    worldTokenAddress,
+  );
 
   useEffect(() => {
     if (!registered || !root.current) {
@@ -85,7 +94,10 @@ function ProductionCivilizationClient({
     <WalletVillageRegistrationGate
       busy={busy}
       checked={checked}
+      checking={checking}
+      checkFailed={checkFailed}
       onRegisterVillage={registerVillage}
+      onRetryRegistrationCheck={retryRegistrationCheck}
       status={status}
       locale={locale}
     />

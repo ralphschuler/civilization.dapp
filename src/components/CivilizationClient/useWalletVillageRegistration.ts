@@ -64,10 +64,13 @@ export function useWalletVillageRegistration(
   worldTokenAddress: string,
 ) {
   const registrationInFlight = useRef(false);
+  const registrationCheckInFlight = useRef(false);
   const pendingRegistrationHash = useRef<string | null>(null);
   const pollReceipt = useReceiptPolling();
   const [registered, setRegistered] = useState(false);
   const [checked, setChecked] = useState(false);
+  const [checking, setChecking] = useState(true);
+  const [checkFailed, setCheckFailed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("On-chain-Dorf wird geprüft …");
 
@@ -87,37 +90,51 @@ export function useWalletVillageRegistration(
     [contractAddress, walletAddress],
   );
 
-  useEffect(() => {
-    let active = true;
-    readRegistration()
-      .then((state) => {
-        if (!active) {
-          return;
-        }
-        setChecked(true);
-        setRegistered(state.registered);
-        setStatus(
-          state.registered
-            ? "On-chain-Dorf geladen …"
-            : "Deine Wallet ist bestätigt. Erstelle jetzt einmalig dein On-chain-Dorf.",
-        );
-      })
-      .catch(() => {
-        if (!active) {
-          return;
-        }
-        setChecked(true);
-        setStatus(
-          "Der On-chain-Status konnte nicht gelesen werden. Bitte prüfe ihn erneut.",
-        );
-      });
-    return () => {
-      active = false;
-    };
+  const retryRegistrationCheck = useCallback(async () => {
+    if (registrationCheckInFlight.current || registrationInFlight.current) {
+      return;
+    }
+    registrationCheckInFlight.current = true;
+    // Defer state updates so the initial effect subscribes to the async
+    // on-chain read instead of synchronously cascading a render.
+    await Promise.resolve();
+    setChecking(true);
+    setCheckFailed(false);
+    setChecked(false);
+    setStatus("On-chain-Dorf wird geprüft …");
+    try {
+      const state = await readRegistration();
+      setChecked(true);
+      setRegistered(state.registered);
+      setStatus(
+        state.registered
+          ? "On-chain-Dorf geladen …"
+          : "Deine Wallet ist bestätigt. Erstelle jetzt einmalig dein On-chain-Dorf.",
+      );
+    } catch {
+      // A failed RPC/configuration read is not evidence that the wallet is
+      // unregistered, so keep registration unavailable until a later read.
+      setRegistered(false);
+      setCheckFailed(true);
+      setStatus("Der On-chain-Status konnte nicht gelesen werden.");
+    } finally {
+      registrationCheckInFlight.current = false;
+      setChecking(false);
+    }
   }, [readRegistration]);
+
+  useEffect(() => {
+    const initialCheck = window.setTimeout(() => {
+      void retryRegistrationCheck();
+    }, 0);
+    return () => window.clearTimeout(initialCheck);
+  }, [retryRegistrationCheck]);
 
   const registerVillage = useCallback(async () => {
     if (registrationInFlight.current) {
+      return;
+    }
+    if (!checked || checking || checkFailed) {
       return;
     }
     registrationInFlight.current = true;
@@ -151,7 +168,24 @@ export function useWalletVillageRegistration(
       registrationInFlight.current = false;
       setBusy(false);
     }
-  }, [contractAddress, pollReceipt, walletAddress]);
+  }, [
+    checked,
+    checkFailed,
+    checking,
+    contractAddress,
+    pollReceipt,
+    walletAddress,
+  ]);
 
-  return { busy, checked, registered, registerVillage, status, worldAdapter };
+  return {
+    busy,
+    checked,
+    checking,
+    checkFailed,
+    registered,
+    retryRegistrationCheck,
+    registerVillage,
+    status,
+    worldAdapter,
+  };
 }

@@ -1,6 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
 
-const port = 31058;
+const port = Number(process.env.PLAYWRIGHT_PORT ?? 31058);
 
 export default defineConfig({
   testDir: "./e2e",
@@ -19,7 +19,11 @@ export default defineConfig({
   projects: [
     {
       name: "desktop-chromium",
-      use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 }, locale: "de-DE" },
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 1440, height: 900 },
+        locale: "de-DE",
+      },
     },
     {
       name: "mobile-chromium-390",
@@ -32,7 +36,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "pnpm dev --port 31058",
+    command: `pnpm dev --port ${port}`,
     url: `http://127.0.0.1:${port}`,
     reuseExistingServer: !process.env.CI,
     env: {
