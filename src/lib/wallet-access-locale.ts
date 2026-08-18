@@ -18,8 +18,16 @@ const messages = {
     },
     registration: {
       heading: "Dein Dorf erstellen",
+      checkingHeading: "On-chain-Dorf wird geprüft",
+      unavailableHeading: "On-chain-Status nicht verfügbar",
       action: "Dorf on-chain erstellen",
       pendingAction: "Dorf wird erstellt …",
+      checkingAction: "On-chain-Status wird geprüft …",
+      retryCheckAction: "Status erneut prüfen",
+      checking:
+        "Der registrierte Dorfstatus deiner bestätigten Wallet wird on-chain geladen.",
+      unavailable:
+        "Der On-chain-Status konnte nicht gelesen werden. Prüfe deine Verbindung und versuche es erneut.",
       ready:
         "Deine Wallet ist bestätigt. Erstelle jetzt einmalig dein On-chain-Dorf.",
       pending: "Registrierung wird in deiner World Wallet bestätigt …",
@@ -40,8 +48,16 @@ const messages = {
     },
     registration: {
       heading: "Create your village",
+      checkingHeading: "Checking your on-chain village",
+      unavailableHeading: "On-chain status unavailable",
       action: "Create village on-chain",
       pendingAction: "Creating village …",
+      checkingAction: "Checking on-chain status …",
+      retryCheckAction: "Check status again",
+      checking:
+        "Loading the registered village status for your confirmed wallet from the chain.",
+      unavailable:
+        "The on-chain status could not be read. Check your connection and try again.",
       ready: "Your wallet is confirmed. Create your on-chain village once.",
       pending: "Confirming registration in your World Wallet …",
       rejected: "Registration was not confirmed. You can try again.",

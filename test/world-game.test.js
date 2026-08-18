@@ -288,6 +288,28 @@ test("registered wallet skips registration transaction and unregistered wallet s
   );
 });
 
+test("an unavailable authoritative registration read never opens a registration transaction", async () => {
+  const wallet = "0x1111111111111111111111111111111111111111";
+  let sends = 0;
+  await assert.rejects(
+    registerWalletWithMiniKit({
+      walletAddress: wallet,
+      readState: async () => {
+        throw new Error("rpc_unavailable");
+      },
+      pollReceipt: async () => ({ receipt: { status: "success" } }),
+      miniKit: {
+        sendTransaction: async () => {
+          sends += 1;
+          return {};
+        },
+      },
+    }),
+    /rpc_unavailable/,
+  );
+  assert.equal(sends, 0);
+});
+
 test("wallet registration requires the exact WalletAuth checksum address, receipt, and registered readback", async () => {
   const wallet = "0x1111111111111111111111111111111111111111";
   const base = {

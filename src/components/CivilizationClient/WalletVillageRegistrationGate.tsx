@@ -9,7 +9,10 @@ import {
 type WalletVillageRegistrationGateProps = {
   busy: boolean;
   checked: boolean;
+  checking: boolean;
+  checkFailed: boolean;
   onRegisterVillage: () => void;
+  onRetryRegistrationCheck: () => void;
   status: string;
   locale?: WalletAccessLocale;
 };
@@ -17,24 +20,45 @@ type WalletVillageRegistrationGateProps = {
 export function WalletVillageRegistrationGate({
   busy,
   checked,
+  checking,
+  checkFailed,
   onRegisterVillage,
+  onRetryRegistrationCheck,
   status,
   locale = "de-DE",
 }: WalletVillageRegistrationGateProps) {
   const heading = useRef<HTMLHeadingElement>(null);
   const copy = walletAccessMessages(locale).registration;
+  const isRegistrationReady = checked && !checking && !checkFailed;
+  const action = checkFailed
+    ? copy.retryCheckAction
+    : checking
+      ? copy.checkingAction
+      : busy
+        ? copy.pendingAction
+        : copy.action;
+  const statusMessage = checkFailed
+    ? copy.unavailable
+    : checking
+      ? copy.checking
+      : status;
+  const title = checkFailed
+    ? copy.unavailableHeading
+    : checking
+      ? copy.checkingHeading
+      : copy.heading;
 
   useEffect(() => {
     heading.current?.focus();
-  }, [busy, status]);
+  }, [busy, checking, checkFailed, status]);
 
   return (
-    <main className="game-access-gate" aria-busy={busy}>
+    <main className="game-access-gate" aria-busy={busy || checking}>
       <div className="game-access-card">
         <span className="game-access-mark">CD</span>
         <p>WORLD MINI APP</p>
         <h1 ref={heading} tabIndex={-1} data-testid="registration-gate-heading">
-          {copy.heading}
+          {title}
         </h1>
         <p>
           Die Registrierung ist öffentlich: Der Contract registriert nur die
@@ -42,14 +66,14 @@ export function WalletVillageRegistrationGate({
           den Contract nicht.
         </p>
         <span role="status" aria-live="polite" aria-atomic="true">
-          {status}
+          {statusMessage}
         </span>
         <button
           className="game-access-action"
-          onClick={onRegisterVillage}
-          disabled={busy || !checked}
+          onClick={checkFailed ? onRetryRegistrationCheck : onRegisterVillage}
+          disabled={checking || busy || (!checkFailed && !isRegistrationReady)}
         >
-          {busy ? copy.pendingAction : copy.action}
+          {action}
         </button>
       </div>
     </main>
