@@ -129,6 +129,7 @@ test("unregistered wallet shows the gate, rejects, and retries to the game", asy
 }) => {
   await enterGame(page, "unregistered-rejected");
   const heading = page.getByTestId("registration-gate-heading");
+  await expect(heading).toBeVisible();
   await expect(heading).toBeFocused();
   await expectReachable(page, gateAction(page));
   await expectNoSeriousAxe(page, ".game-access-gate");
