@@ -18,6 +18,7 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import solc from "solc";
+import { SOLIDITY_RELEASE_PROFILE } from "./solidity-release-profile.mjs";
 
 const require = createRequire(import.meta.url);
 const ZERO_HASH = `0x${"00".repeat(32)}`;
@@ -715,8 +716,9 @@ export async function compileWorldchainArtifacts() {
         language: "Solidity",
         sources,
         settings: {
-          // Keep the upgrade implementation below the EIP-170 code-size limit.
-          optimizer: { enabled: true, runs: 10 },
+          // This profile is part of the reviewed release artifact, not a
+          // test-only workaround. Keep it aligned with contract tests.
+          ...SOLIDITY_RELEASE_PROFILE,
           outputSelection: {
             "*": {
               "": ["ast"],

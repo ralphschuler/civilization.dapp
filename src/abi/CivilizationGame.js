@@ -68,6 +68,13 @@ export const CIVILIZATION_WORLD_ID_COMPATIBILITY_ABI = [
 export const CIVILIZATION_GAME_ABI = [
   {
     type: "function",
+    name: "totalSupply",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    type: "function",
     name: "registerWallet",
     stateMutability: "nonpayable",
     inputs: [],
@@ -140,6 +147,15 @@ export const CIVILIZATION_GAME_ABI = [
     stateMutability: "view",
     inputs: [],
     outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    // The only external mint caller is observable at the proxy. A zero value
+    // means the timelock has revoked distributor issuance.
+    type: "function",
+    name: "rewardDistributor",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "address" }],
   },
   {
     // The contract is the sole authority for the rational, upward-rounded

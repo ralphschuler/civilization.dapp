@@ -10,8 +10,14 @@ import {
 } from "@ethereumjs/util";
 import { createVM } from "@ethereumjs/vm";
 import solc from "solc";
+import { privateKeyToAccount } from "viem/accounts";
+import {
+  EIP170_RUNTIME_LIMIT,
+  SOLIDITY_RELEASE_PROFILE,
+} from "../scripts/solidity-release-profile.mjs";
 import {
   concatHex,
+  decodeErrorResult,
   decodeFunctionResult,
   encodeAbiParameters,
   encodeFunctionData,
@@ -83,9 +89,8 @@ async function compile() {
         language: "Solidity",
         sources,
         settings: {
-          // Queue V2 must remain below EIP-170's 24,576-byte runtime limit.
-          // Keep this aligned with the release compiler configuration.
-          optimizer: { enabled: true, runs: 10 },
+          // Compile implementation bytecode with the exact release profile.
+          ...SOLIDITY_RELEASE_PROFILE,
           outputSelection: {
             "*": {
               "": ["ast"],
@@ -369,13 +374,19 @@ async function upgrade(f, implementation, at, salt = zero32()) {
   );
 }
 
-async function timelockCall(f, data, at, salt = zero32()) {
+async function timelockCall(
+  f,
+  data,
+  at,
+  salt = zero32(),
+  target = f.game.address.toString(),
+) {
   ok(
     await call(
       f.timelock,
       deployer,
       "schedule",
-      [f.game.address.toString(), 0n, data, zero32(), salt, 60n],
+      [target, 0n, data, zero32(), salt, 60n],
       at,
     ),
   );
@@ -384,7 +395,7 @@ async function timelockCall(f, data, at, salt = zero32()) {
       f.timelock,
       deployer,
       "execute",
-      [f.game.address.toString(), 0n, data, zero32(), salt],
+      [target, 0n, data, zero32(), salt],
       at + 60n,
     ),
   );
@@ -474,6 +485,24 @@ async function setConstructionTestPlayer(f, account, { stored, buildings }) {
   ];
   await Promise.all(
     buildingValues.map((value, index) => put(13 + index, value)),
+  );
+}
+
+async function setGameplayGoldField(f, account, value) {
+  const playerBase = BigInt(
+    keccak256(
+      encodeAbiParameters(
+        [{ type: "address" }, { type: "uint256" }],
+        [account, PLAYER_MAPPING_SLOT],
+      ),
+    ),
+  );
+  // Player.field.gold is slot 8. Claims must still execute the production,
+  // cooldown, ERC-20 mint, and payout paths to consume this game state.
+  await f.vm.stateManager.putStorage(
+    f.game.address,
+    hexToBytes(toHex(playerBase + 8n, { size: 32 })),
+    hexToBytes(toHex(BigInt(value), { size: 32 })),
   );
 }
 
@@ -688,14 +717,21 @@ for (const seed of STATE_MACHINE_SEEDS) {
     runAdversarialStateMachine(seed));
 }
 
-test("pinned Solidity/OZ sources compile deterministically; implementation is locked and EIP-170 safe", async () => {
+test("pinned Solidity/OZ sources compile deterministically; release optimizer/viaIR implementation is locked and EIP-170 safe", async () => {
   await compile();
   assert.equal(solc.version(), "0.8.30+commit.73712a01.Emscripten.clang");
+  assert.deepEqual(SOLIDITY_RELEASE_PROFILE, {
+    optimizer: { enabled: true, runs: 10 },
+    viaIR: true,
+  });
   const game = artifact(
     "contracts/src/CivilizationGame.sol",
     "CivilizationGame",
   );
-  assert.ok(game.evm.deployedBytecode.object.length / 2 < 24_576);
+  assert.ok(
+    game.evm.deployedBytecode.object.length / 2 < EIP170_RUNTIME_LIMIT,
+    `CivilizationGame runtime must remain below ${EIP170_RUNTIME_LIMIT} bytes`,
+  );
   const source = await readFile(
     new URL("../contracts/src/CivilizationGame.sol", import.meta.url),
     "utf8",
@@ -1192,6 +1228,412 @@ test("V1 to V2 to V1 to V2 upgrades only through timelock and preserve proxy sta
     await read(gameV2, "v2Marker"),
     99n,
     "separate V2 ERC-7201 namespace survives rollback",
+  );
+});
+
+test("timelock-configured reward claims mint through the proxy and survive a V1/V2 upgrade", async () => {
+  const f = await fixture();
+  const distributor = await deploy(
+    f.vm,
+    artifact(
+      "contracts/src/CivilizationRewardDistributor.sol",
+      "CivilizationRewardDistributor",
+    ),
+    [f.game.address.toString(), f.timelock.address.toString()],
+  );
+  const unauthorized = await call(
+    f.game,
+    deployer,
+    "configureRewardDistributor",
+    [distributor.address.toString()],
+    1_000n,
+  );
+  assert.ok(
+    unauthorized.execResult.exceptionError,
+    "an EOA cannot configure the proxy reward minter",
+  );
+  await timelockCall(
+    f,
+    encodeFunctionData({
+      abi: f.game.abi,
+      functionName: "configureRewardDistributor",
+      args: [distributor.address.toString()],
+    }),
+    1_000n,
+    `0x${"03".repeat(32)}`,
+  );
+
+  const issuer = privateKeyToAccount(`0x${"11".repeat(32)}`);
+  await timelockCall(
+    f,
+    encodeFunctionData({
+      abi: distributor.abi,
+      functionName: "configureIssuer",
+      args: [issuer.address, 100n, 1_000n, 3_600n],
+    }),
+    1_061n,
+    `0x${"04".repeat(32)}`,
+    distributor.address.toString(),
+  );
+
+  const v2 = await deploy(
+    f.vm,
+    artifact(
+      "contracts/src/CivilizationGameV2Fixture.sol",
+      "CivilizationGameV2Fixture",
+    ),
+  );
+  await upgrade(f, v2, 1_122n, `0x${"05".repeat(32)}`);
+  const gameV2 = { ...f.game, abi: v2.abi };
+  assert.equal(
+    (await read(gameV2, "rewardDistributor")).toLowerCase(),
+    distributor.address.toString().toLowerCase(),
+    "the V1 ERC-7201 market namespace must remain readable after upgrade",
+  );
+
+  const claim = {
+    recipient: alice,
+    amount: 75n,
+    rewardId: `0x${"aa".repeat(32)}`,
+    nonce: 9n,
+    deadline: 5_000n,
+    chainId: 1n,
+    verifyingContract: distributor.address.toString(),
+  };
+  const signature = await issuer.signTypedData({
+    domain: {
+      name: "Civilization CGOLD Rewards",
+      version: "1",
+      chainId: 1,
+      verifyingContract: distributor.address.toString(),
+    },
+    types: {
+      RewardClaim: [
+        { name: "recipient", type: "address" },
+        { name: "amount", type: "uint256" },
+        { name: "rewardId", type: "bytes32" },
+        { name: "nonce", type: "uint256" },
+        { name: "deadline", type: "uint256" },
+        { name: "chainId", type: "uint256" },
+        { name: "verifyingContract", type: "address" },
+      ],
+    },
+    primaryType: "RewardClaim",
+    message: claim,
+  });
+  ok(await call(distributor, bob, "claim", [claim, signature], 1_183n));
+  assert.equal(await read(gameV2, "balanceOf", [alice]), 75n);
+  const replay = await call(
+    distributor,
+    carol,
+    "claim",
+    [claim, signature],
+    1_184n,
+  );
+  assert.ok(replay.execResult.exceptionError, "reward IDs are replay-proof");
+
+  await upgrade(f, f.v1, 1_185n, `0x${"06".repeat(32)}`);
+  assert.equal(
+    (await read(f.game, "rewardDistributor")).toLowerCase(),
+    distributor.address.toString().toLowerCase(),
+    "reward-minter configuration survives rollback to V1",
+  );
+  assert.equal(await read(f.game, "balanceOf", [alice]), 75n);
+});
+
+test("lowering a current period cap below issued rewards reverts PeriodCapExceeded without an arithmetic panic", async () => {
+  const f = await fixture();
+  const distributor = await deploy(
+    f.vm,
+    artifact(
+      "contracts/src/CivilizationRewardDistributor.sol",
+      "CivilizationRewardDistributor",
+    ),
+    [f.game.address.toString(), f.timelock.address.toString()],
+  );
+  const issuer = privateKeyToAccount(`0x${"13".repeat(32)}`);
+  const sign = (claim) =>
+    issuer.signTypedData({
+      domain: {
+        name: "Civilization CGOLD Rewards",
+        version: "1",
+        chainId: 1,
+        verifyingContract: distributor.address.toString(),
+      },
+      types: {
+        RewardClaim: [
+          { name: "recipient", type: "address" },
+          { name: "amount", type: "uint256" },
+          { name: "rewardId", type: "bytes32" },
+          { name: "nonce", type: "uint256" },
+          { name: "deadline", type: "uint256" },
+          { name: "chainId", type: "uint256" },
+          { name: "verifyingContract", type: "address" },
+        ],
+      },
+      primaryType: "RewardClaim",
+      message: claim,
+    });
+  const claim = (amount, rewardId, nonce) => ({
+    recipient: alice,
+    amount,
+    rewardId,
+    nonce,
+    deadline: 5_000n,
+    chainId: 1n,
+    verifyingContract: distributor.address.toString(),
+  });
+
+  await timelockCall(
+    f,
+    encodeFunctionData({
+      abi: f.game.abi,
+      functionName: "configureRewardDistributor",
+      args: [distributor.address.toString()],
+    }),
+    1_000n,
+    `0x${"20".repeat(32)}`,
+  );
+  await timelockCall(
+    f,
+    encodeFunctionData({
+      abi: distributor.abi,
+      functionName: "configureIssuer",
+      args: [issuer.address, 100n, 100n, 3_600n],
+    }),
+    1_061n,
+    `0x${"21".repeat(32)}`,
+    distributor.address.toString(),
+  );
+  const issuedClaim = claim(60n, `0x${"aa".repeat(32)}`, 1n);
+  ok(
+    await call(
+      distributor,
+      bob,
+      "claim",
+      [issuedClaim, await sign(issuedClaim)],
+      1_122n,
+    ),
+  );
+
+  await timelockCall(
+    f,
+    encodeFunctionData({
+      abi: distributor.abi,
+      functionName: "configureIssuer",
+      args: [issuer.address, 50n, 50n, 3_600n],
+    }),
+    1_123n,
+    `0x${"22".repeat(32)}`,
+    distributor.address.toString(),
+  );
+  const afterCapReduction = claim(1n, `0x${"bb".repeat(32)}`, 2n);
+  const result = await call(
+    distributor,
+    bob,
+    "claim",
+    [afterCapReduction, await sign(afterCapReduction)],
+    1_184n,
+  );
+  assert.ok(result.execResult.exceptionError);
+  const decodedError = decodeErrorResult({
+    abi: distributor.abi,
+    data: bytesToHex(result.execResult.returnValue),
+  });
+  assert.equal(decodedError.errorName, "PeriodCapExceeded");
+  assert.deepEqual(decodedError.args, [0n]);
+});
+
+test("reward distributor independently enforces signed bounds while pause/revoke leave game issuance and ERC-20 transfers live", async () => {
+  const f = await fixture();
+  const distributor = await deploy(
+    f.vm,
+    artifact(
+      "contracts/src/CivilizationRewardDistributor.sol",
+      "CivilizationRewardDistributor",
+    ),
+    [f.game.address.toString(), f.timelock.address.toString()],
+  );
+  const issuer = privateKeyToAccount(`0x${"12".repeat(32)}`);
+  const configure = async (name, args, at, salt) =>
+    timelockCall(
+      f,
+      encodeFunctionData({ abi: distributor.abi, functionName: name, args }),
+      at,
+      salt,
+      distributor.address.toString(),
+    );
+  const sign = (claim) =>
+    issuer.signTypedData({
+      domain: {
+        name: "Civilization CGOLD Rewards",
+        version: "1",
+        chainId: 1,
+        verifyingContract: distributor.address.toString(),
+      },
+      types: {
+        RewardClaim: [
+          { name: "recipient", type: "address" },
+          { name: "amount", type: "uint256" },
+          { name: "rewardId", type: "bytes32" },
+          { name: "nonce", type: "uint256" },
+          { name: "deadline", type: "uint256" },
+          { name: "chainId", type: "uint256" },
+          { name: "verifyingContract", type: "address" },
+        ],
+      },
+      primaryType: "RewardClaim",
+      message: claim,
+    });
+  const claim = (overrides = {}) => ({
+    recipient: alice,
+    amount: 60n,
+    rewardId: `0x${"01".repeat(32)}`,
+    nonce: 1n,
+    deadline: 5_000n,
+    chainId: 1n,
+    verifyingContract: distributor.address.toString(),
+    ...overrides,
+  });
+  const rejected = async (attempt, label) => {
+    const result = await attempt;
+    assert.ok(result.execResult.exceptionError, label);
+  };
+
+  await rejected(
+    call(f.game, alice, "mintReward", [alice, 1n], 1_000n),
+    "an unconfigured direct mintReward caller is rejected",
+  );
+  await timelockCall(
+    f,
+    encodeFunctionData({
+      abi: f.game.abi,
+      functionName: "configureRewardDistributor",
+      args: [distributor.address.toString()],
+    }),
+    1_000n,
+    `0x${"10".repeat(32)}`,
+  );
+  await rejected(
+    call(f.game, alice, "mintReward", [alice, 1n], 1_061n),
+    "an EOA remains unable to call configured mintReward",
+  );
+  await configure(
+    "configureIssuer",
+    [issuer.address, 100n, 100n, 3_600n],
+    1_061n,
+    `0x${"11".repeat(32)}`,
+  );
+
+  for (const [bad, label] of [
+    [claim({ deadline: 1_120n }), "expired claims are rejected"],
+    [claim({ chainId: 2n }), "claims for another chain are rejected"],
+    [
+      claim({ verifyingContract: f.game.address.toString() }),
+      "claims for another verifying contract are rejected",
+    ],
+    [claim({ amount: 101n }), "per-claim cap is enforced"],
+  ]) {
+    await rejected(
+      call(distributor, bob, "claim", [bad, await sign(bad)], 1_122n),
+      label,
+    );
+  }
+  const signedForAlice = claim();
+  await rejected(
+    call(
+      distributor,
+      carol,
+      "claim",
+      [{ ...signedForAlice, recipient: bob }, await sign(signedForAlice)],
+      1_122n,
+    ),
+    "changing a signed recipient cannot redirect a mint",
+  );
+  assert.equal(await read(f.game, "balanceOf", [bob]), 0n);
+
+  ok(
+    await call(
+      distributor,
+      carol,
+      "claim",
+      [signedForAlice, await sign(signedForAlice)],
+      1_122n,
+    ),
+  );
+  const periodOverflow = claim({
+    amount: 50n,
+    rewardId: `0x${"02".repeat(32)}`,
+    nonce: 2n,
+  });
+  await rejected(
+    call(
+      distributor,
+      bob,
+      "claim",
+      [periodOverflow, await sign(periodOverflow)],
+      1_123n,
+    ),
+    "the cumulative period cap is enforced",
+  );
+
+  await configure("setClaimsPaused", [true], 1_200n, `0x${"12".repeat(32)}`);
+  const paused = claim({ rewardId: `0x${"03".repeat(32)}`, nonce: 3n });
+  await rejected(
+    call(distributor, bob, "claim", [paused, await sign(paused)], 1_261n),
+    "pause blocks distributor claims",
+  );
+  ok(await call(f.game, alice, "transfer", [bob, 10n], 1_261n));
+  assert.equal(await read(f.game, "balanceOf", [bob]), 10n);
+  await configure("setClaimsPaused", [false], 1_300n, `0x${"13".repeat(32)}`);
+  await configure("revokeIssuer", [], 1_400n, `0x${"14".repeat(32)}`);
+  const revoked = claim({ rewardId: `0x${"04".repeat(32)}`, nonce: 4n });
+  await rejected(
+    call(distributor, bob, "claim", [revoked, await sign(revoked)], 1_461n),
+    "issuer revocation blocks distributor claims",
+  );
+  ok(await call(f.game, bob, "transfer", [carol, 1n], 1_461n));
+
+  ok(await call(f.game, carol, "registerWallet", [], 2_000n));
+  await setGameplayGoldField(f, carol, 1n);
+  const beforeGameplayMints = await read(f.game, "totalSupply");
+  ok(await call(f.game, carol, "claim", [], 5_600n));
+  const afterFirstGameplayMint = await read(f.game, "totalSupply");
+  await setGameplayGoldField(f, carol, 1n);
+  ok(await call(f.game, carol, "claim", [], 9_200n));
+  assert.ok(afterFirstGameplayMint > beforeGameplayMints);
+  assert.ok(
+    (await read(f.game, "totalSupply")) > afterFirstGameplayMint,
+    "repeated deterministic claims grow supply without a global cap",
+  );
+});
+
+test("deterministic mint and gameplay burn preserve CGOLD balance and totalSupply accounting", async () => {
+  const f = await fixture();
+  ok(await call(f.game, alice, "registerWallet", [], 1_000n));
+  await setGameplayGoldField(f, alice, 24n);
+  ok(await call(f.game, alice, "claim", [], 4_600n));
+  const minted = await read(f.game, "balanceOf", [alice]);
+  assert.equal(await read(f.game, "totalSupply"), minted);
+  assert.ok(minted >= 24n * 10n ** 18n);
+  await setConstructionTestPlayer(f, alice, {
+    stored: { wood: 144n, clay: 176n, stone: 168n, gold: 0n },
+    buildings: constructionTestBuildings({
+      timber: 2n,
+      claypit: 2n,
+      quarry: 2n,
+      workshop: 1n,
+    }),
+  });
+  ok(await call(f.game, alice, "upgrade", [5], 8_200n));
+  assert.equal(
+    await read(f.game, "balanceOf", [alice]),
+    minted - 24n * 10n ** 18n,
+  );
+  assert.equal(
+    await read(f.game, "totalSupply"),
+    minted - 24n * 10n ** 18n,
+    "the executed gameplay burn decreases totalSupply by exactly the player balance decrease",
   );
 });
 
