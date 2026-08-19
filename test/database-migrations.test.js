@@ -47,6 +47,7 @@ test("the shipped migration files have a deterministic ascending order", async (
       ["002", "002_wallet_login_tickets.sql"],
       ["003", "003_wallet_login_tickets_login_id.sql"],
       ["004", "004_remove_wallet_login_tickets.sql"],
+      ["005", "005_wallet_auth_sessions.sql"],
     ],
   );
   assert.ok(loaded.every(({ checksum }) => /^[a-f0-9]{64}$/.test(checksum)));
@@ -201,6 +202,7 @@ test("schema readiness requires every expected version in order", async () => {
       { version: "002" },
       { version: "003" },
       { version: "004" },
+      { version: "005" },
     ]),
     true,
   );
@@ -221,7 +223,7 @@ test("schema readiness requires every expected version in order", async () => {
   );
   assert.match(query.sql, /^SELECT version FROM schema_migrations/);
   assert.match(query.sql, /ORDER BY version ASC$/);
-  assert.deepEqual(query.parameters, [["001", "002", "003", "004"]]);
+  assert.deepEqual(query.parameters, [["001", "002", "003", "004", "005"]]);
 });
 
 test("readyz preserves a schema check's false result", async () => {

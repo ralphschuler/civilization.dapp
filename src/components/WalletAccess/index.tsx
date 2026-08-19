@@ -35,6 +35,7 @@ type WalletAccessProps = {
 export type WalletAccessAttempt = () => Promise<string>;
 
 type AccessStatus = "idle" | "pending" | "success" | "cancelled" | "failure";
+type SessionState = "restoring" | "ready";
 
 function wasCancelled(error: unknown) {
   return (
@@ -70,6 +71,9 @@ export const WalletAccess = ({
   const [verifiedWalletAddress, setVerifiedWalletAddress] = useState<
     string | null
   >(null);
+  const [sessionState, setSessionState] = useState<SessionState>(() =>
+    attemptWalletAccess ? "ready" : "restoring",
+  );
   const [status, setStatus] = useState<AccessStatus>("idle");
   const attemptInFlight = useRef(false);
 
@@ -79,6 +83,32 @@ export const WalletAccess = ({
   useEffect(() => {
     document.documentElement.lang = localeLanguageTag(locale);
   }, [locale]);
+
+  useEffect(() => {
+    if (attemptWalletAccess) return;
+    let active = true;
+    void fetch("/api/wallet-auth/session", { cache: "no-store" })
+      .then(async (response) => {
+        const session = await response.json().catch(() => null);
+        if (
+          response.ok &&
+          session?.isValid === true &&
+          typeof session.address === "string"
+        ) {
+          return session.address;
+        }
+        return null;
+      })
+      .catch(() => null)
+      .then((address) => {
+        if (!active) return;
+        if (address) setWalletAddress(address);
+        setSessionState("ready");
+      });
+    return () => {
+      active = false;
+    };
+  }, [attemptWalletAccess]);
 
   const changeLocale = (nextLocale: CivilizationLocale) => {
     window.localStorage.setItem(CIVILIZATION_LOCALE_STORAGE_KEY, nextLocale);
@@ -135,6 +165,12 @@ export const WalletAccess = ({
         onLocaleChange={changeLocale}
       />
     );
+  }
+
+  // Keep the login gate out of the first paint until the server has checked
+  // the HttpOnly cookie; this avoids a login-to-game hydration flash.
+  if (sessionState === "restoring") {
+    return <main className="civilization-login" aria-busy="true" />;
   }
 
   const isPending = status === "pending";
