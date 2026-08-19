@@ -154,6 +154,15 @@ export const WalletAccess = ({
       attemptInFlight.current = false;
     }
   };
+  const handleLogout = async () => {
+    const response = await fetch("/api/wallet-auth/logout", { method: "POST" });
+    if (!response.ok) {
+      throw new Error("wallet_logout_failed");
+    }
+    setVerifiedWalletAddress(null);
+    setWalletAddress(null);
+    setStatus("idle");
+  };
   if (walletAddress) {
     return (
       <CivilizationClient
@@ -163,6 +172,7 @@ export const WalletAccess = ({
         worldTokenAddress={worldTokenAddress}
         locale={locale}
         onLocaleChange={changeLocale}
+        onLogout={handleLogout}
       />
     );
   }

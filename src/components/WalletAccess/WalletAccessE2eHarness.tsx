@@ -20,8 +20,21 @@ type Screen = "login" | "checking" | "gate" | "status-unavailable" | "game";
 
 const TEST_WALLET_ADDRESS = "0x0000000000000000000000000000000000000001";
 
-function E2eGameRoot() {
+function E2eGameRoot({
+  locale,
+  onLocaleChange,
+}: {
+  locale: WalletAccessLocale;
+  onLocaleChange: (locale: WalletAccessLocale) => void;
+}) {
   const root = useRef<HTMLDivElement>(null);
+  const localeRef = useRef(locale);
+  const onLocaleChangeRef = useRef(onLocaleChange);
+
+  useEffect(() => {
+    localeRef.current = locale;
+    onLocaleChangeRef.current = onLocaleChange;
+  }, [locale, onLocaleChange]);
 
   useEffect(() => {
     if (!root.current) return;
@@ -30,6 +43,9 @@ function E2eGameRoot() {
       runtimeMode: "demo",
       worldAppInstalled: false,
       worldAccessConfirmed: true,
+      worldWalletAddress: TEST_WALLET_ADDRESS,
+      locale: localeRef.current,
+      onLocaleChange: (nextLocale) => onLocaleChangeRef.current(nextLocale),
     });
     root.current.focus();
     return () => stopCivilizationApp();
@@ -147,7 +163,15 @@ export function WalletAccessE2eHarness() {
           locale={locale}
         />
       ) : null}
-      {screen === "game" ? <E2eGameRoot /> : null}
+      {screen === "game" ? (
+        <E2eGameRoot
+          locale={locale}
+          onLocaleChange={(nextLocale) => {
+            window.localStorage.setItem("civilization-locale", nextLocale);
+            setLocale(nextLocale);
+          }}
+        />
+      ) : null}
       <aside className="wallet-access-e2e-controls" aria-label="E2E controls">
         <label htmlFor="wallet-access-e2e-scenario">Test scenario</label>
         <select

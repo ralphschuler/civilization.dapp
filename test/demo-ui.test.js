@@ -184,11 +184,22 @@ test("shell rendering receives explicit state and no controller callbacks", () =
     resourceFormat: String,
     buildings,
     busy: false,
+    locale: "en-US",
+    copy: civilizationMessages("en-US"),
+    walletAddress: "0x0000000000000000000000000000000000000001",
+    settingsOpen: true,
+    reducedMotion: true,
   });
   assert.match(html, /data-panel="build"/);
   assert.match(html, /<p>panel<\/p>/);
   assert.match(html, /asset-loading/);
   assert.match(html, /id="gather"/);
+  assert.match(html, /data-open-settings[^>]*aria-haspopup="dialog"/);
+  assert.match(html, /role="dialog" aria-modal="true"/);
+  assert.match(html, /Connected wallet/);
+  assert.match(html, /0x0000000000000000000000000000000000000001/);
+  assert.match(html, /data-reduced-motion checked/);
+  assert.match(html, /motion-reduced/);
 });
 
 test("failed resource and building sprites retain visible accessible fallbacks", () => {
@@ -270,7 +281,7 @@ test("imperative shell uses the selected locale for navigation and dynamic claim
   });
   assert.match(html, /aria-label="Village actions"/);
   assert.match(html, /1,234\.5 collect/);
-  assert.match(html, /<option value="en-US" selected>English/);
+  assert.match(html, /data-open-settings[^>]*aria-label="Settings"/);
 });
 
 test("World market UI requires a live on-chain quote and exposes fee and liquidity", () => {

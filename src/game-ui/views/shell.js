@@ -173,6 +173,54 @@ function tabs(activePanel, copy) {
     .join("");
 }
 
+function settingsDialog({
+  copy,
+  locale,
+  walletAddress,
+  settingsOpen,
+  reducedMotion,
+}) {
+  if (!settingsOpen) return "";
+  return `
+    <div class="settings-backdrop" data-close-settings aria-hidden="true"></div>
+    <section class="settings-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-title" aria-describedby="settings-feedback">
+      <header class="settings-dialog__header">
+        <h2 id="settings-title">${copy.settingsTitle}</h2>
+        <button type="button" class="settings-dialog__close" data-close-settings aria-label="${copy.settingsClose}">×</button>
+      </header>
+      <div class="settings-dialog__body">
+        <section aria-labelledby="settings-language-title">
+          <h3 id="settings-language-title">${copy.language}</h3>
+          <label class="settings-field" for="civilization-locale">
+            <span>${copy.language}</span>
+            <select id="civilization-locale">
+              <option value="de-DE" ${locale === "de-DE" ? "selected" : ""}>${copy.german}</option>
+              <option value="en-US" ${locale === "en-US" ? "selected" : ""}>${copy.english}</option>
+            </select>
+          </label>
+        </section>
+        <section aria-labelledby="settings-account-title">
+          <h3 id="settings-account-title">${copy.account}</h3>
+          <p class="settings-wallet-label">${copy.connectedWallet}</p>
+          <code class="settings-wallet-address">${walletAddress || "—"}</code>
+          <button type="button" class="settings-secondary-action" data-copy-wallet>${copy.copyAddress}</button>
+        </section>
+        <section aria-labelledby="settings-motion-title">
+          <h3 id="settings-motion-title">${copy.motion}</h3>
+          <label class="settings-toggle">
+            <input type="checkbox" data-reduced-motion ${reducedMotion ? "checked" : ""}>
+            <span>${copy.motionDescription}</span>
+          </label>
+        </section>
+        <section aria-labelledby="settings-session-title">
+          <h3 id="settings-session-title">${copy.session}</h3>
+          <button type="button" class="settings-logout" data-logout>${copy.logout}</button>
+        </section>
+        <p id="settings-feedback" class="settings-feedback" role="status" aria-live="polite" data-copy-success="${copy.addressCopied}" data-copy-failure="${copy.addressCopyFailed}" data-logout-failure="${copy.logoutFailed}"></p>
+      </div>
+    </section>`;
+}
+
 export function gameShell(ctx) {
   ctx = { copy: civilizationMessages(), ...ctx };
   const {
@@ -197,6 +245,9 @@ export function gameShell(ctx) {
     locale,
     assetResult,
     assetsLoading,
+    walletAddress,
+    settingsOpen,
+    reducedMotion,
   } = ctx;
   const hud = Object.entries(resourceDefs)
     .map(([id, definition]) =>
@@ -227,7 +278,7 @@ export function gameShell(ctx) {
     .replaceAll(copy.build, copy.buildShort)
     .replaceAll(copy.army, copy.armyShort);
   return `
-    <section class="game-shell village-shell">
+    <section class="game-shell village-shell ${reducedMotion ? "motion-reduced" : ""}">
       <header class="hud village-hud">
         <div class="game-mark">
 <span>CD</span>
@@ -237,8 +288,8 @@ export function gameShell(ctx) {
 </div>
 </div>
         <div class="resource-hud">${hud}</div>
+        <button type="button" class="resource-settings" data-open-settings aria-haspopup="dialog" aria-label="${copy.settings}">⚙ <span>${copy.settings}</span></button>
         <span class="demo-badge ${worldApp.installed ? "is-world" : ""}">${worldBadge}</span>
-        <label class="game-locale"><span class="sr-only">${copy.language}</span><select id="civilization-locale" aria-label="${copy.language}"><option value="de-DE" ${locale === "de-DE" ? "selected" : ""}>${copy.german}</option><option value="en-US" ${locale === "en-US" ? "selected" : ""}>${copy.english}</option></select></label>
       </header>
       <main class="command-layout">
         <section class="village-map ${assetFailed(assetResult, CITY_MAPS.desktop) || assetFailed(assetResult, CITY_MAPS.mobile) ? "has-asset-error" : ""}" id="dorf" aria-label="${copy.interactiveMap}" data-asset-container>
@@ -284,5 +335,6 @@ ${collectionStock}
 <span>${runtimeMode === "demo" ? `${state.raids} Demo-Überfälle · Kein Wallet verbunden` : `Prestige ${state.prestigeCount} · World Chain`}</span>
 ${runtimeMode === "demo" ? `<button id="reset">${copy.demoReset}</button>` : ""}</footer>
       <nav class="mobile-hud" aria-label="${copy.quickAccess}">${mobileNavigation}</nav>
+      ${settingsDialog({ copy, locale, walletAddress, settingsOpen, reducedMotion })}
     </section>`;
 }

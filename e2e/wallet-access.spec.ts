@@ -81,6 +81,61 @@ test("native WalletAuth/SIWE seam reaches an already registered game on the same
   await expectNoSeriousAxe(page, "[data-testid='civilization-game-root']");
 });
 
+test("settings dialog traps focus, closes by Escape, and keeps motion preference locally", async ({
+  page,
+}) => {
+  await enterGame(page, "registered");
+  const settings = page.getByRole("button", { name: "Einstellungen" });
+  await settings.click();
+  const dialog = page.getByRole("dialog", { name: "Einstellungen" });
+  await expect(dialog).toBeVisible();
+  await expectNoSeriousAxe(page, ".settings-dialog");
+  await expect(dialog.getByRole("button", { name: "Schließen" })).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  await expect(dialog.getByRole("button", { name: "Abmelden" })).toBeFocused();
+  await dialog.getByRole("checkbox").check();
+  await expect(page.locator(".game-shell")).toHaveClass(/motion-reduced/);
+  await expect
+    .poll(() =>
+      page.evaluate(() => localStorage.getItem("civilization-reduced-motion")),
+    )
+    .toBe("true");
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(settings).toBeFocused();
+});
+
+test("settings stay within a narrow mobile viewport", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await enterGame(page, "registered");
+  await page.getByRole("button", { name: "Einstellungen" }).click();
+  await expectReachable(
+    page,
+    page.getByRole("dialog", { name: "Einstellungen" }),
+  );
+  expect(
+    await page
+      .locator("html")
+      .evaluate((node) => node.scrollWidth <= window.innerWidth),
+  ).toBe(true);
+});
+
+test("settings language persists without leaving the running game", async ({
+  page,
+}) => {
+  await enterGame(page, "registered");
+  const root = page.getByTestId("civilization-game-root");
+  await page.getByRole("button", { name: "Einstellungen" }).click();
+  await page.locator("#civilization-locale").selectOption("en-US");
+  await expect(page.getByRole("dialog", { name: "Settings" })).toBeVisible();
+  await expect(root.locator("#gather")).toBeVisible();
+  await expect
+    .poll(() =>
+      page.evaluate(() => localStorage.getItem("civilization-locale")),
+    )
+    .toBe("en-US");
+});
+
 test("an in-progress on-chain read cannot offer village creation", async ({
   page,
 }) => {
