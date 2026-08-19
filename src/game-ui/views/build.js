@@ -29,6 +29,12 @@ function pendingConstructionAction({
         const suffix = Number.isInteger(slot)
           ? ` data-construction-slot="${slot}"`
           : "";
+        const isLegacyFirstSlot =
+          slot === 0 || (!Number.isInteger(slot) && index === 0);
+        const boostId = isLegacyFirstSlot ? "boost-construction" : "";
+        const boostStatusId = isLegacyFirstSlot
+          ? "boost-construction-status"
+          : `boost-construction-status-${index}`;
         const action = seconds
           ? copy.constructionRunning
           : copy.completeUpgrade;
@@ -37,8 +43,8 @@ function pendingConstructionAction({
         <b data-construction-countdown${suffix}>${seconds ? clock(seconds) : copy.complete}</b>
         <small>${copy.constructionNote}</small>
         <button class="primary-action" data-complete-upgrade${suffix} ${seconds || busy ? "disabled" : ""}>${action}</button>
-        <button class="primary-action" data-boost-construction${suffix} aria-describedby="boost-construction-status-${index}" ${!boost.eligible ? "disabled" : ""}>${copy.boostConstruction}</button>
-        <small id="boost-construction-status-${index}" data-boost-construction-status${suffix}>${boostConstructionStatus(boost.reason, copy)}</small>
+        <button class="primary-action"${boostId ? ` id="${boostId}"` : ""} data-boost-construction${suffix} aria-describedby="${boostStatusId}" ${!boost.eligible ? "disabled" : ""}>${copy.boostConstruction}</button>
+        <small id="${boostStatusId}" data-boost-construction-status${suffix}>${boostConstructionStatus(boost.reason, copy)}</small>
       </div>`;
       })
       .join("")}

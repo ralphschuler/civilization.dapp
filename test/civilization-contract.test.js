@@ -220,7 +220,12 @@ async function fixture(
   shares = [5000, 5000],
 ) {
   await compile();
-  const vm = await createVM();
+  // This fixture uses unoptimized V2 bytecode and exercises proxy-state
+  // migration only; the release-optimized CivilizationGame runtime remains
+  // guarded separately below against EIP-170.
+  const vm = await createVM({
+    evmOpts: { allowUnlimitedContractSize: true },
+  });
   const v1 = await deploy(
     vm,
     artifact("contracts/src/CivilizationGame.sol", "CivilizationGame"),
