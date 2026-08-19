@@ -14,6 +14,7 @@ import {
 } from "./game.js";
 import { loadDemoState, saveDemoState } from "./demo/storage.js";
 import { MAX_BUILDING_LEVEL } from "./game-ui/constants.js";
+import { loadCriticalAssets } from "./game-ui/assets.js";
 import { clock, escapeHtml, remainingTime } from "./game-ui/helpers.js";
 import { buildPanel } from "./game-ui/views/build.js";
 import { armyPanel } from "./game-ui/views/army.js";
@@ -105,6 +106,8 @@ function createRuntime(options) {
       : civilizationMessages(options.locale).demoLocal,
     timer: null,
     visibilityHandler: null,
+    assetState: "loading",
+    assetResult: { failed: [] },
   };
 }
 
@@ -210,6 +213,7 @@ function createController(runtime) {
       busy: runtime.busy,
       locale: runtime.locale,
       copy: civilizationMessages(runtime.locale),
+      assetResult: runtime.assetResult,
       selectedBuilding: runtime.selectedBuilding,
       selectedOpponent: runtime.selectedOpponent,
       buildings: BUILDINGS,
@@ -317,6 +321,8 @@ function createController(runtime) {
       busy: runtime.busy,
       locale: runtime.locale,
       copy: civilizationMessages(runtime.locale),
+      assetResult: runtime.assetResult,
+      assetsLoading: runtime.assetState === "loading",
     });
     bindGameActions(runtime.root, actions);
     if (!runtime.state.construction?.pending) {
@@ -385,6 +391,12 @@ export function startCivilizationApp(options) {
   activeRuntime = runtime;
   const controller = createController(runtime);
   controller.render();
+  loadCriticalAssets().then((assetResult) => {
+    if (!isRuntimeCurrent(runtime)) return;
+    runtime.assetState = "ready";
+    runtime.assetResult = assetResult;
+    controller.render();
+  });
   if (runtime.mode === "world" && hasAccess(runtime)) {
     controller.refreshWorld();
   }

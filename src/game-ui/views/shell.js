@@ -42,6 +42,10 @@ export function runtimeGateView({
     </section>`;
 }
 
+function assetFailed(assetResult, src) {
+  return assetResult?.failed.includes(src);
+}
+
 function resourceHudItem({
   id,
   definition,
@@ -52,6 +56,7 @@ function resourceHudItem({
   production,
   resourceFormat,
   copy,
+  assetResult,
 }) {
   const label = copy.resourceNames[id] || definition.label;
   const exactValue = (amount) =>
@@ -85,8 +90,9 @@ function resourceHudItem({
     ? `<span>${copy.walletBalance}: ${exactValue(stored)}.</span>`
     : `<span role="progressbar" aria-label="${label}-${copy.storageAccessible}" aria-valuemin="0" aria-valuemax="${storageCapacity}" aria-valuenow="${stored}" aria-valuetext="${exactValue(stored)} ${copy.from} ${exactValue(storageCapacity)}"></span>`;
   return `
-    <div class="resource ${definition.color}" data-resource="${id}" role="group" aria-label="${label}">
-      <img src="${RESOURCE_ASSETS[id]}" alt="" aria-hidden="true">
+    <div class="resource ${definition.color} ${assetFailed(assetResult, RESOURCE_ASSETS[id]) ? "has-asset-error" : ""}" data-resource="${id}" data-asset-container role="group" aria-label="${label}">
+      <img src="${RESOURCE_ASSETS[id]}" alt="" aria-hidden="true" data-asset-fallback>
+      <span class="asset-icon-fallback" role="status">${copy.resourceAssetUnavailable(label)}</span>
       <span class="resource-values" aria-hidden="true">
         <small>${gold ? "CGOLD" : tokens[id].symbol} · ${gold ? copy.wallet : copy.storage}</small>
         <strong data-resource-value>${compactValue(stored)}</strong>
@@ -105,6 +111,7 @@ function collectionResources({
   displayState,
   resourceFormat,
   copy,
+  assetResult,
 }) {
   const resources = Object.entries(resourceDefs).map(([id, definition]) => {
     const value = Number.isFinite(displayState.unclaimed?.[id])
@@ -117,9 +124,10 @@ function collectionResources({
     <span class="collection-resources" aria-hidden="true">
       ${resources
         .map(
-          ({ id, value }) => `
-            <span class="collection-resource" data-collection-resource="${id}">
-              <img src="${RESOURCE_ASSETS[id]}" alt="" aria-hidden="true">
+          ({ id, label, value }) => `
+            <span class="collection-resource ${assetFailed(assetResult, RESOURCE_ASSETS[id]) ? "has-asset-error" : ""}" data-collection-resource="${id}" data-asset-container>
+              <img src="${RESOURCE_ASSETS[id]}" alt="" aria-hidden="true" data-asset-fallback>
+              <span class="asset-icon-fallback" role="status">${copy.resourceAssetUnavailable(label)}</span>
               <b data-collection-resource-value>${compactValue(value)}</b>
             </span>`,
         )
@@ -136,12 +144,14 @@ function collectionResources({
 }
 
 function buildingSpot(id, ctx) {
-  const { buildings, state, selectedBuilding, activePanel, copy } = ctx;
+  const { buildings, state, selectedBuilding, activePanel, copy, assetResult } =
+    ctx;
   const label = copy.buildingNames[id] || buildings[id].label;
   return `
-    <button class="map-building map-${id} ${selectedBuilding === id && activePanel === "build" ? "is-selected" : ""}"
-      data-map-building="${id}" data-map-anchor="bottom-center" style="${mapBuildingAnchorStyle(id)}" aria-label="${label}, ${copy.level} ${state.buildings[id]}">
-      <img src="${BUILDING_ASSETS[id]}" alt="">
+    <button class="map-building map-${id} ${selectedBuilding === id && activePanel === "build" ? "is-selected" : ""} ${assetFailed(assetResult, BUILDING_ASSETS[id]) ? "has-asset-error" : ""}"
+      data-map-building="${id}" data-map-anchor="bottom-center" style="${mapBuildingAnchorStyle(id)}" aria-label="${label}, ${copy.level} ${state.buildings[id]}" data-asset-container>
+      <img src="${BUILDING_ASSETS[id]}" alt="" data-asset-fallback>
+      <i class="asset-building-fallback" role="status">${copy.buildingAssetUnavailable(label)}</i>
       <span>
 <b>${label}</b>
 <small>LVL ${state.buildings[id]}</small>
@@ -185,6 +195,8 @@ export function gameShell(ctx) {
     busy,
     copy,
     locale,
+    assetResult,
+    assetsLoading,
   } = ctx;
   const hud = Object.entries(resourceDefs)
     .map(([id, definition]) =>
@@ -198,6 +210,7 @@ export function gameShell(ctx) {
         production,
         resourceFormat,
         copy,
+        assetResult,
       }),
     )
     .join("");
@@ -208,12 +221,13 @@ export function gameShell(ctx) {
     displayState,
     resourceFormat,
     copy,
+    assetResult,
   });
   const mobileNavigation = navigation
     .replaceAll(copy.build, copy.buildShort)
     .replaceAll(copy.army, copy.armyShort);
   return `
-    <section class="game-shell village-shell" style="--city-map-desktop:url('${CITY_MAPS.desktop}');--city-map-mobile:url('${CITY_MAPS.mobile}')">
+    <section class="game-shell village-shell">
       <header class="hud village-hud">
         <div class="game-mark">
 <span>CD</span>
@@ -227,7 +241,13 @@ export function gameShell(ctx) {
         <label class="game-locale"><span class="sr-only">${copy.language}</span><select id="civilization-locale" aria-label="${copy.language}"><option value="de-DE" ${locale === "de-DE" ? "selected" : ""}>${copy.german}</option><option value="en-US" ${locale === "en-US" ? "selected" : ""}>${copy.english}</option></select></label>
       </header>
       <main class="command-layout">
-        <section class="village-map" id="dorf" aria-label="${copy.interactiveMap}">
+        <section class="village-map ${assetFailed(assetResult, CITY_MAPS.desktop) || assetFailed(assetResult, CITY_MAPS.mobile) ? "has-asset-error" : ""}" id="dorf" aria-label="${copy.interactiveMap}" data-asset-container>
+          <picture class="village-map-terrain" aria-hidden="true">
+            <source media="(max-width: 640px)" srcset="${CITY_MAPS.mobile}">
+            <img src="${CITY_MAPS.desktop}" alt="" width="1672" height="941" fetchpriority="high" data-asset-fallback>
+          </picture>
+          <p class="asset-loading" role="status" ${assetsLoading ? "" : "hidden"}>${copy.assetsLoading}</p>
+          <p class="asset-fallback" role="status">${copy.mapAssetUnavailable}</p>
           <div class="map-head">
 <p>${copy.villageOf}</p>
 <h1>${copy.yourVillage}</h1>
@@ -241,8 +261,9 @@ ${collectionStock}
 </button>
           <div class="map-buildings">
             ${spots}
-            <button class="map-building map-market ${activePanel === "market" ? "is-selected" : ""}" data-panel="market" data-map-anchor="bottom-center" style="${mapBuildingAnchorStyle("market")}" aria-label="${copy.openMarket}">
-<img src="${BUILDING_ASSETS.market}" alt="">
+            <button class="map-building map-market ${activePanel === "market" ? "is-selected" : ""} ${assetFailed(assetResult, BUILDING_ASSETS.market) ? "has-asset-error" : ""}" data-panel="market" data-map-anchor="bottom-center" style="${mapBuildingAnchorStyle("market")}" aria-label="${copy.openMarket}" data-asset-container>
+<img src="${BUILDING_ASSETS.market}" alt="" data-asset-fallback>
+<i class="asset-building-fallback" role="status">${copy.buildingAssetUnavailable(copy.buildingNames.market)}</i>
 <span>
 <b>${copy.buildingNames.market}</b>
 <small>${runtimeMode === "world" ? "CGOLD" : "Demo-Markt"}</small>

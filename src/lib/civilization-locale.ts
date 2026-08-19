@@ -69,6 +69,14 @@ const copy = {
       "Eine bestätigte World Wallet ist für den Spielzugang erforderlich.",
     loadingState: "On-chain-Spielstand wird geladen.",
     chooseBuilding: "Wähle ein Gebäude auf dem Dorfplan.",
+    assetsLoading:
+      "Karte, Gebäude und Ressourcen werden geladen. Die Dorfsteuerung bleibt nutzbar.",
+    mapAssetUnavailable:
+      "Kartenbild nicht verfügbar. Die Dorfsteuerung bleibt nutzbar.",
+    buildingAssetUnavailable: (name: string) =>
+      `${name}-Symbol nicht verfügbar. Die Gebäudesteuerung bleibt nutzbar.`,
+    resourceAssetUnavailable: (name: string) =>
+      `${name}-Symbol nicht verfügbar.`,
     resourceNames: { wood: "Holz", clay: "Lehm", stone: "Stein", gold: "Gold" },
     buildingNames: {
       townhall: "Rathaus",
@@ -146,6 +154,13 @@ const copy = {
     accessDenied: "A confirmed World Wallet is required to access the game.",
     loadingState: "Loading on-chain game state.",
     chooseBuilding: "Choose a building on the village map.",
+    assetsLoading:
+      "Map, buildings, and resources are loading. Village controls remain available.",
+    mapAssetUnavailable:
+      "Map image unavailable. Village controls remain available.",
+    buildingAssetUnavailable: (name: string) =>
+      `${name} symbol unavailable. Building controls remain available.`,
+    resourceAssetUnavailable: (name: string) => `${name} symbol unavailable.`,
     resourceNames: { wood: "Wood", clay: "Clay", stone: "Stone", gold: "Gold" },
     buildingNames: {
       townhall: "Town hall",

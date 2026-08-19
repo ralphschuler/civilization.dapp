@@ -1025,13 +1025,53 @@ button {
 .village-map {
   min-height: 0;
   aspect-ratio: 1672/941;
-  background-color: #172516;
-  background-image:
-    linear-gradient(180deg, #06100614 35%, #0610067a 100%),
-    var(--city-map-desktop);
-  background-size: cover;
-  background-position: center;
+  background: #172516;
   box-shadow: 0 1.25rem 3rem #0007;
+}
+.village-map-terrain {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+.village-map:before {
+  z-index: 1;
+}
+.village-map:after {
+  z-index: 2;
+}
+.village-map-terrain img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.asset-loading,
+.asset-fallback {
+  position: absolute;
+  z-index: 6;
+  right: 1rem;
+  bottom: 1rem;
+  max-width: min(28rem, 75%);
+  margin: 0;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid #efd96d;
+  border-radius: 0.45rem;
+  background: #0b150ff0;
+  color: #fff3bf;
+  font-size: 0.68rem;
+}
+.asset-loading {
+  bottom: 3.75rem;
+}
+.asset-fallback {
+  display: none;
+}
+.village-map.has-asset-error .asset-fallback {
+  display: block;
 }
 .village-map:before {
   z-index: 0;
@@ -1100,6 +1140,59 @@ button {
   mix-blend-mode: multiply;
   filter: drop-shadow(0 0.4rem 0.2rem #1b110aaa);
 }
+.asset-icon-fallback,
+.asset-building-fallback {
+  display: none;
+  place-items: center;
+  border: 1px dashed #fff1a4;
+  border-radius: 0.35rem;
+  background: #172516;
+  color: transparent;
+  font-size: 0;
+}
+.asset-icon-fallback::before,
+.asset-building-fallback::before {
+  color: #fff1a4;
+  font-size: 0.82rem;
+  font-style: normal;
+  font-weight: 900;
+  content: "?";
+}
+.resource.has-asset-error > img,
+.collection-resource.has-asset-error > img,
+.map-building.has-asset-error > img {
+  display: none;
+}
+.resource.has-asset-error > .asset-icon-fallback {
+  display: grid;
+  grid-column: 1;
+  grid-row: 1/3;
+  width: 1.55rem;
+  height: 1.55rem;
+}
+.collection-resource.has-asset-error > .asset-icon-fallback {
+  display: grid;
+  width: 0.82rem;
+  height: 0.82rem;
+  flex: 0 0 auto;
+}
+.map-building.has-asset-error > .asset-building-fallback {
+  display: grid;
+  width: 100%;
+  aspect-ratio: 1.05;
+}
+.inspector-art.has-asset-error > img {
+  display: none;
+}
+.inspector-art.has-asset-error > .asset-building-fallback {
+  display: grid;
+  width: 100%;
+  height: 100%;
+}
+.map-building > img,
+.map-building > .asset-building-fallback {
+  grid-area: 1/1;
+}
 .map-building span {
   position: absolute;
   z-index: 2;
@@ -1135,9 +1228,6 @@ button {
 @media (max-width: 640px) {
   .village-map {
     aspect-ratio: 1;
-    background-image:
-      linear-gradient(180deg, #0610060d 40%, #06100670 100%),
-      var(--city-map-mobile);
   }
   .map-head {
     top: 1.1rem;

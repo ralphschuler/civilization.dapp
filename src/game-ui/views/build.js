@@ -131,6 +131,8 @@ export function buildPanel(context) {
     requirements,
     buildingCost,
     runtimeMode,
+    assetResult,
+    copy,
   } = context;
   const building = buildings[selectedBuilding];
   const level = state.buildings[selectedBuilding];
@@ -143,8 +145,9 @@ export function buildPanel(context) {
   const productionLine = nextProductionLine(context, building);
 
   return `<div class="inspector build-inspector">
-    <div class="inspector-art">
-      <img src="${BUILDING_ASSETS[selectedBuilding]}" alt="${building.label}">
+    <div class="inspector-art ${assetResult?.failed.includes(BUILDING_ASSETS[selectedBuilding]) ? "has-asset-error" : ""}" data-asset-container>
+      <img src="${BUILDING_ASSETS[selectedBuilding]}" alt="" data-asset-fallback>
+      <i class="asset-building-fallback" role="status">${copy?.buildingAssetUnavailable?.(building.label) || `${building.label}-Symbol nicht verfügbar.`}</i>
     </div>
     <div class="inspector-title">
       <p>GEBÄUDEDETAIL</p>

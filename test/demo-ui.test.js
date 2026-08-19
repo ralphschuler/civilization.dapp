@@ -14,6 +14,11 @@ import {
 } from "../src/demo/storage.js";
 import { BUILDING_IDS, STORAGE_KEY } from "../src/game-ui/constants.js";
 import {
+  CRITICAL_START_ASSETS,
+  loadCriticalAssets,
+  resetCriticalAssetCacheForTest,
+} from "../src/game-ui/assets.js";
+import {
   MAP_BUILDING_ANCHORS,
   mapBuildingAnchorStyle,
 } from "../src/game-ui/map-coordinates.js";
@@ -24,6 +29,51 @@ import { createWorldRuntime } from "../src/game-world-runtime.js";
 import { refreshGameTick } from "../src/game-tick.js";
 import { civilizationMessages } from "../src/lib/civilization-locale.ts";
 import { readFile } from "node:fs/promises";
+
+test("critical assets preload maps, buildings, and resources without blocking controls", async () => {
+  resetCriticalAssetCacheForTest();
+  const images = [];
+  const createImage = () => {
+    const image = { complete: false, naturalWidth: 0 };
+    images.push(image);
+    return image;
+  };
+  let settled = false;
+  const preload = loadCriticalAssets({ createImage });
+  const first = preload.then((result) => {
+    settled = true;
+    return result;
+  });
+  assert.equal(images.length, CRITICAL_START_ASSETS.length);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(
+    settled,
+    false,
+    "slow assets continue loading in the background",
+  );
+  images.forEach((image, index) => {
+    if (index === 0) image.onerror();
+    else image.onload();
+  });
+  const result = await first;
+  assert.deepEqual(result.failed, [CRITICAL_START_ASSETS[0]]);
+  assert.ok(
+    CRITICAL_START_ASSETS.some((src) => src.includes("/resources/wood.png")),
+    "resource sprites are part of the critical preload",
+  );
+
+  const reused = loadCriticalAssets({
+    createImage: () =>
+      assert.fail("cached preload must not create another image"),
+  });
+  assert.strictEqual(
+    reused,
+    preload,
+    "remounts reuse the same preload promise",
+  );
+  await reused;
+  resetCriticalAssetCacheForTest();
+});
 
 test("pure UI helpers format time, escape markup, and clamp elapsed time", () => {
   assert.equal(clock(65), "01:05");
@@ -137,6 +187,53 @@ test("shell rendering receives explicit state and no controller callbacks", () =
   });
   assert.match(html, /data-panel="build"/);
   assert.match(html, /<p>panel<\/p>/);
+  assert.match(html, /asset-loading/);
+  assert.match(html, /id="gather"/);
+});
+
+test("failed resource and building sprites retain visible accessible fallbacks", () => {
+  const state = {
+    resources: { wood: 1 },
+    unclaimed: { wood: 0 },
+    buildings: Object.fromEntries(BUILDING_IDS.map((id) => [id, 1])),
+    raids: 0,
+  };
+  const html = gameShell({
+    state,
+    runtimeMode: "demo",
+    worldApp: { installed: false },
+    worldBadge: "DEMO · LOKAL",
+    feedback: "bereit",
+    activePanel: "build",
+    selectedBuilding: "townhall",
+    panel: "",
+    production: { wood: 0 },
+    capacity: 100,
+    displayState: state,
+    collection: { locked: false, detail: "FELD" },
+    readyToClaim: 0,
+    resourceDefs: { wood: { color: "wood", label: "Holz" } },
+    tokens: { wood: { symbol: "HOLZ" } },
+    format: String,
+    resourceFormat: String,
+    buildings: Object.fromEntries(
+      BUILDING_IDS.map((id) => [id, { label: id }]),
+    ),
+    busy: false,
+    copy: civilizationMessages("de-DE"),
+    assetResult: {
+      failed: [
+        "/assets/village-v2/resources/wood.png",
+        "/assets/village-v2/buildings/townhall.png",
+      ],
+    },
+  });
+  assert.match(html, /resource wood has-asset-error/);
+  assert.match(html, /map-townhall[^>]*has-asset-error/);
+  assert.match(html, /Holz-Symbol nicht verfügbar/);
+  assert.match(html, /Rathaus-Symbol nicht verfügbar/);
+  assert.match(html, /role="status"/);
+  assert.match(html, /id="gather"/);
 });
 
 test("imperative shell uses the selected locale for navigation and dynamic claim values", () => {

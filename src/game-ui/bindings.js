@@ -1,4 +1,13 @@
 export function bindGameActions(root, actions) {
+  root
+    .querySelectorAll("[data-asset-fallback]")
+    .forEach((image) =>
+      image.addEventListener("error", () =>
+        image
+          .closest("[data-asset-container]")
+          ?.classList.add("has-asset-error"),
+      ),
+    );
   const on = (selector, callback) =>
     root.querySelector(selector)?.addEventListener("click", callback);
   const all = (selector, callback) =>
