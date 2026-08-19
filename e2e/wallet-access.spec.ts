@@ -18,10 +18,7 @@ async function expectNoSeriousAxe(page: Page, selector: string) {
 
 async function expectReachable(page: Page, target: Locator) {
   await expect(target).toBeVisible();
-  const box = await target.boundingBox();
-  expect(box).not.toBeNull();
-  expect(box!.x).toBeGreaterThanOrEqual(0);
-  expect(box!.x + box!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+  await expect(target).toBeInViewport({ ratio: 1 });
   expect(
     await page
       .locator("html")
