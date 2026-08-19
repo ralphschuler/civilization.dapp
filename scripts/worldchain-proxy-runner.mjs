@@ -715,7 +715,8 @@ export async function compileWorldchainArtifacts() {
         language: "Solidity",
         sources,
         settings: {
-          optimizer: { enabled: true, runs: 200 },
+          // Keep the upgrade implementation below the EIP-170 code-size limit.
+          optimizer: { enabled: true, runs: 10 },
           outputSelection: {
             "*": {
               "": ["ast"],

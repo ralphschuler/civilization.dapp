@@ -95,16 +95,20 @@ export function createGameActions(runtime, services) {
         copy().feedback.upgradeUnavailable,
       );
     },
-    completeUpgrade: () =>
+    completeUpgrade: (slot) =>
       requireAccess() &&
       performWorldAction(
         "complete_upgrade",
-        {},
+        Number.isInteger(slot) ? { slot } : {},
         copy().feedback.worldUpgradeComplete,
       ),
-    boost: () =>
+    boost: (slot) =>
       requireAccess() &&
-      performWorldAction("boost", { hours: 1 }, copy().feedback.worldBoost),
+      performWorldAction(
+        "boost",
+        Number.isInteger(slot) ? { hours: 1, slot } : { hours: 1 },
+        copy().feedback.worldBoost,
+      ),
     prestige: () =>
       requireAccess() &&
       performWorldAction("prestige", {}, copy().feedback.worldPrestige),

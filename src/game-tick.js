@@ -122,6 +122,35 @@ function updateRaidCountdown(root, state, busy, remainingTime, copy) {
 }
 
 function updateConstructionCountdown(root, state, busy, remainingTime, copy) {
+  if (
+    typeof root.querySelectorAll === "function" &&
+    state.constructions?.length
+  ) {
+    root.querySelectorAll("[data-construction-job]").forEach((job) => {
+      const slot = Number(job.dataset.constructionSlot);
+      const construction = state.constructions.find(
+        (item) => item.slot === slot,
+      );
+      if (!construction) return;
+      const seconds = remainingTime(construction.completesAt);
+      const countdown = job.querySelector("[data-construction-countdown]");
+      if (countdown)
+        countdown.textContent = seconds ? clock(seconds) : copy.complete;
+      const complete = job.querySelector("[data-complete-upgrade]");
+      if (complete) complete.disabled = seconds > 0 || busy;
+      const boost = job.querySelector("[data-boost-construction]");
+      const status = job.querySelector("[data-boost-construction-status]");
+      const eligibility = constructionBoostEligibility({
+        construction,
+        remainingSeconds: seconds,
+        busy,
+      });
+      if (boost) boost.disabled = !eligibility.eligible;
+      if (status)
+        status.textContent = boostConstructionStatus(eligibility.reason, copy);
+    });
+    return;
+  }
   const countdown = root.querySelector("[data-construction-countdown]");
   if (!countdown || !state.construction?.pending) {
     return;

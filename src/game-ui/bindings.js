@@ -19,6 +19,14 @@ export function bindGameActions(root, actions) {
   on("#gather", actions.gather);
   on("#complete-upgrade", actions.completeUpgrade);
   on("#boost-construction", actions.boost);
+  all("[data-complete-upgrade]", (event) => {
+    const value = event.currentTarget.dataset.constructionSlot;
+    actions.completeUpgrade(value === undefined ? undefined : Number(value));
+  });
+  all("[data-boost-construction]", (event) => {
+    const value = event.currentTarget.dataset.constructionSlot;
+    actions.boost(value === undefined ? undefined : Number(value));
+  });
   on("#prestige", actions.prestige);
   on("#pick-raid-contact", actions.pickOpponent);
   on("#resolve-raid", actions.resolveRaid);

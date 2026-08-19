@@ -130,6 +130,12 @@ contract CivilizationGame is Initializable {
         Building building;
         uint64 completesAt;
     }
+    /// @dev New jobs intentionally live outside Player.  Player is V1 proxy
+    /// storage and must never be widened: an existing V1 construction remains
+    /// readable and is counted as slot zero until it is completed.
+    struct ConstructionQueue {
+        Construction[3] jobs;
+    }
     struct Raid {
         address defender;
         uint64 arrivesAt;
@@ -189,10 +195,17 @@ contract CivilizationGame is Initializable {
         mapping(uint8 => uint256) priceWeiPerUnit;
         mapping(uint8 => uint256) inventory;
     }
+    /// @custom:storage-location erc7201:civilization.game.construction-queue.v2
+    struct ConstructionQueueStorage {
+        mapping(address => ConstructionQueue) queues;
+    }
     bytes32 private constant GAME_STORAGE_LOCATION =
         0xb9c5fb29a19a4c3e9d391dc26eaefcdaaec2a4fc6362d4bd27f1470fa2592b00;
     bytes32 private constant MARKET_STORAGE_LOCATION =
         0xcee92606729e5d492c2082be6bb48c8bd80e80fae11c8dd742ee28f82e210100;
+    // Separate ERC-7201 namespace: never changes the V1 Player layout.
+    bytes32 private constant CONSTRUCTION_QUEUE_STORAGE_LOCATION =
+        0x7df7cd2d39e6dc4e56d89fd1cb294d3b98e8c7d6075a0f280dc7ec5a2900b300;
     function _game() internal pure returns (GameStorage storage $) {
         assembly {
             $.slot := GAME_STORAGE_LOCATION
@@ -201,6 +214,15 @@ contract CivilizationGame is Initializable {
     function _market() internal pure returns (MarketStorage storage $) {
         assembly {
             $.slot := MARKET_STORAGE_LOCATION
+        }
+    }
+    function _constructionQueue()
+        internal
+        pure
+        returns (ConstructionQueueStorage storage $)
+    {
+        assembly {
+            $.slot := CONSTRUCTION_QUEUE_STORAGE_LOCATION
         }
     }
 
@@ -305,6 +327,8 @@ contract CivilizationGame is Initializable {
     error NothingToClaim();
     error BuildingMaxLevel();
     error ConstructionAlreadyPending(uint64 completesAt);
+    error ConstructionSlotsFull(uint8 capacity, uint8 occupied);
+    error InvalidConstructionSlot(uint8 slot);
     error NoConstructionPending();
     error ConstructionNotReady(uint64 completesAt);
     error PrestigeRequirementNotMet();
@@ -689,13 +713,18 @@ contract CivilizationGame is Initializable {
 
     function upgrade(Building building) external onlyRegistered {
         Player storage player = _game().players[msg.sender];
-        if (player.construction.pending)
-            revert ConstructionAlreadyPending(player.construction.completesAt);
         _accrue(player);
         if (_buildingLevel(player.buildings, building) >= MAX_BUILDING_LEVEL)
             revert BuildingMaxLevel();
         _requireBuildingRequirements(player.buildings, building);
         Resources memory price = _buildingCost(player.buildings, building);
+        uint8 capacity = _constructionSlotCapacity(player.buildings.workshop);
+        (uint8 slot, uint8 occupied) = _nextConstructionSlot(
+            msg.sender,
+            player
+        );
+        if (occupied >= capacity)
+            revert ConstructionSlotsFull(capacity, occupied);
         _spend(player, msg.sender, price);
         uint64 completesAt = uint64(
             block.timestamp +
@@ -704,35 +733,77 @@ contract CivilizationGame is Initializable {
                     _buildingLevel(player.buildings, building) + 1
                 )
         );
-        player.construction = Construction(true, building, completesAt);
+        if (slot == 0)
+            player.construction = Construction(true, building, completesAt);
+        else
+            _constructionQueue().queues[msg.sender].jobs[slot] = Construction(
+                true,
+                building,
+                completesAt
+            );
         emit UpgradeStarted(msg.sender, building, completesAt);
         _tryMonthlyPayout();
     }
 
     function completeUpgrade() external onlyRegistered {
         Player storage player = _game().players[msg.sender];
+        if (player.construction.pending) {
+            _completeLegacyConstruction(player);
+            return;
+        }
+        revert NoConstructionPending();
+    }
+
+    function completeUpgrade(uint8 slot) external onlyRegistered {
+        Player storage player = _game().players[msg.sender];
+        if (slot == 0) {
+            if (!player.construction.pending) revert NoConstructionPending();
+            _completeLegacyConstruction(player);
+        } else _completeConstructionJob(player, slot);
+    }
+
+    function _completeLegacyConstruction(Player storage player) internal {
         Construction memory construction = player.construction;
+        if (block.timestamp < construction.completesAt)
+            revert ConstructionNotReady(construction.completesAt);
+        (uint256 cappedEnd, uint256 newLevel) = _finishConstruction(
+            player,
+            construction
+        );
+        delete player.construction;
+        emit BuildingUpgraded(msg.sender, construction.building, newLevel);
+        _tryMonthlyPayout();
+    }
+
+    function _completeConstructionJob(
+        Player storage player,
+        uint8 slot
+    ) internal {
+        if (slot >= 3) revert InvalidConstructionSlot(slot);
+        Construction memory construction = _constructionQueue()
+            .queues[msg.sender]
+            .jobs[slot];
         if (!construction.pending) revert NoConstructionPending();
         if (block.timestamp < construction.completesAt)
             revert ConstructionNotReady(construction.completesAt);
-        uint256 cappedEnd = _accrueForCompletion(
+        (uint256 cappedEnd, uint256 newLevel) = _finishConstruction(
             player,
-            construction.completesAt
+            construction
         );
-        uint256 newLevel = _incrementBuilding(
-            player.buildings,
-            construction.building
-        );
-        delete player.construction;
-        _accrueUntil(player, cappedEnd);
-        // Completion is the one flow that may split an accrual interval around
-        // a level change.  Once its 24-hour allowance has been consumed, drop
-        // the remaining offline wall time instead of leaving it available to
-        // the next action as another capped interval.
-        if (cappedEnd < block.timestamp)
-            player.lastAccruedAt = uint64(block.timestamp);
+        delete _constructionQueue().queues[msg.sender].jobs[slot];
         emit BuildingUpgraded(msg.sender, construction.building, newLevel);
         _tryMonthlyPayout();
+    }
+
+    function _finishConstruction(
+        Player storage player,
+        Construction memory construction
+    ) internal returns (uint256 cappedEnd, uint256 newLevel) {
+        cappedEnd = _accrueForCompletion(player, construction.completesAt);
+        newLevel = _incrementBuilding(player.buildings, construction.building);
+        _accrueUntil(player, cappedEnd);
+        if (cappedEnd < block.timestamp)
+            player.lastAccruedAt = uint64(block.timestamp);
     }
 
     /// @notice Pays exactly one WLD per requested full hour to reduce pending construction time.
@@ -740,7 +811,31 @@ contract CivilizationGame is Initializable {
     function boostConstruction(uint256 hoursToBoost) external onlyRegistered {
         if (hoursToBoost == 0) revert InvalidAmount();
         Player storage player = _game().players[msg.sender];
-        Construction storage construction = player.construction;
+        _boostConstruction(player.construction, hoursToBoost);
+    }
+
+    function boostConstruction(
+        uint8 slot,
+        uint256 hoursToBoost
+    ) external onlyRegistered {
+        if (slot >= 3) revert InvalidConstructionSlot(slot);
+        if (hoursToBoost == 0) revert InvalidAmount();
+        if (slot == 0)
+            _boostConstruction(
+                _game().players[msg.sender].construction,
+                hoursToBoost
+            );
+        else
+            _boostConstruction(
+                _constructionQueue().queues[msg.sender].jobs[slot],
+                hoursToBoost
+            );
+    }
+
+    function _boostConstruction(
+        Construction storage construction,
+        uint256 hoursToBoost
+    ) internal {
         if (
             !construction.pending || block.timestamp >= construction.completesAt
         ) revert NoBoostableConstruction();
@@ -882,7 +977,7 @@ contract CivilizationGame is Initializable {
         Player storage player = _game().players[msg.sender];
         if (
             player.buildings.townhall != MAX_BUILDING_LEVEL ||
-            player.construction.pending
+            _activeConstructionCount(msg.sender, player) != 0
         ) revert PrestigeRequirementNotMet();
         player.prestigeCount += 1;
         player.lastAccruedAt = uint64(block.timestamp);
@@ -900,6 +995,22 @@ contract CivilizationGame is Initializable {
             _productionMultiplier(player.prestigeCount)
         );
         _tryMonthlyPayout();
+    }
+
+    /// @notice V2 job lookup; legacy V1 state remains in playerState.
+    function constructionJob(
+        address account,
+        uint8 slot
+    ) external view returns (uint256 packed) {
+        if (slot >= 3) revert InvalidConstructionSlot(slot);
+        Construction storage job =
+            slot == 0
+                ? _game().players[account].construction
+                : _constructionQueue().queues[account].jobs[slot];
+        return
+            (job.pending ? 1 : 0) |
+            (uint256(uint8(job.building)) << 8) |
+            (uint256(job.completesAt) << 16);
     }
 
     function playerState(
@@ -1269,6 +1380,10 @@ contract CivilizationGame is Initializable {
             base.stone = _ceilMul(base.stone, factor);
             base.gold = _ceilMul(base.gold, factor);
         }
+        // The first workshop unlocks construction capacity.  Its primary
+        // resource price and all requirements remain intact; only its CGOLD
+        // cost is waived.  Subsequent workshop levels use the normal curve.
+        if (building == Building.Workshop && level == 0) base.gold = 0;
         return base;
     }
 
@@ -1471,6 +1586,38 @@ contract CivilizationGame is Initializable {
         if (building == Building.Workshop) return b.workshop;
         if (building == Building.Goldmine) return b.goldmine;
         return b.barracks;
+    }
+
+    function _constructionSlotCapacity(
+        uint256 workshopLevel
+    ) internal pure returns (uint8) {
+        if (workshopLevel >= 21) return 3;
+        if (workshopLevel >= 11) return 2;
+        return 1;
+    }
+
+    function _activeConstructionCount(
+        address account,
+        Player storage player
+    ) internal view returns (uint8 count) {
+        if (player.construction.pending) ++count;
+        ConstructionQueue storage queue = _constructionQueue().queues[account];
+        for (uint8 slot; slot < 3; ++slot)
+            if (queue.jobs[slot].pending) ++count;
+    }
+
+    function _nextConstructionSlot(
+        address account,
+        Player storage player
+    ) internal view returns (uint8 first, uint8 count) {
+        if (player.construction.pending) ++count;
+        ConstructionQueue storage queue = _constructionQueue().queues[account];
+        first = player.construction.pending ? 3 : 0;
+        for (uint8 slot = 1; slot < 3; ++slot) {
+            if (queue.jobs[slot].pending) ++count;
+            else if (first == 3) first = slot;
+        }
+        if (first == 3) revert ConstructionSlotsFull(3, 3);
     }
     /// @dev Matches World ID's ByteHasher: Keccak output reduced to the SNARK field.
     function _hashToField(bytes memory value) private pure returns (uint256) {

@@ -36,6 +36,10 @@ export function getContractBuildingCost(state, id) {
       values[index] = Math.ceil((values[index] * definition.factor) / 100);
     }
   }
+  // Matches the on-chain bootstrap rule: workshop 0 -> 1 waives CGOLD only.
+  if (id === "workshop" && (state.buildings[id] || 0) === 0) {
+    values[3] = 0;
+  }
   return Object.fromEntries(
     ["wood", "clay", "stone", "gold"].map((resource, index) => [
       resource,

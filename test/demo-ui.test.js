@@ -856,6 +856,7 @@ test("boost UI is clickable at exactly one hour and explains guarded states", ()
         pending: true,
         buildingId: "timber",
         completesAt: 10_000_000,
+        slot: 0,
       },
       buildings: { timber: 1 },
     },
@@ -876,7 +877,11 @@ test("boost UI is clickable at exactly one hour and explains guarded states", ()
   });
   assert.match(
     valid,
-    /id="boost-construction" aria-describedby="boost-construction-status" >/,
+    /id="boost-construction"[^>]*data-boost-construction[^>]*data-construction-slot="0"[^>]*aria-describedby="boost-construction-status"/,
+  );
+  assert.match(
+    valid,
+    /id="boost-construction-status"[^>]*data-boost-construction-status[^>]*data-construction-slot="0"/,
   );
   assert.match(valid, /1 WLD reduziert die Bauzeit um genau 1 Stunde/);
 
