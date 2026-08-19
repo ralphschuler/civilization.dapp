@@ -41,6 +41,41 @@ const copy = {
     unavailable: "Civilization ist vorübergehend nicht verfügbar.",
     unavailableDetail:
       "Die sichere World-Chain-Konfiguration fehlt oder ist ungültig.",
+    login: {
+      action: "Mit World Wallet fortfahren",
+      pendingAction: "Wallet-Bestätigung wird geöffnet …",
+      successAction: "Wallet bestätigt",
+      retryAction: "Erneut versuchen",
+      pending: "Bestätige den Zugang sicher in deiner World App.",
+      success: "Deine Wallet wurde bestätigt. Civilization wird geöffnet …",
+      cancelled:
+        "Die Wallet-Bestätigung wurde abgebrochen. Du kannst es erneut versuchen.",
+      failure:
+        "Die Wallet-Bestätigung war nicht möglich. Bitte versuche es noch einmal.",
+    },
+    registration: {
+      heading: "Dein Dorf erstellen",
+      checkingHeading: "On-chain-Dorf wird geprüft",
+      unavailableHeading: "On-chain-Status nicht verfügbar",
+      action: "Dorf on-chain erstellen",
+      pendingAction: "Dorf wird erstellt …",
+      checkingAction: "On-chain-Status wird geprüft …",
+      retryCheckAction: "Status erneut prüfen",
+      checking:
+        "Der registrierte Dorfstatus deiner bestätigten Wallet wird on-chain geladen.",
+      unavailable:
+        "Der On-chain-Status konnte nicht gelesen werden. Prüfe deine Verbindung und versuche es erneut.",
+      ready:
+        "Deine Wallet ist bestätigt. Erstelle jetzt einmalig dein On-chain-Dorf.",
+      pending: "Registrierung wird in deiner World Wallet bestätigt …",
+      rejected:
+        "Die Registrierung wurde nicht bestätigt. Du kannst es erneut versuchen.",
+      loaded: "On-chain-Dorf geladen …",
+      checkingAgain: "Registrierungsstatus wird erneut geprüft …",
+      created: "Dorf erstellt. On-chain-Spielstand wird geladen …",
+      notConfirmed:
+        "Das Dorf wurde noch nicht bestätigt. Prüfe den Status und versuche es bei Bedarf erneut.",
+    },
     registrationPublic:
       "Die Registrierung ist öffentlich: Der Contract registriert nur die World Wallet, die diese Transaktion signiert. WalletAuth autorisiert den Contract nicht.",
     accessRequired: "Anmeldung erforderlich",
@@ -141,6 +176,37 @@ const copy = {
     unavailable: "Civilization is temporarily unavailable.",
     unavailableDetail:
       "The secure World Chain configuration is missing or invalid.",
+    login: {
+      action: "Continue with World Wallet",
+      pendingAction: "Opening wallet confirmation …",
+      successAction: "Wallet confirmed",
+      retryAction: "Try again",
+      pending: "Confirm access securely in your World App.",
+      success: "Your wallet is confirmed. Civilization is opening …",
+      cancelled: "Wallet confirmation was cancelled. You can try again.",
+      failure: "Wallet confirmation was unavailable. Please try again.",
+    },
+    registration: {
+      heading: "Create your village",
+      checkingHeading: "Checking your on-chain village",
+      unavailableHeading: "On-chain status unavailable",
+      action: "Create village on-chain",
+      pendingAction: "Creating village …",
+      checkingAction: "Checking on-chain status …",
+      retryCheckAction: "Check status again",
+      checking:
+        "Loading the registered village status for your confirmed wallet from the chain.",
+      unavailable:
+        "The on-chain status could not be read. Check your connection and try again.",
+      ready: "Your wallet is confirmed. Create your on-chain village once.",
+      pending: "Confirming registration in your World Wallet …",
+      rejected: "Registration was not confirmed. You can try again.",
+      loaded: "On-chain village loaded …",
+      checkingAgain: "Checking registration status again …",
+      created: "Village created. Loading on-chain game state …",
+      notConfirmed:
+        "The village was not confirmed. Check its status and try again if needed.",
+    },
     registrationPublic:
       "Registration is public: the contract only registers the World Wallet that signs this transaction. WalletAuth does not authorize the contract.",
     accessRequired: "Sign-in required",
@@ -207,6 +273,20 @@ const copy = {
 } as const;
 
 export type CivilizationMessages = (typeof copy)[CivilizationLocale];
+
+function assertCompleteCatalog() {
+  const englishKeys = Object.keys(copy["en-US"]).sort();
+  const germanKeys = Object.keys(copy["de-DE"]).sort();
+  if (englishKeys.join("\0") !== germanKeys.join("\0")) {
+    throw new Error(
+      "i18n_catalog_key_mismatch: de-DE and en-US must expose identical keys",
+    );
+  }
+}
+
+if (process.env.NODE_ENV !== "production") {
+  assertCompleteCatalog();
+}
 export function civilizationMessages(
   locale: CivilizationLocale = DEFAULT_CIVILIZATION_LOCALE,
 ): CivilizationMessages {
@@ -240,5 +320,16 @@ export function formatCivilizationDateTime(
   return new Intl.DateTimeFormat(locale, {
     dateStyle: "medium",
     timeStyle: "short",
+  }).format(value);
+}
+
+export function formatCivilizationCurrency(
+  value: number,
+  locale: CivilizationLocale,
+  currency: string,
+) {
+  return new Intl.NumberFormat(locale, {
+    style: "currency",
+    currency,
   }).format(value);
 }

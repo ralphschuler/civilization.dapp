@@ -58,23 +58,21 @@ const COMPACT_RESOURCE_UNITS = [
   { value: 1_000, suffix: "K" },
 ];
 
-const compactResourceNumber = new Intl.NumberFormat("de-DE", {
-  maximumFractionDigits: 1,
-  useGrouping: false,
-});
-
-const scientificResourceNumber = new Intl.NumberFormat("de-DE", {
-  maximumFractionDigits: 1,
-  notation: "scientific",
-  useGrouping: false,
-});
-
-export function compactResourceValue(value, fullFormat) {
+export function compactResourceValue(value, fullFormat, locale = "en-US") {
   if (!Number.isFinite(value)) {
     return fullFormat(0);
   }
 
   const absoluteValue = Math.abs(value);
+  const compactResourceNumber = new Intl.NumberFormat(locale, {
+    maximumFractionDigits: 1,
+    useGrouping: false,
+  });
+  const scientificResourceNumber = new Intl.NumberFormat(locale, {
+    maximumFractionDigits: 1,
+    notation: "scientific",
+    useGrouping: false,
+  });
   const unitIndex = COMPACT_RESOURCE_UNITS.findIndex(
     (unit) => absoluteValue >= unit.value,
   );

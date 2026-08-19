@@ -80,6 +80,7 @@ function ProductionCivilizationClient({
     walletAddress,
     contractAddress,
     worldTokenAddress,
+    locale,
   );
 
   useEffect(() => {

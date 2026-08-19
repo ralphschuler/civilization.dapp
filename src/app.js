@@ -90,7 +90,7 @@ function createRuntime(options) {
     selectedOpponent: null,
     selectedBuilding: "townhall",
     activePanel: "build",
-    locale: options.locale || "de-DE",
+    locale: options.locale || "en-US",
     onLocaleChange: options.onLocaleChange,
     onLogout: options.onLogout,
     settingsOpen: false,
@@ -404,6 +404,7 @@ function createController(runtime) {
       resourceFormat,
       remainingTime: remaining,
       copy: civilizationMessages(runtime.locale),
+      locale: runtime.locale,
     });
   };
   return { render, refreshWorld: world.refresh, refreshTickValues, actions };
