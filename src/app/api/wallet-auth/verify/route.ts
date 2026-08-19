@@ -2,6 +2,10 @@ import {
   readWalletAuthJson,
   verifyWalletAuthRequest,
 } from "@/lib/wallet-auth-verify-core";
+import {
+  walletAuthSessionCookie,
+  createWalletAuthSession,
+} from "@/lib/wallet-auth-session";
 import { runtimeConfiguration } from "@/lib/runtime-config";
 
 export const runtime = "nodejs";
@@ -45,9 +49,18 @@ export async function POST(request: Request) {
     if (result.kind === "malformed") return malformed();
     if (result.kind === "invalid_nonce") return invalidNonce();
     if (result.kind === "verification_failed") return verificationFailed();
+    const session = await createWalletAuthSession(result.address);
     return Response.json(
       { isValid: true, address: result.address },
-      { headers: noStoreHeaders },
+      {
+        headers: {
+          ...noStoreHeaders,
+          "Set-Cookie": walletAuthSessionCookie(
+            session.token,
+            session.expiresAt,
+          ),
+        },
+      },
     );
   } catch {
     return Response.json(

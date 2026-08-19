@@ -52,7 +52,7 @@ Run `pnpm db:migrate` after PostgreSQL is reachable and before starting the app.
 
 The Compose and TrueNAS templates run the same migration command as a one-shot service before the app starts. `/api/healthz` is a cheap liveness probe and never touches configuration or PostgreSQL. `/api/readyz` is the read-only readiness probe: it requires runtime configuration, a DB connection, and schema version `004`; an empty or old database returns HTTP 503 without creating tables.
 
-Production has no backend game-mutation API. UI reads `previewPlayerState`/`balanceOf` from deployed `CivilizationGame` and sends wallet registration, claim, construction, boost, training, prestige, and raid transactions through MiniKit. Backend provides WalletAuth/SIWE verification with one-time challenge storage. Health and readiness endpoints remain at `/api/healthz` and `/api/readyz`. See `docs/ADR-0046-auth-legacy-cleanup.md` for the retired paths and the isolated contract compatibility surface.
+Production has no backend game-mutation API. UI reads `previewPlayerState`/`balanceOf` from deployed `CivilizationGame` and sends wallet registration, claim, construction, boost, training, prestige, and raid transactions through MiniKit. Backend provides WalletAuth/SIWE verification with one-time challenge storage and a short-lived opaque, server-revocable session cookie; it stores only the checksum wallet address and token hash, never a signature or wallet secret. Health and readiness endpoints remain at `/api/healthz` and `/api/readyz`. See `docs/ADR-0046-auth-legacy-cleanup.md` for the retired paths and the isolated contract compatibility surface.
 
 ## World ID v3/v4 deployment
 

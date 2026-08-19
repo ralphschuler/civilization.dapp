@@ -29,9 +29,9 @@ function requireHttpsAuthUrl(authUrl) {
 }
 
 /**
- * Verifies precisely the native WalletAuth callback. This grants no
- * session or application authority; the injected verifier keeps its behavior
- * unit-testable without changing production verification.
+ * Verifies precisely the native WalletAuth callback. This grants no contract
+ * authority; the injected verifier keeps its behavior unit-testable without
+ * changing production verification.
  */
 export async function verifyWalletAuthPayload(
   payload,
