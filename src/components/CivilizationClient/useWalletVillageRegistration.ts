@@ -8,6 +8,10 @@ import {
   registerWalletWithMiniKit,
   worldGameClient,
 } from "@/world-game";
+import {
+  type WalletAccessLocale,
+  walletAccessMessages,
+} from "@/lib/wallet-access-locale";
 
 const RECEIPT_DEADLINE_MS = 60_000;
 
@@ -62,6 +66,7 @@ export function useWalletVillageRegistration(
   walletAddress: string,
   contractAddress: string,
   worldTokenAddress: string,
+  locale: WalletAccessLocale,
 ) {
   const registrationInFlight = useRef(false);
   const registrationCheckInFlight = useRef(false);
@@ -72,7 +77,11 @@ export function useWalletVillageRegistration(
   const [checking, setChecking] = useState(true);
   const [checkFailed, setCheckFailed] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [status, setStatus] = useState("On-chain-Dorf wird geprüft …");
+  const [status, setStatus] =
+    useState<keyof ReturnType<typeof walletAccessMessages>["registration"]>(
+      "checking",
+    );
+  const statusCopy = walletAccessMessages(locale).registration;
 
   const worldAdapter = useMemo(
     () =>
@@ -101,22 +110,18 @@ export function useWalletVillageRegistration(
     setChecking(true);
     setCheckFailed(false);
     setChecked(false);
-    setStatus("On-chain-Dorf wird geprüft …");
+    setStatus("checking");
     try {
       const state = await readRegistration();
       setChecked(true);
       setRegistered(state.registered);
-      setStatus(
-        state.registered
-          ? "On-chain-Dorf geladen …"
-          : "Deine Wallet ist bestätigt. Erstelle jetzt einmalig dein On-chain-Dorf.",
-      );
+      setStatus(state.registered ? "loaded" : "ready");
     } catch {
       // A failed RPC/configuration read is not evidence that the wallet is
       // unregistered, so keep registration unavailable until a later read.
       setRegistered(false);
       setCheckFailed(true);
-      setStatus("Der On-chain-Status konnte nicht gelesen werden.");
+      setStatus("unavailable");
     } finally {
       registrationCheckInFlight.current = false;
       setChecking(false);
@@ -139,7 +144,7 @@ export function useWalletVillageRegistration(
     }
     registrationInFlight.current = true;
     setBusy(true);
-    setStatus("Registrierungsstatus wird erneut geprüft …");
+    setStatus("rechecking");
     try {
       // registerWalletWithMiniKit always reads first, including every retry.
       const result = await registerWalletWithMiniKit({
@@ -153,17 +158,11 @@ export function useWalletVillageRegistration(
       });
       setChecked(true);
       setRegistered(true);
-      setStatus(
-        result.alreadyRegistered
-          ? "On-chain-Dorf geladen …"
-          : "Dorf erstellt. On-chain-Spielstand wird geladen …",
-      );
+      setStatus(result.alreadyRegistered ? "loaded" : "created");
     } catch {
       setRegistered(false);
       setChecked(true);
-      setStatus(
-        "Das Dorf wurde noch nicht bestätigt. Prüfe den Status und versuche es bei Bedarf erneut.",
-      );
+      setStatus("rejected");
     } finally {
       registrationInFlight.current = false;
       setBusy(false);
@@ -185,7 +184,7 @@ export function useWalletVillageRegistration(
     registered,
     retryRegistrationCheck,
     registerVillage,
-    status,
+    status: statusCopy[status],
     worldAdapter,
   };
 }

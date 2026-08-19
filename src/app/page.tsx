@@ -2,6 +2,7 @@ import { WalletAccess } from "@/components/WalletAccess";
 import { WalletAccessE2eHarness } from "@/components/WalletAccess/WalletAccessE2eHarness";
 import { runtimeConfiguration } from "@/lib/runtime-config";
 import { walletAccessE2eModeEnabled } from "@/lib/wallet-access-e2e-mode";
+import { civilizationMessages } from "@/lib/civilization-locale";
 
 export default function Home() {
   if (walletAccessE2eModeEnabled()) {
@@ -9,10 +10,13 @@ export default function Home() {
   }
   const configuration = runtimeConfiguration();
   if (!configuration.ready) {
+    // The server has no selected client locale. The documented German default
+    // is still sourced from the typed catalog rather than duplicated here.
+    const copy = civilizationMessages("de-DE");
     return (
       <main>
-        <h1>Civilization ist vorübergehend nicht verfügbar.</h1>
-        <p>Die sichere World-Chain-Konfiguration fehlt oder ist ungültig.</p>
+        <h1>{copy.unavailable}</h1>
+        <p>{copy.unavailableDetail}</p>
       </main>
     );
   }

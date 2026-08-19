@@ -5,6 +5,7 @@ import {
   type WalletAccessLocale,
   walletAccessMessages,
 } from "@/lib/wallet-access-locale";
+import { civilizationMessages } from "@/lib/civilization-locale";
 
 type WalletVillageRegistrationGateProps = {
   busy: boolean;
@@ -29,6 +30,7 @@ export function WalletVillageRegistrationGate({
 }: WalletVillageRegistrationGateProps) {
   const heading = useRef<HTMLHeadingElement>(null);
   const copy = walletAccessMessages(locale).registration;
+  const gameCopy = civilizationMessages(locale);
   const isRegistrationReady = checked && !checking && !checkFailed;
   const action = checkFailed
     ? copy.retryCheckAction
@@ -60,11 +62,7 @@ export function WalletVillageRegistrationGate({
         <h1 ref={heading} tabIndex={-1} data-testid="registration-gate-heading">
           {title}
         </h1>
-        <p>
-          Die Registrierung ist öffentlich: Der Contract registriert nur die
-          World Wallet, die diese Transaktion signiert. WalletAuth autorisiert
-          den Contract nicht.
-        </p>
+        <p>{gameCopy.registrationPublic}</p>
         <span role="status" aria-live="polite" aria-atomic="true">
           {statusMessage}
         </span>

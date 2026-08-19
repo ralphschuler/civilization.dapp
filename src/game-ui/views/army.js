@@ -1,5 +1,6 @@
 import { TROOP_ASSETS } from "../constants.js";
 import { costLine, requirementsLine } from "../helpers.js";
+import { civilizationMessages } from "../../lib/civilization-locale.ts";
 
 function troopCard({
   id,
@@ -10,6 +11,7 @@ function troopCard({
   format,
   troopRequirements,
   busy,
+  copy,
 }) {
   const requirements = troopRequirements(id);
   const affordable = Object.keys(resourceDefs).every(
@@ -22,13 +24,14 @@ function troopCard({
 <img src="${TROOP_ASSETS[id]}" alt="${troop.label}">
 <div>
 <b>${troop.label}</b>
-<small>Angriff ${troop.attack} · ${state.troops[id]} bereit</small>${details}</div>
+<small>${copy.attackAndReady(troop.attack, state.troops[id])}</small>${details}</div>
 <button data-train="${id}" ${requirements.length || !affordable || busy ? "disabled" : ""}>+1</button>
 </article>`;
 }
 
 export function armyPanel(context) {
-  const { state, troops } = context;
+  context = { copy: civilizationMessages("de-DE"), ...context };
+  const { state, troops, copy } = context;
   const cards = Object.entries(troops)
     .map(([id, troop]) => troopCard({ id, troop, ...context }))
     .join("");
@@ -39,9 +42,9 @@ export function armyPanel(context) {
 
   return `<div class="inspector army-inspector">
 <div class="inspector-title">
-<p>KASERNE</p>
-<h2>Armee ausbilden</h2>
-<span>${readyTroops} Einheiten bereit</span>
+<p>${copy.barracksTitle}</p>
+<h2>${copy.trainArmy}</h2>
+<span>${copy.unitsReady(readyTroops)}</span>
 </div>
 <div class="troop-list">${cards}</div>
 </div>`;

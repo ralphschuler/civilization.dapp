@@ -153,6 +153,12 @@ test("an unavailable on-chain read stays out of the registration flow and can be
   await enterGame(page, "status-unavailable");
   const heading = page.getByTestId("registration-gate-heading");
   await expect(heading).toHaveText("On-chain-Status nicht verfügbar");
+  await expect(page.getByRole("status")).toHaveText(
+    "Der On-chain-Status konnte nicht gelesen werden. Prüfe deine Verbindung und versuche es erneut.",
+  );
+  await expect(page.locator(".game-access-card > p").last()).toHaveText(
+    "Die Registrierung ist öffentlich: Der Contract registriert nur die World Wallet, die diese Transaktion signiert. WalletAuth autorisiert den Contract nicht.",
+  );
   await expect(gateAction(page)).toHaveText("Status erneut prüfen");
   await expect(gateAction(page)).toBeEnabled();
 
@@ -223,6 +229,19 @@ test("English is an explicit test locale with locale-specific formatting", async
     "Create your village",
   );
   await expect(gateAction(page)).toHaveText("Create village on-chain");
+
+  await page.reload();
+  await page.getByTestId("wallet-access-e2e-locale").selectOption("en-US");
+  await enterGame(page, "status-unavailable");
+  await expect(page.getByTestId("registration-gate-heading")).toHaveText(
+    "On-chain status unavailable",
+  );
+  await expect(page.getByRole("status")).toHaveText(
+    "The on-chain status could not be read. Check your connection and try again.",
+  );
+  await expect(page.locator(".game-access-card > p").last()).toHaveText(
+    "Registration is public: the contract only registers the World Wallet that signs this transaction. WalletAuth does not authorize the contract.",
+  );
 });
 
 test("reduced motion disables the animated registration surface", async ({

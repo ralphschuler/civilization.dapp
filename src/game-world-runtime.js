@@ -4,14 +4,14 @@ export function createWorldRuntime({
   render,
   errorText,
   hasAccess,
+  copy,
 }) {
   async function performAction(type, payload, successMessage) {
     if (!runtime.ready || !runtime.adapter || runtime.busy) return null;
 
     const token = runtime.token;
     runtime.busy = true;
-    runtime.feedback =
-      "Bestätige die World-Chain-Transaktion in deiner Wallet.";
+    runtime.feedback = copy().feedback.worldTransactionConfirmation;
     render();
 
     try {
@@ -21,7 +21,7 @@ export function createWorldRuntime({
       runtime.worldStateEpoch += 1;
       runtime.state = result.state;
       runtime.feedback = result.pending
-        ? "Transaktion eingereicht. Der Chain-Status wird weiter aktualisiert."
+        ? copy().feedback.worldTransactionPending
         : successMessage;
       return result;
     } catch (error) {
@@ -36,8 +36,7 @@ export function createWorldRuntime({
 
   async function resumePending(token) {
     runtime.busy = true;
-    runtime.feedback =
-      "Ausstehende Transaktion wird anhand ihres vorhandenen Hashes geprüft.";
+    runtime.feedback = copy().feedback.pendingTransactionChecking;
     render();
 
     try {
@@ -47,8 +46,8 @@ export function createWorldRuntime({
       runtime.worldStateEpoch += 1;
       runtime.state = result?.state || runtime.state;
       runtime.feedback = result?.pending
-        ? "Transaktion bleibt ausstehend. Der Chain-Status wird weiter aktualisiert."
-        : "Ausstehende Transaktion wurde bestätigt.";
+        ? copy().feedback.pendingTransactionStillPending
+        : copy().feedback.pendingTransactionConfirmed;
     } catch (error) {
       if (isCurrent(token)) runtime.feedback = errorText(error);
     } finally {
@@ -80,8 +79,7 @@ export function createWorldRuntime({
       runtime.ready = true;
       runtime.loading = false;
       if (!quiet) {
-        runtime.feedback =
-          "On-chain-Spielstand geladen. Aktionen werden direkt durch CivilizationGame geprüft.";
+        runtime.feedback = copy().feedback.worldStateLoaded;
       }
       render();
 

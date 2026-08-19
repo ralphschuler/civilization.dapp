@@ -26,10 +26,13 @@ const messages = {
       retryCheckAction: "Status erneut prüfen",
       checking:
         "Der registrierte Dorfstatus deiner bestätigten Wallet wird on-chain geladen.",
+      loaded: "On-chain-Dorf geladen …",
+      rechecking: "Registrierungsstatus wird erneut geprüft …",
       unavailable:
         "Der On-chain-Status konnte nicht gelesen werden. Prüfe deine Verbindung und versuche es erneut.",
       ready:
         "Deine Wallet ist bestätigt. Erstelle jetzt einmalig dein On-chain-Dorf.",
+      created: "Dorf erstellt. On-chain-Spielstand wird geladen …",
       pending: "Registrierung wird in deiner World Wallet bestätigt …",
       rejected:
         "Die Registrierung wurde nicht bestätigt. Du kannst es erneut versuchen.",
@@ -56,9 +59,12 @@ const messages = {
       retryCheckAction: "Check status again",
       checking:
         "Loading the registered village status for your confirmed wallet from the chain.",
+      loaded: "On-chain village loaded …",
+      rechecking: "Checking registration status again …",
       unavailable:
         "The on-chain status could not be read. Check your connection and try again.",
       ready: "Your wallet is confirmed. Create your on-chain village once.",
+      created: "Village created. Loading on-chain game state …",
       pending: "Confirming registration in your World Wallet …",
       rejected: "Registration was not confirmed. You can try again.",
     },

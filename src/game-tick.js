@@ -5,6 +5,7 @@ import {
 } from "./game-ui/helpers.js";
 import { boostConstructionStatus } from "./game-ui/boost-status.js";
 import { constructionBoostEligibility } from "./world-game/boost-eligibility.js";
+import { civilizationMessages } from "./lib/civilization-locale.ts";
 
 export function refreshGameTick({
   root,
@@ -16,13 +17,15 @@ export function refreshGameTick({
   collection,
   resourceFormat,
   remainingTime,
-  copy = { production: "Produktion", collect: "sammeln" },
+  locale = "de-DE",
+  copy = civilizationMessages("de-DE"),
 }) {
   const resourceIds = new Set([
     ...Object.keys(displayState.unclaimed ?? {}),
     ...Object.keys(production ?? {}),
   ]);
-  const compactValue = (value) => compactResourceValue(value, resourceFormat);
+  const compactValue = (value) =>
+    compactResourceValue(value, resourceFormat, locale);
   for (const id of resourceIds) {
     const rate = production?.[id];
     const fieldStock = Number.isFinite(displayState.unclaimed?.[id])
@@ -55,12 +58,16 @@ export function refreshGameTick({
       rate,
       mode,
       formatValue: compactValue,
+      dayUnit: copy.perDay,
+      secondUnit: copy.perSecond,
     });
     const accessibleProductionText = productionRateText({
       resourceId: id,
       rate,
       mode,
       formatValue: resourceFormat,
+      dayUnit: copy.perDay,
+      secondUnit: copy.perSecond,
     });
     const hasProduction = productionText !== "";
     if (productionNode) productionNode.hidden = !hasProduction;
@@ -94,11 +101,11 @@ export function refreshGameTick({
       collection.detail;
   }
 
-  updateRaidCountdown(root, state, busy, remainingTime);
-  updateConstructionCountdown(root, state, busy, remainingTime);
+  updateRaidCountdown(root, state, busy, remainingTime, copy);
+  updateConstructionCountdown(root, state, busy, remainingTime, copy);
 }
 
-function updateRaidCountdown(root, state, busy, remainingTime) {
+function updateRaidCountdown(root, state, busy, remainingTime, copy) {
   const countdown = root.querySelector("[data-raid-countdown]");
   if (!countdown || !state.pendingRaid) {
     return;
@@ -111,23 +118,25 @@ function updateRaidCountdown(root, state, busy, remainingTime) {
     return;
   }
   resolve.disabled = seconds > 0 || busy;
-  resolve.textContent = seconds ? "Marsch läuft" : "Schlacht auswerten";
+  resolve.textContent = seconds ? copy.constructionRunning : copy.resolveBattle;
 }
 
-function updateConstructionCountdown(root, state, busy, remainingTime) {
+function updateConstructionCountdown(root, state, busy, remainingTime, copy) {
   const countdown = root.querySelector("[data-construction-countdown]");
   if (!countdown || !state.construction?.pending) {
     return;
   }
 
   const seconds = remainingTime(state.construction.completesAt);
-  countdown.textContent = seconds ? clock(seconds) : "Fertig";
+  countdown.textContent = seconds ? clock(seconds) : copy.complete;
   const complete = root.querySelector("#complete-upgrade");
   const boost = root.querySelector("#boost-construction");
   const boostStatus = root.querySelector("[data-boost-construction-status]");
   if (complete) {
     complete.disabled = seconds > 0 || busy;
-    complete.textContent = seconds ? "Bau läuft" : "Ausbau abschließen";
+    complete.textContent = seconds
+      ? copy.constructionRunning
+      : copy.completeUpgrade;
   }
   if (boost) {
     const eligibility = constructionBoostEligibility({
@@ -137,7 +146,10 @@ function updateConstructionCountdown(root, state, busy, remainingTime) {
     });
     boost.disabled = !eligibility.eligible;
     if (boostStatus) {
-      boostStatus.textContent = boostConstructionStatus(eligibility.reason);
+      boostStatus.textContent = boostConstructionStatus(
+        eligibility.reason,
+        copy,
+      );
     }
   }
 }

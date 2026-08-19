@@ -25,7 +25,11 @@ import {
 import { gameShell } from "../src/game-ui/views/shell.js";
 import { buildPanel } from "../src/game-ui/views/build.js";
 import { marketPanel } from "../src/game-ui/views/market.js";
+import { armyPanel } from "../src/game-ui/views/army.js";
+import { raidPanel } from "../src/game-ui/views/raid.js";
 import { createWorldRuntime } from "../src/game-world-runtime.js";
+import { createGameActions } from "../src/game-actions.js";
+import { createInitialState } from "../src/game.js";
 import { refreshGameTick } from "../src/game-tick.js";
 import { civilizationMessages } from "../src/lib/civilization-locale.ts";
 import { readFile } from "node:fs/promises";
@@ -316,6 +320,90 @@ test("World market UI requires a live on-chain quote and exposes fee and liquidi
   assert.match(quoted, /Kaufen \(max\. Quote\)/);
 });
 
+test("all imperative game panels render catalog copy for German and English", () => {
+  const state = {
+    resources: { wood: 100, clay: 100, stone: 100, gold: 10 },
+    buildings: { townhall: 1, barracks: 1 },
+    troops: { spear: 2 },
+    targets: [],
+    raids: 0,
+    lastRaid: null,
+  };
+  const panelContext = (locale) => ({
+    state,
+    runtimeMode: "demo",
+    busy: false,
+    copy: civilizationMessages(locale),
+    selectedBuilding: "townhall",
+    buildings: {
+      townhall: {
+        label: civilizationMessages(locale).buildingNames.townhall,
+        detail: civilizationMessages(locale).buildingDetails.townhall,
+      },
+    },
+    troops: {
+      spear: {
+        label: civilizationMessages(locale).troopNames.spear,
+        attack: 10,
+        cost: { wood: 1 },
+      },
+    },
+    resourceDefs: {
+      wood: {
+        label: civilizationMessages(locale).resourceNames.wood,
+        color: "wood",
+      },
+    },
+    tokens: {
+      wood: {
+        name: civilizationMessages(locale).resourceNames.wood,
+        symbol: "WOOD",
+        externalSettlement: false,
+      },
+    },
+    format: (value) => new Intl.NumberFormat(locale).format(value),
+    remainingTime: () => 0,
+    requirements: () => [],
+    buildingCost: () => ({ wood: 1 }),
+    buildDuration: () => 0,
+    nextBuildingProduction: () => ({}),
+    troopRequirements: () => [],
+  });
+  const german = panelContext("de-DE");
+  const english = panelContext("en-US");
+  assert.match(buildPanel(german), /GEBÄUDEDETAIL/);
+  assert.match(buildPanel(english), /BUILDING DETAILS/);
+  assert.match(armyPanel(german), /Armee ausbilden/);
+  assert.match(armyPanel(english), /Train army/);
+  assert.match(raidPanel(german), /Marsch planen/);
+  assert.match(raidPanel(english), /Plan march/);
+  assert.match(marketPanel(german), /Rohstoffe handeln/);
+  assert.match(marketPanel(english), /Trade resources/);
+});
+
+test("English panel values use English number formatting", () => {
+  const copy = civilizationMessages("en-US");
+  const html = marketPanel({
+    runtimeMode: "world",
+    tokens: {},
+    busy: false,
+    copy,
+    marketQuote: {
+      resource: "wood",
+      amount: 1234.5,
+      buyGoldIn: 203n,
+      buyFee: 3n,
+      sellGoldOut: 197n,
+      sellFee: 3n,
+      inventory: 9n,
+      reserve: 500n,
+      deadline: 1234,
+    },
+  });
+  assert.match(html, /Quote for 1234\.5 Wood/);
+  assert.equal(compactResourceValue(1_250, String, "en-US"), "1.3K");
+});
+
 test("map buildings use normalized bottom-centre anchors across renders and atlases", async () => {
   const ids = [...BUILDING_IDS, "market"];
   assert.deepEqual(Object.keys(MAP_BUILDING_ANCHORS), ids);
@@ -544,6 +632,93 @@ test("app lifecycle owns timer setup and teardown while bindings live outside ma
   assert.match(bindings, /export function bindGameActions/);
 });
 
+test("game action feedback follows the active locale and formats dynamic values", () => {
+  const originalStorage = globalThis.localStorage;
+  globalThis.localStorage = { setItem: () => {} };
+  const runtime = {
+    mode: "demo",
+    state: createInitialState(),
+    selectedBuilding: "townhall",
+    activePanel: "build",
+  };
+  let locale = "de-DE";
+  const actions = createGameActions(runtime, {
+    render: () => {},
+    requireAccess: () => true,
+    performWorldAction: () => {},
+    errorText: String,
+    isCurrent: () => true,
+    copy: () => civilizationMessages(locale),
+    buildingLabel: () => civilizationMessages(locale).buildingNames.townhall,
+    resourceDefs: () => ({
+      wood: {
+        color: "wood",
+        short: civilizationMessages(locale).resourceNames.wood.toUpperCase(),
+      },
+    }),
+    numberFormat: (value) => new Intl.NumberFormat(locale).format(value),
+  });
+  try {
+    actions.selectBuilding("townhall");
+    assert.equal(runtime.feedback, "Rathaus ausgewählt.");
+    runtime.state.buildings.warehouse = 3;
+    runtime.state.unclaimed = { wood: 1234 };
+    actions.gather();
+    assert.match(runtime.feedback, /1\.205 HOLZ/);
+    locale = "en-US";
+    runtime.selectedBuilding = "townhall";
+    actions.selectBuilding("townhall");
+    assert.equal(runtime.feedback, "Town hall selected.");
+    runtime.state = createInitialState();
+    runtime.state.buildings.warehouse = 3;
+    runtime.state.unclaimed = { wood: 1234 };
+    runtime.state.gatherAvailableAt = 0;
+    actions.gather();
+    assert.match(runtime.feedback, /1,205 WOOD/);
+    assert.equal(
+      civilizationMessages("de-DE").feedback.demoClaim("1.234 Holz"),
+      "Im Speicher gesichert: 1.234 Holz. Nächste Sammlung in 01:00.",
+    );
+    assert.equal(
+      civilizationMessages("en-US").feedback.demoClaim("1,234 Wood"),
+      "Secured in storage: 1,234 Wood. Next collection in 01:00.",
+    );
+  } finally {
+    globalThis.localStorage = originalStorage;
+  }
+});
+
+test("World runtime feedback uses localized pending and completion messages", async () => {
+  for (const [locale, pending, complete] of [
+    [
+      "de-DE",
+      "Bestätige die World-Chain-Transaktion in deiner Wallet.",
+      "Erledigt.",
+    ],
+    ["en-US", "Confirm the World Chain transaction in your wallet.", "Done."],
+  ]) {
+    const runtime = {
+      token: Symbol(locale),
+      mode: "world",
+      ready: true,
+      busy: false,
+      adapter: { execute: async () => ({ state: {}, pending: false }) },
+    };
+    const feedback = [];
+    const world = createWorldRuntime({
+      runtime,
+      isCurrent: () => true,
+      render: () => feedback.push(runtime.feedback),
+      errorText: String,
+      hasAccess: () => true,
+      copy: () => civilizationMessages(locale),
+    });
+    await world.performAction("claim", {}, complete);
+    assert.equal(feedback[0], pending);
+    assert.equal(runtime.feedback, complete);
+  }
+});
+
 test("a stale World read cannot overwrite a post-receipt state", async () => {
   let resolveRead;
   const runtime = {
@@ -569,6 +744,7 @@ test("a stale World read cannot overwrite a post-receipt state", async () => {
     render: () => {},
     errorText: String,
     hasAccess: () => true,
+    copy: () => civilizationMessages("de-DE"),
   });
   const refresh = world.refresh();
   await world.performAction("claim", {}, "fertig");
@@ -598,6 +774,7 @@ test("old mount callbacks cannot update the replacement runtime", async () => {
     render: () => assert.fail("stale callback rendered"),
     errorText: String,
     hasAccess: () => true,
+    copy: () => civilizationMessages("de-DE"),
   });
   world.requestBuildDuration("townhall", 2, 30);
   current = false;

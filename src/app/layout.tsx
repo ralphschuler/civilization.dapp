@@ -1,5 +1,6 @@
 import { runtimeConfiguration } from "@/lib/runtime-config";
 import { miniKitProviderConfiguration } from "@/lib/minikit-configuration";
+import { civilizationMessages } from "@/lib/civilization-locale";
 import ClientProviders from "@/providers";
 import type { Metadata } from "next";
 import { connection } from "next/server";
@@ -18,7 +19,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Civilization DApp",
-  description: "Civilization für World App",
+  description: civilizationMessages("de-DE").metadataDescription,
 };
 
 export default async function RootLayout({

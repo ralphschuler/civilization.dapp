@@ -36,37 +36,10 @@ import {
 
 let activeRuntime = null;
 
-function errorText(error) {
+function errorText(error, locale) {
   const reason = error instanceof Error ? error.message : "transaction_failed";
-  return (
-    {
-      user_rejected: "Transaktion abgebrochen.",
-      contact_not_selected: "Kein World-Kontakt ausgewählt.",
-      target_not_registered:
-        "Dieses Wallet ist noch nicht für Civilization registriert.",
-      self_raid: "Du kannst dein eigenes Dorf nicht angreifen.",
-      world_app_wallet_required:
-        "Diese Aktion muss direkt in World App bestätigt werden.",
-      transaction_wallet_mismatch:
-        "Wallet und angemeldete World-Adresse stimmen nicht überein.",
-      world_market_unavailable:
-        "Der aktuelle Contract bietet keinen Rohstoff-Swap.",
-      receipt_timeout:
-        "Transaktion eingereicht. Chain-Bestätigung steht noch aus.",
-      claim_not_available:
-        "Noch keine übertragbaren ganzen Ressourcen: Abklingzeit, Feldbestand und Speicher werden erneut geprüft.",
-      transaction_pending:
-        "Eine andere Transaktion wartet noch auf Chain-Bestätigung.",
-      no_boostable_construction:
-        "Es gibt keinen laufenden Bauauftrag zum Boosten.",
-      construction_complete:
-        "Der Bau ist bereits fertig und kann abgeschlossen werden.",
-      less_than_one_hour:
-        "Ein Boost ist erst ab mindestens 1 Stunde verbleibender Bauzeit möglich.",
-      construction_time_unavailable:
-        "Die verbleibende Bauzeit konnte nicht zuverlässig geprüft werden.",
-    }[reason] || `World-Chain-Aktion fehlgeschlagen: ${reason}.`
-  );
+  const errors = civilizationMessages(locale).actionErrors;
+  return errors[reason] || errors.default(reason);
 }
 
 function createRuntime(options) {
@@ -108,7 +81,7 @@ function createRuntime(options) {
       ? Boolean(options.worldAccessConfirmed)
       : true,
     worldBadge: installed
-      ? `WORLD APP${walletAddress ? ` · ${walletAddress.slice(0, 6)}…${walletAddress.slice(-4)}` : " · VERBUNDEN"}`
+      ? `${civilizationMessages(options.locale).worldAppBadge}${walletAddress ? ` · ${walletAddress.slice(0, 6)}…${walletAddress.slice(-4)}` : ` · ${civilizationMessages(options.locale).worldAppConnected}`}`
       : civilizationMessages(options.locale).demoLocal,
     timer: null,
     visibilityHandler: null,
@@ -222,12 +195,51 @@ function createController(runtime) {
       assetResult: runtime.assetResult,
       selectedBuilding: runtime.selectedBuilding,
       selectedOpponent: runtime.selectedOpponent,
-      buildings: BUILDINGS,
-      troops: TROOPS,
-      resourceDefs: RESOURCE_DEFS,
-      tokens: TOKEN_REGISTRY,
+      buildings: Object.fromEntries(
+        Object.entries(BUILDINGS).map(([id, building]) => [
+          id,
+          {
+            ...building,
+            label: civilizationMessages(runtime.locale).buildingNames[id],
+            detail: civilizationMessages(runtime.locale).buildingDetails[id],
+          },
+        ]),
+      ),
+      troops: Object.fromEntries(
+        Object.entries(TROOPS).map(([id, troop]) => [
+          id,
+          {
+            ...troop,
+            label: civilizationMessages(runtime.locale).troopNames[id],
+          },
+        ]),
+      ),
+      resourceDefs: Object.fromEntries(
+        Object.entries(RESOURCE_DEFS).map(([id, resource]) => [
+          id,
+          {
+            ...resource,
+            label: civilizationMessages(runtime.locale).resourceNames[id],
+            short: civilizationMessages(runtime.locale).resourceNames[
+              id
+            ].toUpperCase(),
+          },
+        ]),
+      ),
+      tokens: Object.fromEntries(
+        Object.entries(TOKEN_REGISTRY).map(([id, token]) => [
+          id,
+          {
+            ...token,
+            name:
+              id === "gold"
+                ? token.name
+                : civilizationMessages(runtime.locale).resourceNames[id],
+          },
+        ]),
+      ),
       marketQuote: runtime.marketQuote,
-      format,
+      format: resourceFormat,
       remainingTime: remaining,
       buildDuration: (id, level) => runtime.durations.get(`${id}:${level}`),
       requirements: (id) =>
@@ -327,6 +339,7 @@ function createController(runtime) {
       busy: runtime.busy,
       locale: runtime.locale,
       copy: civilizationMessages(runtime.locale),
+      locale: runtime.locale,
       assetResult: runtime.assetResult,
       assetsLoading: runtime.assetState === "loading",
       walletAddress: runtime.walletAddress,
@@ -346,7 +359,8 @@ function createController(runtime) {
     runtime,
     isCurrent,
     render,
-    errorText,
+    errorText: (error) => errorText(error, runtime.locale),
+    copy: () => civilizationMessages(runtime.locale),
     hasAccess: () => hasAccess(runtime),
   });
   const actions = createGameActions(runtime, {
@@ -354,12 +368,32 @@ function createController(runtime) {
     requireAccess,
     performWorldAction: world.performAction,
     refreshWorld: world.refresh,
-    errorText,
+    errorText: (error) => errorText(error, runtime.locale),
+    copy: () => civilizationMessages(runtime.locale),
     isCurrent,
     buildings: BUILDINGS,
+    buildingLabel: (id) =>
+      civilizationMessages(runtime.locale).buildingNames[id],
+    resourceDefs: () =>
+      Object.fromEntries(
+        Object.entries(RESOURCE_DEFS).map(([id, resource]) => [
+          id,
+          {
+            ...resource,
+            short: civilizationMessages(runtime.locale).resourceNames[
+              id
+            ].toUpperCase(),
+          },
+        ]),
+      ),
+    numberFormat: resourceFormat,
     changeLocale: (locale) => {
       if (locale !== "de-DE" && locale !== "en-US") return;
       runtime.locale = locale;
+      const copy = civilizationMessages(locale);
+      runtime.worldBadge = runtime.worldApp.installed
+        ? `${copy.worldAppBadge}${runtime.walletAddress ? ` · ${runtime.walletAddress.slice(0, 6)}…${runtime.walletAddress.slice(-4)}` : ` · ${copy.worldAppConnected}`}`
+        : copy.demoLocal;
       runtime.onLocaleChange?.(locale);
       render();
     },
@@ -404,6 +438,7 @@ function createController(runtime) {
       resourceFormat,
       remainingTime: remaining,
       copy: civilizationMessages(runtime.locale),
+      locale: runtime.locale,
     });
   };
   return { render, refreshWorld: world.refresh, refreshTickValues, actions };
