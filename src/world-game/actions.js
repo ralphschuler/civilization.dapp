@@ -69,7 +69,10 @@ export function encodeWorldGameAction(
         game,
         encodeFunctionData({
           abi: CIVILIZATION_GAME_ABI,
-          functionName: "completeUpgrade",
+          functionName: Number.isInteger(payload.slot)
+            ? "completeUpgrade"
+            : "completeUpgrade",
+          args: Number.isInteger(payload.slot) ? [payload.slot] : [],
         }),
       ),
     ];
@@ -148,7 +151,9 @@ export function encodeWorldGameAction(
         encodeFunctionData({
           abi: CIVILIZATION_GAME_ABI,
           functionName: "boostConstruction",
-          args: [BigInt(payload.hours)],
+          args: Number.isInteger(payload.slot)
+            ? [payload.slot, BigInt(payload.hours)]
+            : [BigInt(payload.hours)],
         }),
       ),
     ];

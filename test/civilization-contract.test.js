@@ -83,7 +83,9 @@ async function compile() {
         language: "Solidity",
         sources,
         settings: {
-          optimizer: { enabled: true, runs: 200 },
+          // Queue V2 must remain below EIP-170's 24,576-byte runtime limit.
+          // Keep this aligned with the release compiler configuration.
+          optimizer: { enabled: true, runs: 10 },
           outputSelection: {
             "*": {
               "": ["ast"],
@@ -430,6 +432,66 @@ async function setGoldTotalSupplyForMarketTest(f, value) {
     hexToBytes(toHex(value, { size: 32 })),
   );
 }
+
+const GAME_STORAGE_LOCATION = BigInt(
+  "0xb9c5fb29a19a4c3e9d391dc26eaefcdaaec2a4fc6362d4bd27f1470fa2592b00",
+);
+const PLAYER_MAPPING_SLOT = GAME_STORAGE_LOCATION + 12n;
+
+async function setConstructionTestPlayer(f, account, { stored, buildings }) {
+  const playerBase = BigInt(
+    keccak256(
+      encodeAbiParameters(
+        [{ type: "address" }, { type: "uint256" }],
+        [account, PLAYER_MAPPING_SLOT],
+      ),
+    ),
+  );
+  const put = (slot, value) =>
+    f.vm.stateManager.putStorage(
+      f.game.address,
+      hexToBytes(toHex(playerBase + BigInt(slot), { size: 32 })),
+      hexToBytes(toHex(BigInt(value), { size: 32 })),
+    );
+  const resourceValues = [stored.wood, stored.clay, stored.stone, stored.gold];
+  await Promise.all(
+    resourceValues.map((value, index) => put(1 + index, value)),
+  );
+  const buildingValues = [
+    buildings.townhall,
+    buildings.timber,
+    buildings.claypit,
+    buildings.quarry,
+    buildings.warehouse,
+    buildings.workshop,
+    buildings.goldmine,
+    buildings.barracks,
+  ];
+  await Promise.all(
+    buildingValues.map((value, index) => put(13 + index, value)),
+  );
+}
+
+function constructionTestBuildings(overrides = {}) {
+  return {
+    townhall: 2n,
+    timber: 1n,
+    claypit: 1n,
+    quarry: 1n,
+    warehouse: 1n,
+    workshop: 1n,
+    goldmine: 0n,
+    barracks: 0n,
+    ...overrides,
+  };
+}
+
+const CONSTRUCTION_TEST_RESOURCES = {
+  wood: 10n ** 20n,
+  clay: 10n ** 20n,
+  stone: 10n ** 20n,
+  gold: 0n,
+};
 
 test("timelock-governed market atomically exchanges only contract inventory for CGOLD", async () => {
   const f = await fixture();
@@ -874,6 +936,167 @@ test("upgrade scheduling consumes the shared authoritative construction duration
   ok(await call(f.game, alice, "upgrade", [0], 90_000n));
   const state = await read(f.game, "playerState", [alice], 90_000n);
   assert.equal(state[8].completesAt, 90_000n + exactBuildDuration(1));
+});
+
+test("workshop bootstrap waives only CGOLD and later levels retain its normal CGOLD curve", async () => {
+  const f = await fixture();
+  const at = 10_000n;
+  ok(await call(f.game, alice, "registerWallet", [], at));
+  await setConstructionTestPlayer(f, alice, {
+    stored: { wood: 90n, clay: 110n, stone: 105n, gold: 0n },
+    buildings: constructionTestBuildings({
+      timber: 2n,
+      claypit: 2n,
+      quarry: 2n,
+      workshop: 0n,
+    }),
+  });
+
+  ok(await call(f.game, alice, "upgrade", [5], at));
+  let state = await read(f.game, "playerState", [alice], at);
+  assert.deepEqual(state[3], { wood: 0n, clay: 0n, stone: 0n, gold: 0n });
+  assert.equal(
+    await read(f.game, "balanceOf", [alice]),
+    0n,
+    "workshop 0 -> 1 must not require or burn CGOLD",
+  );
+
+  const completesAt = state[8].completesAt;
+  ok(await call(f.game, alice, "completeUpgrade", [], completesAt));
+  await setConstructionTestPlayer(f, alice, {
+    stored: { wood: 144n, clay: 176n, stone: 168n, gold: 0n },
+    buildings: constructionTestBuildings({
+      timber: 2n,
+      claypit: 2n,
+      quarry: 2n,
+      workshop: 1n,
+    }),
+  });
+  await seedGoldForMarketTest(f, alice, 24n * 10n ** 18n);
+
+  ok(await call(f.game, alice, "upgrade", [5], completesAt));
+  state = await read(f.game, "playerState", [alice], completesAt);
+  assert.deepEqual(state[3], { wood: 0n, clay: 0n, stone: 0n, gold: 0n });
+  assert.equal(
+    await read(f.game, "balanceOf", [alice]),
+    0n,
+    "workshop 1 -> 2 keeps the regular 24 CGOLD cost",
+  );
+});
+
+test("workshop construction capacity is 1, 2, and 3 at levels 1, 11, and 21", async () => {
+  for (const [workshop, expectedCapacity] of [
+    [1n, 1],
+    [11n, 2],
+    [21n, 3],
+  ]) {
+    const f = await fixture();
+    const at = 20_000n;
+    ok(await call(f.game, alice, "registerWallet", [], at));
+    await setConstructionTestPlayer(f, alice, {
+      stored: CONSTRUCTION_TEST_RESOURCES,
+      buildings: constructionTestBuildings({ workshop }),
+    });
+    for (let index = 0; index < expectedCapacity; index += 1) {
+      ok(await call(f.game, alice, "upgrade", [index + 1], at));
+      const job = await read(f.game, "constructionJob", [alice, index], at);
+      assert.equal(job & 1n, 1n, `slot ${index} is reserved`);
+    }
+    const blocked = await call(
+      f.game,
+      alice,
+      "upgrade",
+      [expectedCapacity + 1],
+      at,
+    );
+    assert.ok(
+      blocked.execResult.exceptionError,
+      `workshop ${workshop} rejects a ${expectedCapacity + 1}th job`,
+    );
+  }
+});
+
+test("parallel construction debits resources and jobs can be boosted and completed independently", async () => {
+  const f = await fixture();
+  const at = 30_000n;
+  ok(await call(f.game, alice, "registerWallet", [], at));
+  await setConstructionTestPlayer(f, alice, {
+    stored: CONSTRUCTION_TEST_RESOURCES,
+    buildings: constructionTestBuildings({
+      workshop: 11n,
+      timber: 20n,
+      claypit: 20n,
+    }),
+  });
+  const before = await read(f.game, "playerState", [alice], at);
+  ok(await call(f.game, alice, "upgrade", [1], at));
+  ok(await call(f.game, alice, "upgrade", [2], at));
+  const afterStart = await read(f.game, "playerState", [alice], at);
+  assert.ok(afterStart[3].wood < before[3].wood);
+  assert.ok(afterStart[3].clay < before[3].clay);
+  assert.ok(afterStart[3].stone < before[3].stone);
+
+  const slotZero = await read(f.game, "constructionJob", [alice, 0], at);
+  const slotOne = await read(f.game, "constructionJob", [alice, 1], at);
+  const slotZeroCompletesAt = slotZero >> 16n;
+  const slotOneCompletesAt = slotOne >> 16n;
+  assert.ok(slotOneCompletesAt - at >= 3_600n);
+  ok(await call(f.token, deployer, "mint", [alice, 10n ** 18n], at));
+  ok(
+    await call(
+      f.token,
+      alice,
+      "approve",
+      [f.game.address.toString(), 10n ** 18n],
+      at,
+    ),
+  );
+  ok(await call(f.game, alice, "boostConstruction", [1, 1n], at));
+  const boostedSlotZero = await read(f.game, "constructionJob", [alice, 0], at);
+  const boostedSlotOne = await read(f.game, "constructionJob", [alice, 1], at);
+  assert.equal(boostedSlotZero >> 16n, slotZeroCompletesAt);
+  assert.equal(boostedSlotOne >> 16n, slotOneCompletesAt - 3_600n);
+
+  ok(await call(f.game, alice, "completeUpgrade", [1], boostedSlotOne >> 16n));
+  assert.equal(
+    await read(f.game, "constructionJob", [alice, 1], boostedSlotOne >> 16n),
+    0n,
+  );
+  assert.equal(
+    (await read(f.game, "constructionJob", [alice, 0], boostedSlotOne >> 16n)) &
+      1n,
+    1n,
+    "completing slot 1 leaves slot 0 active",
+  );
+  assert.equal(
+    (await read(f.game, "playerState", [alice], boostedSlotOne >> 16n))[5]
+      .claypit,
+    21n,
+  );
+});
+
+test("prestige remains blocked while any parallel construction job is active", async () => {
+  const f = await fixture();
+  const at = 40_000n;
+  ok(await call(f.game, alice, "registerWallet", [], at));
+  await setConstructionTestPlayer(f, alice, {
+    stored: CONSTRUCTION_TEST_RESOURCES,
+    buildings: constructionTestBuildings({ townhall: 30n, workshop: 21n }),
+  });
+  ok(await call(f.game, alice, "upgrade", [1], at));
+  ok(await call(f.game, alice, "upgrade", [2], at));
+  const slotZero = await read(f.game, "constructionJob", [alice, 0], at);
+  ok(await call(f.game, alice, "completeUpgrade", [0], slotZero >> 16n));
+  assert.equal(
+    (await read(f.game, "constructionJob", [alice, 1], slotZero >> 16n)) & 1n,
+    1n,
+    "the non-legacy queue job is still active",
+  );
+  const blocked = await call(f.game, alice, "prestige", [], slotZero >> 16n);
+  assert.ok(
+    blocked.execResult.exceptionError,
+    "prestige must inspect queue jobs as well as legacy construction",
+  );
 });
 
 test("completeUpgrade discards offline time beyond its shared 24-hour cap", async () => {

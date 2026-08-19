@@ -200,10 +200,37 @@ export const CIVILIZATION_GAME_ABI = [
   },
   {
     type: "function",
+    name: "completeUpgrade",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "slot", type: "uint8" }],
+    outputs: [],
+  },
+  {
+    type: "function",
     name: "boostConstruction",
     stateMutability: "nonpayable",
     inputs: [{ name: "hoursToBoost", type: "uint256" }],
     outputs: [],
+  },
+  {
+    type: "function",
+    name: "boostConstruction",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "slot", type: "uint8" },
+      { name: "hoursToBoost", type: "uint256" },
+    ],
+    outputs: [],
+  },
+  {
+    type: "function",
+    name: "constructionJob",
+    stateMutability: "view",
+    inputs: [
+      { name: "account", type: "address" },
+      { name: "slot", type: "uint8" },
+    ],
+    outputs: [{ name: "packed", type: "uint256" }],
   },
   {
     type: "function",

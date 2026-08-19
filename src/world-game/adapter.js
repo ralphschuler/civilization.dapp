@@ -107,8 +107,11 @@ export function createWorldGameAdapter({
       throw new Error("claim_not_available");
     if (type === "boost" && !pendingUserOpHash) {
       const state = await readState();
+      const construction = Number.isInteger(payload.slot)
+        ? state.constructions?.find((job) => job.slot === payload.slot)
+        : state.construction;
       const eligibility = constructionBoostEligibility({
-        construction: state.construction,
+        construction,
         now: state.chainTimestamp,
       });
       if (!eligibility.eligible) throw new Error(eligibility.reason);

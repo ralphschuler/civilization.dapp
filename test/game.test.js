@@ -5,6 +5,7 @@ import {
   MARCH_DURATION_MS,
   createInitialState,
   gather,
+  getBuildingCost,
   getRequirements,
   resolveRaidMarch,
   sendRaid,
@@ -15,6 +16,23 @@ import {
   trainTroop,
   upgradeBuilding,
 } from "../src/game.js";
+
+test("demo workshop bootstrap waives CGOLD without changing primary resources", () => {
+  const state = createInitialState(0);
+  state.buildings = {
+    ...state.buildings,
+    townhall: 2,
+    timber: 2,
+    claypit: 2,
+    quarry: 2,
+  };
+  assert.deepEqual(getBuildingCost(state, "workshop"), {
+    wood: 90,
+    clay: 110,
+    stone: 105,
+    gold: 0,
+  });
+});
 
 test("resource buildings fill raidable field stock before collection", () => {
   const state = createInitialState(0);

@@ -248,12 +248,15 @@ export function settle(state, now = Date.now()) {
 export function getBuildingCost(state, id) {
   const building = BUILDINGS[id];
   const exponent = state.buildings[id] || 0;
-  return Object.fromEntries(
+  const result = Object.fromEntries(
     Object.entries(building.base).map(([resource, value]) => [
       resource,
       Math.ceil(value * building.factor ** exponent),
     ]),
   );
+  // Keep the local demo's displayed bootstrap cost aligned with World mode.
+  if (id === "workshop" && exponent === 0) result.gold = 0;
+  return result;
 }
 
 export function getRequirements(state, id) {

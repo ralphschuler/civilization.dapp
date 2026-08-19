@@ -43,6 +43,7 @@ export function decodeCivilizationState(
   goldBalance,
   accrual = null,
   chainTimestamp = null,
+  queue = null,
 ) {
   const raid = raw?.[7];
   const build = raw?.[8];
@@ -53,6 +54,26 @@ export function decodeCivilizationState(
     chainTimestamp === null
       ? number(raw?.[1]) * 1000
       : number(chainTimestamp) * 1000;
+  const legacyConstruction = {
+    pending: Boolean(tuple(build, "pending", 0)),
+    building,
+    buildingId: BUILDING_IDS[building] || "townhall",
+    completesAt: number(tuple(build, "completesAt", 2)) * 1000,
+  };
+  const jobs = (queue?.jobs || []).map((packed, slot) => {
+    const jobBuilding = Number((packed >> 8n) & 0xffn);
+    return {
+      pending: Boolean(packed & 1n),
+      building: jobBuilding,
+      buildingId: BUILDING_IDS[jobBuilding] || "townhall",
+      completesAt: Number(packed >> 16n) * 1000,
+      slot,
+    };
+  });
+  const constructions = [
+    ...(legacyConstruction.pending ? [legacyConstruction] : []),
+    ...jobs.filter((job) => job.slot > 0 && job.pending),
+  ];
   return {
     registered: Boolean(raw?.[0]),
     resources: {
@@ -79,12 +100,16 @@ export function decodeCivilizationState(
             },
           }
         : null,
-    construction: {
-      pending: Boolean(tuple(build, "pending", 0)),
-      building,
-      buildingId: BUILDING_IDS[building] || "townhall",
-      completesAt: number(tuple(build, "completesAt", 2)) * 1000,
-    },
+    // Kept for old UI integrations; `constructions` is the authoritative list.
+    construction: constructions[0] || legacyConstruction,
+    constructions,
+    constructionCapacity:
+      buildingTuple(raw?.[5]).workshop >= 21
+        ? 3
+        : buildingTuple(raw?.[5]).workshop >= 11
+          ? 2
+          : 1,
+    constructionOccupied: constructions.length,
     prestigeCount: number(raw?.[9]),
     last: number(raw?.[1]) * 1000,
     chainTimestamp: chainTimestamp === null ? null : readTimestamp,
@@ -113,7 +138,7 @@ export async function readRawState(
   const address = getAddress(account);
   const game = getAddress(contractAddress);
   const blockNumber = await worldGameClient.getBlockNumber();
-  const [raw, gold, accrual, block] = await Promise.all([
+  const [raw, gold, accrual, queue, block] = await Promise.all([
     worldGameClient.readContract({
       address: game,
       abi: CIVILIZATION_GAME_ABI,
@@ -139,9 +164,22 @@ export async function readRawState(
         blockNumber,
       })
       .catch(() => null),
+    Promise.all(
+      [0, 1, 2].map((slot) =>
+        worldGameClient.readContract({
+          address: game,
+          abi: CIVILIZATION_GAME_ABI,
+          functionName: "constructionJob",
+          args: [address, slot],
+          blockNumber,
+        }),
+      ),
+    )
+      .then((jobs) => ({ jobs }))
+      .catch(() => null),
     worldGameClient.getBlock({ blockNumber }),
   ]);
-  return decodeCivilizationState(raw, gold, accrual, block.timestamp);
+  return decodeCivilizationState(raw, gold, accrual, block.timestamp, queue);
 }
 
 export async function readCivilizationState(

@@ -22,6 +22,7 @@ import {
   createWorldGameAdapter,
   constructionBoostEligibility,
   claimEligibility,
+  getContractBuildingCost,
   projectCivilizationState,
   registerWalletWithMiniKit,
 } from "../src/world-game.js";
@@ -120,6 +121,19 @@ test("empty on-chain raid and construction tuples remain inactive", () => {
     building: 0,
     buildingId: "townhall",
     completesAt: 0,
+  });
+});
+
+test("World client mirrors the workshop CGOLD bootstrap cost only for level 1", () => {
+  const state = projectedSnapshot();
+  const bootstrap = getContractBuildingCost(state, "workshop");
+  assert.deepEqual(bootstrap, { wood: 90, clay: 110, stone: 105, gold: 0 });
+  state.buildings.workshop = 1;
+  assert.deepEqual(getContractBuildingCost(state, "workshop"), {
+    wood: 144,
+    clay: 176,
+    stone: 168,
+    gold: 24,
   });
 });
 

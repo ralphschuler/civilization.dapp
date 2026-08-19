@@ -11,25 +11,38 @@ function pendingConstructionAction({
   remainingTime,
   copy,
 }) {
-  const seconds = remainingTime(state.construction.completesAt);
-  const boost = constructionBoostEligibility({
-    construction: state.construction,
-    remainingSeconds: seconds,
-    busy,
-  });
-  const building = buildings[state.construction.buildingId];
-  const label = building?.label || copy.buildDetail;
-  const actionLabel = seconds ? copy.constructionRunning : copy.completeUpgrade;
-  const boostDetail = boostConstructionStatus(boost.reason, copy);
-
-  return `<div class="requirement-box">
-    <span>${copy.buildProgress} · ${escapeHtml(label)}</span>
-    <b data-construction-countdown>${seconds ? clock(seconds) : copy.complete}</b>
-    <small>${copy.constructionNote}</small>
-  </div>
-  <button class="primary-action" id="complete-upgrade" ${seconds || busy ? "disabled" : ""}>${actionLabel}</button>
-  <button class="primary-action" id="boost-construction" aria-describedby="boost-construction-status" ${!boost.eligible ? "disabled" : ""}>${copy.boostConstruction}</button>
-  <small id="boost-construction-status" data-boost-construction-status>${boostDetail}</small>`;
+  const jobs = state.constructions?.length
+    ? state.constructions
+    : [state.construction];
+  return `<section class="construction-jobs" aria-label="${escapeHtml(copy.buildProgress)}" aria-live="polite">
+    ${jobs
+      .map((construction, index) => {
+        const seconds = remainingTime(construction.completesAt);
+        const boost = constructionBoostEligibility({
+          construction,
+          remainingSeconds: seconds,
+          busy,
+        });
+        const building = buildings[construction.buildingId];
+        const label = building?.label || copy.buildDetail;
+        const slot = construction.slot;
+        const suffix = Number.isInteger(slot)
+          ? ` data-construction-slot="${slot}"`
+          : "";
+        const action = seconds
+          ? copy.constructionRunning
+          : copy.completeUpgrade;
+        return `<div class="requirement-box" data-construction-job${suffix}>
+        <span>${copy.buildProgress} ${index + 1}/${jobs.length} · ${escapeHtml(label)}</span>
+        <b data-construction-countdown${suffix}>${seconds ? clock(seconds) : copy.complete}</b>
+        <small>${copy.constructionNote}</small>
+        <button class="primary-action" data-complete-upgrade${suffix} ${seconds || busy ? "disabled" : ""}>${action}</button>
+        <button class="primary-action" data-boost-construction${suffix} aria-describedby="boost-construction-status-${index}" ${!boost.eligible ? "disabled" : ""}>${copy.boostConstruction}</button>
+        <small id="boost-construction-status-${index}" data-boost-construction-status${suffix}>${boostConstructionStatus(boost.reason, copy)}</small>
+      </div>`;
+      })
+      .join("")}
+  </section>`;
 }
 
 function maximumLevelAction(context, building) {
@@ -152,7 +165,8 @@ export function buildPanel(context) {
   const upgradeRequirements = requirements(selectedBuilding);
   const cost = buildingCost(selectedBuilding);
   const action =
-    runtimeMode === "world" && state.construction?.pending
+    runtimeMode === "world" &&
+    (state.constructions?.length || state.construction?.pending)
       ? pendingConstructionAction(context)
       : upgradeAction(context, building, level, upgradeRequirements, cost);
   const productionLine = nextProductionLine(context, building);
