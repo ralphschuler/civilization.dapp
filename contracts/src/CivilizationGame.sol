@@ -51,9 +51,11 @@ interface IWorldIDVerifier {
 /// @dev The historical World ID entrypoints remain as dormant compatibility
 /// surface. New clients initialize their own wallet with registerWallet().
 /// @dev Wood, clay and stone are internal game units. Gold is an in-game ERC-20
-/// minted only by deterministic claim and raid rules. WLD can pay only to reduce
-/// construction time and is transferred directly to the configured WLD revenue
-/// splitter. There is no native-token, withdrawal, redemption, or game custody.
+/// with no lifetime supply cap. It is minted by deterministic claim and raid
+/// rules, plus an optional, timelock-configured EIP-712 reward issuer. WLD can
+/// pay only to reduce construction time and is transferred directly to the
+/// configured WLD revenue splitter. There is no native-token, withdrawal,
+/// redemption, or game custody.
 contract CivilizationGame is Initializable {
     using SafeERC20 for IERC20;
     uint256 public constant MAX_OFFLINE_SECONDS = 24 hours;
@@ -194,6 +196,9 @@ contract CivilizationGame is Initializable {
     struct MarketStorage {
         mapping(uint8 => uint256) priceWeiPerUnit;
         mapping(uint8 => uint256) inventory;
+        /// @dev Appended after the V2 mappings, so their storage slots remain
+        /// unchanged. The configured minter is an external contract only.
+        address distributor;
     }
     /// @custom:storage-location erc7201:civilization.game.construction-queue.v2
     struct ConstructionQueueStorage {
@@ -316,6 +321,8 @@ contract CivilizationGame is Initializable {
         uint256 goldOut,
         uint256 fee
     );
+    /// @notice Records every timelock-governed issuer/cap configuration.
+    event RewardDistributorConfigured(address indexed distributor);
 
     error ZeroAddress();
     error AlreadyRegistered();
@@ -447,6 +454,9 @@ contract CivilizationGame is Initializable {
     function timelock() external view returns (address) {
         return _game().timelock;
     }
+    function rewardDistributor() external view returns (address) {
+        return _market().distributor;
+    }
     function setRevenueSplitter(address splitter) external {
         GameStorage storage $ = _game();
         if (msg.sender != $.timelock) revert UnauthorizedGovernance();
@@ -454,6 +464,25 @@ contract CivilizationGame is Initializable {
         address oldSplitter = $.revenueSplitter;
         $.revenueSplitter = splitter;
         emit RevenueSplitterUpdated(oldSplitter, splitter);
+    }
+
+    /// @notice Enables a bounded off-chain reward campaign. Only the configured
+    /// issuer may authorize a claim, and this configuration can only be changed
+    /// by the proxy timelock (normally a Safe-governed TimelockController).
+    function configureRewardDistributor(address distributor) external {
+        if (msg.sender != _game().timelock) revert UnauthorizedGovernance();
+        if (distributor != address(0) && distributor.code.length == 0)
+            revert ZeroAddress();
+        _market().distributor = distributor;
+        emit RewardDistributorConfigured(distributor);
+    }
+
+    /// @notice The configured contract is the sole non-game mint path. It is
+    /// intentionally not an EOA and cannot be set except through the timelock.
+    function mintReward(address recipient, uint256 amount) external {
+        if (msg.sender != _market().distributor)
+            revert UnauthorizedGovernance();
+        _mintGold(recipient, amount);
     }
 
     /// @notice Timelock-only market configuration. Inventory is a contract-owned

@@ -40,6 +40,40 @@ Every player transition settles elapsed production from `block.timestamp`; produ
 
 `startRaid` requires a registered non-self defender, reserves an available army, and records a one-minute march. `resolveRaid` is callable only by its attacker after arrival, accrues both players, calculates deterministic attack/defense and casualties, and—on victory—takes only defender field stock within troop transport capacity and the attacker's free total storage capacity. It never touches a defender's protected stored resources. Events make registration and every state transition indexable.
 
+## CGOLD issuance policy (proxy release V3 / issue #92)
+
+CGOLD is an uncapped in-game ERC-20: there is deliberately no lifetime maximum
+or owner/EOA `mint` function. Its deterministic sources remain gold-field
+`claim` and victorious raid loot. Its deterministic sinks are the CGOLD parts
+of building upgrades and troop training. Normal `transfer`, `approve`, and
+`transferFrom` retain their standard ERC-20 behavior.
+
+A separate `CivilizationRewardDistributor` is the only optional additional
+mint source. It is deployed with an immutable game proxy and timelock address;
+the proxy must first be configured with that contract by its timelock through
+`configureRewardDistributor`. The proxy rejects EOAs as distributors and its
+`mintReward` entrypoint accepts calls only from the configured distributor.
+The distributor's Safe-governed timelock configures/revokes its signing issuer,
+per-claim cap, global period cap, and period length, and its audit events record
+each configuration, pause/revocation, and claim.
+
+Each distributor claim is EIP-712 signed and contains recipient, amount,
+reward/event ID, recipient nonce, deadline, chain ID, and verifying contract.
+The contract validates both the explicit chain/contract fields and the EIP-712
+domain, consumes both the reward ID and nonce before minting, and enforces the
+per-claim and current-period limits. Anyone may relay a valid claim, but its
+signed recipient is immutable. Pausing or revoking this distributor route does
+not pause ERC-20 transfers, gameplay claims, or deterministic raid rewards.
+
+For observability, `totalSupply()` is all issued CGOLD and
+`marketGoldReserve()` is the proxy-held treasury/market balance; their
+subtraction is circulating CGOLD outside the proxy. `rewardDistributor()` is
+the current authorized external mint contract (zero means revoked). The
+distributor exposes its issuer, caps, pause state, used IDs/nonces, and issued
+amount per period. Index `Transfer(0x0, recipient, amount)` together with
+`ResourcesClaimed`, `RaidResolved`, and distributor `RewardClaimed` to classify
+all mint sources; index `Transfer(holder, 0x0, amount)` to classify burns.
+
 ## Contract resource market (proxy release V2)
 
 The V2 implementation adds `buyResource` and `sellResource` for **wood, clay and stone only**. A resource amount is a whole in-game unit; `marketPrice` is CGOLD wei per unit (CGOLD has 18 decimals). `quoteMarket` reports the live price before a wallet confirmation. The fixed `MARKET_FEE_BPS` is 150 (1.5%). A buy computes `ceil(amount × price × 10,150 / 10,000)` and a sell computes `floor(amount × price × 9,850 / 10,000)`. The difference stays in the market's CGOLD reserve, making both the price and rounding rule transparent and chain-enforced.
