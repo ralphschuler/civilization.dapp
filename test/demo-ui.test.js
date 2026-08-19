@@ -86,14 +86,17 @@ test("pure UI helpers format time, escape markup, and clamp elapsed time", () =>
 test("resource HUD helpers abbreviate large values and preserve rate semantics", () => {
   assert.equal(compactResourceValue(999, String), "999");
   assert.equal(compactResourceValue(1_000, String), "1K");
-  assert.equal(compactResourceValue(1_250, String), "1,3K");
-  assert.equal(compactResourceValue(999_949, String), "999,9K");
+  assert.equal(compactResourceValue(1_250, String, "de-DE"), "1,3K");
+  assert.equal(compactResourceValue(999_949, String, "de-DE"), "999,9K");
   assert.equal(compactResourceValue(999_950, String), "1Mio");
-  assert.equal(compactResourceValue(1_234_567, String), "1,2Mio");
-  assert.equal(compactResourceValue(2_410_426_546, String), "2,4Mrd");
+  assert.equal(compactResourceValue(1_234_567, String, "de-DE"), "1,2Mio");
+  assert.equal(compactResourceValue(2_410_426_546, String, "de-DE"), "2,4Mrd");
   assert.equal(compactResourceValue(1e18, String), "1Tr");
   assert.equal(compactResourceValue(1e21, String), "1E21");
-  assert.equal(compactResourceValue(Number.MAX_VALUE, String), "1,8E308");
+  assert.equal(
+    compactResourceValue(Number.MAX_VALUE, String, "de-DE"),
+    "1,8E308",
+  );
   assert.equal(compactResourceValue(Infinity, String), "0");
 
   const rate = (resourceId, value, mode = "demo") =>
@@ -101,7 +104,7 @@ test("resource HUD helpers abbreviate large values and preserve rate semantics",
       resourceId,
       rate: value,
       mode,
-      formatValue: (amount) => compactResourceValue(amount, String),
+      formatValue: (amount) => compactResourceValue(amount, String, "de-DE"),
     });
   assert.equal(rate("wood", 0, "world"), "+0/Tag");
   assert.equal(rate("wood", 35_100, "world"), "+35,1K/Tag");
@@ -655,6 +658,7 @@ test("second tick updates collect stock, claim, construction, and raid controls"
       pendingRaid: { arrivesAt: 0 },
       construction: { pending: true, completesAt: 4_000 },
     },
+    locale: "de-DE",
   });
   assert.equal(collectionValue.textContent, "2,4Mrd");
   assert.equal(productionValue.textContent, "+35,1K/Tag");

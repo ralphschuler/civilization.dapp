@@ -5,10 +5,6 @@ import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 import { verifyWalletForDirectGame } from "@/lib/direct-wallet-game-flow";
 import {
-  type WalletAccessLocale,
-  walletAccessMessages,
-} from "@/lib/wallet-access-locale";
-import {
   CIVILIZATION_LOCALE_STORAGE_KEY,
   civilizationMessages,
   localeLanguageTag,
@@ -29,7 +25,7 @@ type WalletAccessProps = {
   attemptWalletAccess?: WalletAccessAttempt;
   /** Keeps the E2E harness on the success state instead of loading the game. */
   onWalletAccessGranted?: (walletAddress: string) => void;
-  locale?: WalletAccessLocale;
+  locale?: CivilizationLocale;
 };
 
 export type WalletAccessAttempt = () => Promise<string>;
@@ -185,7 +181,7 @@ export const WalletAccess = ({
 
   const isPending = status === "pending";
   const isLocked = isPending || status === "success";
-  const copy = walletAccessMessages(locale).login;
+  const copy = civilizationMessages(locale).login;
   const statusCopy = {
     idle: { action: copy.action, message: "" },
     pending: { action: copy.pendingAction, message: copy.pending },

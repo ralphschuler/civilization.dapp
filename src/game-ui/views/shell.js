@@ -61,7 +61,8 @@ function resourceHudItem({
   const label = copy.resourceNames[id] || definition.label;
   const exactValue = (amount) =>
     Number.isFinite(amount) ? resourceFormat(amount) : resourceFormat(0);
-  const compactValue = (amount) => compactResourceValue(amount, resourceFormat);
+  const compactValue = (amount) =>
+    compactResourceValue(amount, resourceFormat, copy.locale);
   const stored = Number.isFinite(state.resources[id]) ? state.resources[id] : 0;
   const storageCapacity = Number.isFinite(capacity) ? capacity : 0;
   const productionText = productionRateText({
@@ -119,7 +120,8 @@ function collectionResources({
       : 0;
     return { id, label: copy.resourceNames[id] || definition.label, value };
   });
-  const compactValue = (value) => compactResourceValue(value, resourceFormat);
+  const compactValue = (value) =>
+    compactResourceValue(value, resourceFormat, copy.locale);
   return `
     <span class="collection-resources" aria-hidden="true">
       ${resources
@@ -241,7 +243,7 @@ export function gameShell(ctx) {
     format,
     resourceFormat,
     busy,
-    copy,
+    copy: rawCopy,
     locale,
     assetResult,
     assetsLoading,
@@ -249,6 +251,9 @@ export function gameShell(ctx) {
     settingsOpen,
     reducedMotion,
   } = ctx;
+  // Callers always provide the product locale; the German fallback preserves
+  // the standalone renderer's historical test fixture contract.
+  const copy = { ...rawCopy, locale: locale || "de-DE" };
   const hud = Object.entries(resourceDefs)
     .map(([id, definition]) =>
       resourceHudItem({

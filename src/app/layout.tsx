@@ -29,7 +29,7 @@ export default async function RootLayout({
   await connection();
   const configuration = runtimeConfiguration();
   return (
-    <html lang="de">
+    <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} `}>
         <ClientProviders miniKit={miniKitProviderConfiguration(configuration)}>
           {children}

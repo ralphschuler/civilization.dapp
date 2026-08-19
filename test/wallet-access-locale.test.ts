@@ -8,16 +8,17 @@ import {
 } from "../src/lib/wallet-access-locale.ts";
 import {
   civilizationMessages,
+  formatCivilizationCurrency,
   formatCivilizationDateTime,
   formatCivilizationNumber,
   localeLanguageTag,
   resolveCivilizationLocale,
 } from "../src/lib/civilization-locale.ts";
 
-test("WalletAccess messages provide the German baseline and English test locale", () => {
+test("WalletAccess compatibility helpers use the shared English-default catalog", () => {
   assert.equal(
     walletAccessMessages().login.action,
-    "Mit World Wallet fortfahren",
+    "Continue with World Wallet",
   );
   assert.equal(
     walletAccessMessages("en-US").registration.heading,
@@ -32,6 +33,13 @@ test("WalletAccess format helpers are explicit and locale-stable", () => {
   assert.equal(formatWalletDuration(125), "02:05");
 });
 
+test("the shared catalog has identical top-level keys for both locales", () => {
+  assert.deepEqual(
+    Object.keys(civilizationMessages("de-DE")).sort(),
+    Object.keys(civilizationMessages("en-US")).sort(),
+  );
+});
+
 test("shared Civilization locale boundary defaults to English and has complete English dynamic copy", () => {
   assert.equal(resolveCivilizationLocale(undefined), "en-US");
   assert.equal(resolveCivilizationLocale("en"), "en-US");
@@ -42,6 +50,7 @@ test("shared Civilization locale boundary defaults to English and has complete E
   );
   assert.equal(formatCivilizationNumber(1234.5, "de-DE"), "1.234,5");
   assert.equal(formatCivilizationNumber(1234.5, "en-US"), "1,234.5");
+  assert.equal(formatCivilizationCurrency(1234.5, "en-US", "USD"), "$1,234.50");
   assert.equal(
     formatCivilizationDateTime(new Date("2026-08-17T15:30:00Z"), "en-US"),
     "Aug 17, 2026, 3:30 PM",

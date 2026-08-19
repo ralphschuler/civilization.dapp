@@ -16,13 +16,15 @@ export function refreshGameTick({
   collection,
   resourceFormat,
   remainingTime,
+  locale = "en-US",
   copy = { production: "Produktion", collect: "sammeln" },
 }) {
   const resourceIds = new Set([
     ...Object.keys(displayState.unclaimed ?? {}),
     ...Object.keys(production ?? {}),
   ]);
-  const compactValue = (value) => compactResourceValue(value, resourceFormat);
+  const compactValue = (value) =>
+    compactResourceValue(value, resourceFormat, locale);
   for (const id of resourceIds) {
     const rate = production?.[id];
     const fieldStock = Number.isFinite(displayState.unclaimed?.[id])
