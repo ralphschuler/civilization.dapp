@@ -59,7 +59,27 @@ jobs:
       - run: pnpm build
       - run: pnpm build:demo
       - name: Install Playwright Chromium
-        run: pnpm exec playwright install --with-deps chromium
+        env:
+          PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT: 120000
+        run: |
+          max_attempts=3
+          for attempt in $(seq 1 "$max_attempts"); do
+            echo "Installing Playwright Chromium (attempt $attempt/$max_attempts)"
+            if timeout --kill-after=30s 5m pnpm exec playwright install --with-deps chromium; then
+              exit 0
+            else
+              status=$?
+            fi
+
+            if [ "$attempt" -eq "$max_attempts" ]; then
+              echo "Playwright Chromium installation failed after $max_attempts attempts." >&2
+              exit "$status"
+            fi
+
+            backoff_seconds=$((attempt * 10))
+            echo "Playwright Chromium installation failed; retrying in ${backoff_seconds}s." >&2
+            sleep "$backoff_seconds"
+          done
       - name: Run WalletAccess browser E2E
         run: pnpm test:e2e:wallet
       - name: Upload WalletAccess E2E failure artifacts
