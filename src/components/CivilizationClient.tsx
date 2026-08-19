@@ -18,6 +18,7 @@ type CivilizationClientProps = {
   worldTokenAddress: string;
   locale: CivilizationLocale;
   onLocaleChange: (locale: CivilizationLocale) => void;
+  onLogout: () => Promise<void>;
 };
 
 export default function CivilizationClient({
@@ -26,6 +27,7 @@ export default function CivilizationClient({
   worldTokenAddress,
   locale,
   onLocaleChange,
+  onLogout,
 }: CivilizationClientProps) {
   return (
     <ProductionCivilizationClient
@@ -34,6 +36,7 @@ export default function CivilizationClient({
       worldTokenAddress={worldTokenAddress}
       locale={locale}
       onLocaleChange={onLocaleChange}
+      onLogout={onLogout}
     />
   );
 }
@@ -44,6 +47,7 @@ function ProductionCivilizationClient({
   worldTokenAddress,
   locale,
   onLocaleChange,
+  onLogout,
 }: Pick<
   CivilizationClientProps,
   | "walletAddress"
@@ -51,8 +55,17 @@ function ProductionCivilizationClient({
   | "worldTokenAddress"
   | "locale"
   | "onLocaleChange"
+  | "onLogout"
 >) {
   const root = useRef<HTMLDivElement>(null);
+  const localeRef = useRef(locale);
+  const onLocaleChangeRef = useRef(onLocaleChange);
+  const onLogoutRef = useRef(onLogout);
+  useEffect(() => {
+    localeRef.current = locale;
+    onLocaleChangeRef.current = onLocaleChange;
+    onLogoutRef.current = onLogout;
+  }, [locale, onLocaleChange, onLogout]);
   const {
     busy,
     checked,
@@ -79,13 +92,14 @@ function ProductionCivilizationClient({
       worldAccessConfirmed: true,
       worldWalletAddress: walletAddress,
       worldAdapter,
-      locale,
-      onLocaleChange,
+      locale: localeRef.current,
+      onLocaleChange: (nextLocale) => onLocaleChangeRef.current(nextLocale),
+      onLogout: () => onLogoutRef.current(),
     });
     return () => {
       stopCivilizationApp();
     };
-  }, [registered, walletAddress, worldAdapter, locale, onLocaleChange]);
+  }, [registered, walletAddress, worldAdapter]);
 
   if (registered) {
     return <div ref={root} />;

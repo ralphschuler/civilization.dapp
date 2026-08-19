@@ -77,6 +77,7 @@ function createRuntime(options) {
     root: options.root,
     mode: options.runtimeMode,
     adapter: options.worldAdapter,
+    walletAddress,
     state: options.runtimeMode === "demo" ? loadDemoState() : null,
     ready: options.runtimeMode === "demo",
     loading: options.runtimeMode === "world",
@@ -91,6 +92,11 @@ function createRuntime(options) {
     activePanel: "build",
     locale: options.locale || "de-DE",
     onLocaleChange: options.onLocaleChange,
+    onLogout: options.onLogout,
+    settingsOpen: false,
+    reducedMotion:
+      typeof window !== "undefined" &&
+      window.localStorage.getItem("civilization-reduced-motion") === "true",
     feedback:
       options.runtimeMode === "world"
         ? civilizationMessages(options.locale).loadingState
@@ -323,6 +329,9 @@ function createController(runtime) {
       copy: civilizationMessages(runtime.locale),
       assetResult: runtime.assetResult,
       assetsLoading: runtime.assetState === "loading",
+      walletAddress: runtime.walletAddress,
+      settingsOpen: runtime.settingsOpen,
+      reducedMotion: runtime.reducedMotion,
     });
     bindGameActions(runtime.root, actions);
     if (!runtime.state.construction?.pending) {
@@ -348,7 +357,32 @@ function createController(runtime) {
     errorText,
     isCurrent,
     buildings: BUILDINGS,
-    changeLocale: (locale) => runtime.onLocaleChange?.(locale),
+    changeLocale: (locale) => {
+      if (locale !== "de-DE" && locale !== "en-US") return;
+      runtime.locale = locale;
+      runtime.onLocaleChange?.(locale);
+      render();
+    },
+    openSettings: () => {
+      runtime.settingsOpen = true;
+      render();
+    },
+    closeSettings: () => {
+      runtime.settingsOpen = false;
+      render();
+      requestAnimationFrame(() =>
+        runtime.root.querySelector("[data-open-settings]")?.focus(),
+      );
+    },
+    setReducedMotion: (enabled) => {
+      runtime.reducedMotion = enabled;
+      window.localStorage.setItem(
+        "civilization-reduced-motion",
+        String(enabled),
+      );
+      render();
+    },
+    logout: () => runtime.onLogout?.(),
   });
 
   const refreshTickValues = () => {
@@ -378,7 +412,8 @@ function createController(runtime) {
 /**
  * @param {{ root: HTMLElement | null, runtimeMode?: "demo" | "world", worldAppInstalled?: boolean,
  *   worldAccessConfirmed?: boolean, worldWalletAddress?: string | null, worldAdapter?: object | null,
- *   locale?: "de-DE" | "en-US", onLocaleChange?: (locale: "de-DE" | "en-US") => void }} options
+ *   locale?: "de-DE" | "en-US", onLocaleChange?: (locale: "de-DE" | "en-US") => void,
+ *   onLogout?: () => Promise<void> }} options
  */
 export function startCivilizationApp(options) {
   if (!options.root || activeRuntime) {

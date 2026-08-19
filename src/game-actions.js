@@ -30,6 +30,10 @@ export function createGameActions(runtime, services) {
     troopIds: Object.keys(TROOPS),
     retry: () => services.refreshWorld(),
     changeLocale: (locale) => services.changeLocale?.(locale),
+    openSettings: () => services.openSettings?.(),
+    closeSettings: () => services.closeSettings?.(),
+    setReducedMotion: (enabled) => services.setReducedMotion?.(enabled),
+    logout: () => services.logout?.(),
     selectBuilding(id) {
       runtime.selectedBuilding = id;
       runtime.activePanel = "build";
