@@ -23,6 +23,22 @@ test("WalletAccess messages provide the German baseline and English test locale"
     walletAccessMessages("en-US").registration.heading,
     "Create your village",
   );
+  assert.equal(
+    walletAccessMessages().registration.rejected,
+    "Die Registrierung wurde nicht bestätigt. Du kannst es erneut versuchen.",
+  );
+  assert.equal(
+    walletAccessMessages("en-US").registration.unavailable,
+    "The on-chain status could not be read. Check your connection and try again.",
+  );
+  assert.equal(
+    civilizationMessages("de-DE").unavailable,
+    "Civilization ist vorübergehend nicht verfügbar.",
+  );
+  assert.equal(
+    civilizationMessages("en-US").unavailableDetail,
+    "The secure World Chain configuration is missing or invalid.",
+  );
 });
 
 test("WalletAccess format helpers are explicit and locale-stable", () => {

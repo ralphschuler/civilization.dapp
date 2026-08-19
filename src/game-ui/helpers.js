@@ -58,18 +58,7 @@ const COMPACT_RESOURCE_UNITS = [
   { value: 1_000, suffix: "K" },
 ];
 
-const compactResourceNumber = new Intl.NumberFormat("de-DE", {
-  maximumFractionDigits: 1,
-  useGrouping: false,
-});
-
-const scientificResourceNumber = new Intl.NumberFormat("de-DE", {
-  maximumFractionDigits: 1,
-  notation: "scientific",
-  useGrouping: false,
-});
-
-export function compactResourceValue(value, fullFormat) {
+export function compactResourceValue(value, fullFormat, locale = "de-DE") {
   if (!Number.isFinite(value)) {
     return fullFormat(0);
   }
@@ -85,13 +74,17 @@ export function compactResourceValue(value, fullFormat) {
   let unit = COMPACT_RESOURCE_UNITS[unitIndex];
   const largerUnit = COMPACT_RESOURCE_UNITS[unitIndex - 1];
   if (!largerUnit && absoluteValue >= unit.value * 999.95) {
-    return scientificResourceNumber.format(value);
+    return new Intl.NumberFormat(locale, {
+      maximumFractionDigits: 1,
+      notation: "scientific",
+      useGrouping: false,
+    }).format(value);
   }
   if (largerUnit && absoluteValue >= largerUnit.value - unit.value / 20) {
     unit = largerUnit;
   }
 
-  return `${compactResourceNumber.format(value / unit.value)}${unit.suffix}`;
+  return `${new Intl.NumberFormat(locale, { maximumFractionDigits: 1, useGrouping: false }).format(value / unit.value)}${unit.suffix}`;
 }
 
 export function productionRateText({

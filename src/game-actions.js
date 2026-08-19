@@ -1,8 +1,6 @@
 import {
-  RESOURCE_DEFS,
   TROOPS,
   createInitialState,
-  format,
   resolveRaidMarch,
   startGathering,
   startRaidMarch,
@@ -14,8 +12,17 @@ import { clearDemoState, saveDemoState } from "./demo/storage.js";
 import { costLine } from "./game-ui/helpers.js";
 
 export function createGameActions(runtime, services) {
-  const { render, requireAccess, performWorldAction, errorText, isCurrent } =
-    services;
+  const {
+    render,
+    requireAccess,
+    performWorldAction,
+    errorText,
+    isCurrent,
+    copy,
+    buildingLabel,
+    resourceDefs,
+    numberFormat,
+  } = services;
   const save = () => {
     if (runtime.mode === "demo") saveDemoState(runtime.state);
   };
@@ -37,38 +44,36 @@ export function createGameActions(runtime, services) {
     selectBuilding(id) {
       runtime.selectedBuilding = id;
       runtime.activePanel = "build";
-      runtime.feedback = `${services.buildings[id].label} ausgewählt.`;
+      runtime.feedback = copy().feedback.buildingSelected(buildingLabel(id));
       render();
     },
     selectPanel(id) {
       runtime.activePanel = id;
       runtime.feedback = {
-        build: "Wähle ein Gebäude auf dem Dorfplan.",
-        army: "Bilde Truppen aus, sobald die Kaserne bereit ist.",
+        build: copy().chooseBuilding,
+        army: copy().feedback.panelArmy,
         market:
           runtime.mode === "world"
-            ? "Lade eine Live-Quote; der Contract erzwingt Preis, Liquidität, Slippage und Ablaufzeit."
-            : "Nur Holz, Lehm und Stein sind im Demo-Markt tauschbar.",
-        raid: "Stelle eine Marschgruppe zusammen.",
+            ? copy().feedback.panelWorldMarket
+            : copy().feedback.panelDemoMarket,
+        raid: copy().feedback.panelRaid,
       }[id];
       render();
     },
     gather() {
       if (!requireAccess()) return;
       if (runtime.mode === "world") {
-        return performWorldAction(
-          "claim",
-          {},
-          "Feldressourcen im Contract gesichert. Nächste Sammlung nach 01:00.",
-        );
+        return performWorldAction("claim", {}, copy().feedback.worldClaim);
       }
       return demo(
         () => startGathering(runtime.state),
         (result) =>
           result.collected
-            ? `Im Speicher gesichert: ${costLine(result.collected, RESOURCE_DEFS, format)}. Nächste Sammlung in 01:00.`
-            : "Feldlager leer oder Speicher voll. Nächste Sammlung in 01:00.",
-        "Sammler sind noch unterwegs.",
+            ? copy().feedback.demoClaim(
+                costLine(result.collected, resourceDefs(), numberFormat),
+              )
+            : copy().feedback.demoClaimEmpty,
+        copy().feedback.collectorsEnRoute,
       );
     },
     upgrade(id) {
@@ -77,14 +82,17 @@ export function createGameActions(runtime, services) {
         return performWorldAction(
           "upgrade",
           { building: id },
-          `${services.buildings[id].label}-Ausbau gestartet.`,
+          copy().feedback.worldUpgradeStarted(buildingLabel(id)),
         );
       }
       return demo(
         () => upgradeBuilding(runtime.state, id),
         () =>
-          `${services.buildings[id].label} auf Stufe ${runtime.state.buildings[id]} ausgebaut.`,
-        "Ausbau noch gesperrt oder Rohstoffe fehlen.",
+          copy().feedback.demoUpgradeComplete(
+            buildingLabel(id),
+            runtime.state.buildings[id],
+          ),
+        copy().feedback.upgradeUnavailable,
       );
     },
     completeUpgrade: () =>
@@ -92,35 +100,27 @@ export function createGameActions(runtime, services) {
       performWorldAction(
         "complete_upgrade",
         {},
-        "Ausbau on-chain abgeschlossen.",
+        copy().feedback.worldUpgradeComplete,
       ),
     boost: () =>
       requireAccess() &&
-      performWorldAction(
-        "boost",
-        { hours: 1 },
-        "Bauzeit um 1 Stunde reduziert; 1 WLD ging direkt an den Revenue Splitter.",
-      ),
+      performWorldAction("boost", { hours: 1 }, copy().feedback.worldBoost),
     prestige: () =>
       requireAccess() &&
-      performWorldAction(
-        "prestige",
-        {},
-        "Prestige abgeschlossen. Dorf zurückgesetzt, Produktionsbonus erhöht.",
-      ),
+      performWorldAction("prestige", {}, copy().feedback.worldPrestige),
     train(id) {
       if (!requireAccess()) return;
       if (runtime.mode === "world") {
         return performWorldAction(
           "train",
           { troop: id, amount: 1 },
-          `${TROOPS[id].label} on-chain ausgebildet.`,
+          copy().feedback.worldTrainingComplete(copy().troopNames[id]),
         );
       }
       return demo(
         () => trainTroop(runtime.state, id),
-        () => `${TROOPS[id].label} ausgebildet.`,
-        "Ausbildung noch gesperrt oder Rohstoffe fehlen.",
+        () => copy().feedback.demoTrainingComplete(copy().troopNames[id]),
+        copy().feedback.trainingUnavailable,
       );
     },
     swap(from, to, amount) {
@@ -128,20 +128,23 @@ export function createGameActions(runtime, services) {
       return demo(
         () => swapInternal(runtime.state, from, to, amount),
         (result) =>
-          `${format(result.output)} ${RESOURCE_DEFS[to].label} im Demo-Markt erhalten.`,
-        "Tausch nicht möglich: Quelle, Ziel, Menge oder Speicher prüfen.",
+          copy().feedback.demoSwapComplete(
+            numberFormat(result.output),
+            copy().resourceNames[to],
+          ),
+        copy().feedback.demoSwapUnavailable,
       );
     },
     async quoteMarket(resource, amount) {
       if (!requireAccess() || runtime.mode !== "world") return;
       if (!Number.isSafeInteger(amount) || amount < 1) {
-        runtime.feedback = "Bitte eine ganze Rohstoffmenge ab 1 eingeben.";
+        runtime.feedback = copy().feedback.marketAmountInvalid;
         render();
         return;
       }
       const token = runtime.token;
       runtime.busy = true;
-      runtime.feedback = "Live-Quote und Contract-Liquidität werden gelesen.";
+      runtime.feedback = copy().feedback.marketQuoteLoading;
       render();
       try {
         runtime.marketQuote = await runtime.adapter.quoteMarket(
@@ -149,8 +152,7 @@ export function createGameActions(runtime, services) {
           amount,
         );
         if (isCurrent(token))
-          runtime.feedback =
-            "Live-Quote geladen. Prüfe Preis, Gebühr und Liquidität vor der Bestätigung.";
+          runtime.feedback = copy().feedback.marketQuoteLoaded;
       } catch (error) {
         if (isCurrent(token)) runtime.feedback = errorText(error);
       } finally {
@@ -163,7 +165,7 @@ export function createGameActions(runtime, services) {
       if (!requireAccess() || runtime.mode !== "world") return;
       const quote = runtime.marketQuote;
       if (!quote || (side !== "buy" && side !== "sell")) {
-        runtime.feedback = "Lade zuerst eine aktuelle Live-Quote.";
+        runtime.feedback = copy().feedback.marketQuoteRequired;
         render();
         return;
       }
@@ -176,21 +178,21 @@ export function createGameActions(runtime, services) {
           deadline: quote.deadline,
         },
         side === "buy"
-          ? "Rohstoffe atomar gegen CGOLD gekauft."
-          : "Rohstoffe atomar gegen CGOLD verkauft.",
+          ? copy().feedback.marketBuyComplete
+          : copy().feedback.marketSellComplete,
       );
     },
     async pickOpponent() {
       if (!requireAccess()) return;
       const token = runtime.token;
       runtime.busy = true;
-      runtime.feedback = "Öffne deine World-Kontakte.";
+      runtime.feedback = copy().feedback.opponentPickerOpening;
       render();
       try {
         const opponent = await runtime.adapter.pickOpponent();
         if (!isCurrent(token)) return;
         runtime.selectedOpponent = opponent;
-        runtime.feedback = `${opponent.username} als Ziel gewählt.`;
+        runtime.feedback = copy().feedback.opponentSelected(opponent.username);
       } catch (error) {
         if (isCurrent(token)) runtime.feedback = errorText(error);
       } finally {
@@ -205,32 +207,34 @@ export function createGameActions(runtime, services) {
         return performWorldAction(
           "start_raid",
           { targetId, army },
-          "Marsch on-chain gestartet. Ankunft in 01:00.",
+          copy().feedback.worldRaidStarted,
         );
       }
       return demo(
         () => startRaidMarch(runtime.state, targetId, army),
-        () => "Marsch gestartet. Ankunft in 01:00.",
-        "Wähle verfügbare Truppen für den Überfall.",
+        () => copy().feedback.demoRaidStarted,
+        copy().feedback.raidArmyRequired,
       );
     },
     resolveRaid: () =>
       requireAccess() &&
-      performWorldAction("resolve_raid", {}, "Schlacht on-chain ausgewertet."),
+      performWorldAction("resolve_raid", {}, copy().feedback.worldRaidResolved),
     reset() {
       if (runtime.mode !== "demo") return;
       runtime.state = createInitialState();
       runtime.selectedBuilding = "townhall";
       runtime.activePanel = "build";
-      runtime.feedback = "Demo-Dorf zurückgesetzt.";
+      runtime.feedback = copy().feedback.demoReset;
       clearDemoState();
       render();
     },
     resolveDemoRaid() {
       const result = resolveRaidMarch(runtime.state);
       runtime.feedback = result.ok
-        ? `Marsch beendet: ${result.attack >= result.defense ? "Sieg" : "Rückzug"}.`
-        : "Marsch konnte nicht ausgewertet werden.";
+        ? copy().feedback.demoRaidResolved(
+            result.attack >= result.defense ? copy().victory : copy().retreat,
+          )
+        : copy().feedback.demoRaidUnavailable;
       save();
       render();
     },

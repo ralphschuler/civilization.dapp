@@ -56,12 +56,14 @@ function resourceHudItem({
   production,
   resourceFormat,
   copy,
+  locale,
   assetResult,
 }) {
   const label = copy.resourceNames[id] || definition.label;
   const exactValue = (amount) =>
     Number.isFinite(amount) ? resourceFormat(amount) : resourceFormat(0);
-  const compactValue = (amount) => compactResourceValue(amount, resourceFormat);
+  const compactValue = (amount) =>
+    compactResourceValue(amount, resourceFormat, locale);
   const stored = Number.isFinite(state.resources[id]) ? state.resources[id] : 0;
   const storageCapacity = Number.isFinite(capacity) ? capacity : 0;
   const productionText = productionRateText({
@@ -69,12 +71,16 @@ function resourceHudItem({
     rate: production?.[id],
     mode: runtimeMode,
     formatValue: compactValue,
+    dayUnit: copy.perDay,
+    secondUnit: copy.perSecond,
   });
   const accessibleProductionText = productionRateText({
     resourceId: id,
     rate: production?.[id],
     mode: runtimeMode,
     formatValue: exactValue,
+    dayUnit: copy.perDay,
+    secondUnit: copy.perSecond,
   });
   const hasProduction = productionText !== "";
   const gold = runtimeMode === "world" && id === "gold";
@@ -111,6 +117,7 @@ function collectionResources({
   displayState,
   resourceFormat,
   copy,
+  locale,
   assetResult,
 }) {
   const resources = Object.entries(resourceDefs).map(([id, definition]) => {
@@ -119,7 +126,8 @@ function collectionResources({
       : 0;
     return { id, label: copy.resourceNames[id] || definition.label, value };
   });
-  const compactValue = (value) => compactResourceValue(value, resourceFormat);
+  const compactValue = (value) =>
+    compactResourceValue(value, resourceFormat, locale);
   return `
     <span class="collection-resources" aria-hidden="true">
       ${resources
@@ -261,6 +269,7 @@ export function gameShell(ctx) {
         production,
         resourceFormat,
         copy,
+        locale,
         assetResult,
       }),
     )
@@ -272,6 +281,7 @@ export function gameShell(ctx) {
     displayState,
     resourceFormat,
     copy,
+    locale,
     assetResult,
   });
   const mobileNavigation = navigation
@@ -302,7 +312,7 @@ export function gameShell(ctx) {
           <div class="map-head">
 <p>${copy.villageOf}</p>
 <h1>${copy.yourVillage}</h1>
-<span>${copy.buildingNames.townhall} ${state.buildings.townhall} · ${copy.buildingNames.warehouse} ${format(capacity)}${runtimeMode === "world" ? ` · Prestige ${state.prestigeCount}` : ""}</span>
+<span>${copy.buildingNames.townhall} ${state.buildings.townhall} · ${copy.buildingNames.warehouse} ${format(capacity)}${runtimeMode === "world" ? copy.mapHead(state.prestigeCount) : ""}</span>
 </div>
           <button class="collect-button" id="gather" ${collection.locked || busy ? "disabled" : ""}>
 <span data-collection-status>${collection.detail}</span>
@@ -317,7 +327,7 @@ ${collectionStock}
 <i class="asset-building-fallback" role="status">${copy.buildingAssetUnavailable(copy.buildingNames.market)}</i>
 <span>
 <b>${copy.buildingNames.market}</b>
-<small>${runtimeMode === "world" ? "CGOLD" : "Demo-Markt"}</small>
+<small>${runtimeMode === "world" ? "CGOLD" : copy.marketBadge}</small>
 </span>
 </button>
           </div>
@@ -332,7 +342,7 @@ ${collectionStock}
 <span>
 <i>
 </i> ${runtimeMode === "world" ? copy.gameAuthority : copy.demoStorage}</span>
-<span>${runtimeMode === "demo" ? `${state.raids} Demo-Überfälle · Kein Wallet verbunden` : `Prestige ${state.prestigeCount} · World Chain`}</span>
+<span>${runtimeMode === "demo" ? copy.demoFooter(state.raids) : copy.worldFooter(state.prestigeCount)}</span>
 ${runtimeMode === "demo" ? `<button id="reset">${copy.demoReset}</button>` : ""}</footer>
       <nav class="mobile-hud" aria-label="${copy.quickAccess}">${mobileNavigation}</nav>
       ${settingsDialog({ copy, locale, walletAddress, settingsOpen, reducedMotion })}

@@ -2,8 +2,15 @@ import { BUILDING_ASSETS, MAX_BUILDING_LEVEL } from "../constants.js";
 import { clock, costLine, escapeHtml, requirementsLine } from "../helpers.js";
 import { boostConstructionStatus } from "../boost-status.js";
 import { constructionBoostEligibility } from "../../world-game/boost-eligibility.js";
+import { civilizationMessages } from "../../lib/civilization-locale.ts";
 
-function pendingConstructionAction({ state, buildings, busy, remainingTime }) {
+function pendingConstructionAction({
+  state,
+  buildings,
+  busy,
+  remainingTime,
+  copy,
+}) {
   const seconds = remainingTime(state.construction.completesAt);
   const boost = constructionBoostEligibility({
     construction: state.construction,
@@ -11,17 +18,17 @@ function pendingConstructionAction({ state, buildings, busy, remainingTime }) {
     busy,
   });
   const building = buildings[state.construction.buildingId];
-  const label = building?.label || "Gebäude";
-  const actionLabel = seconds ? "Bau läuft" : "Ausbau abschließen";
-  const boostDetail = boostConstructionStatus(boost.reason);
+  const label = building?.label || copy.buildDetail;
+  const actionLabel = seconds ? copy.constructionRunning : copy.completeUpgrade;
+  const boostDetail = boostConstructionStatus(boost.reason, copy);
 
   return `<div class="requirement-box">
-    <span>BAU LÄUFT · ${escapeHtml(label)}</span>
-    <b data-construction-countdown>${seconds ? clock(seconds) : "Fertig"}</b>
-    <small>Der Contract erhöht die Stufe erst nach Abschluss.</small>
+    <span>${copy.buildProgress} · ${escapeHtml(label)}</span>
+    <b data-construction-countdown>${seconds ? clock(seconds) : copy.complete}</b>
+    <small>${copy.constructionNote}</small>
   </div>
   <button class="primary-action" id="complete-upgrade" ${seconds || busy ? "disabled" : ""}>${actionLabel}</button>
-  <button class="primary-action" id="boost-construction" aria-describedby="boost-construction-status" ${!boost.eligible ? "disabled" : ""}>1 Stunde für 1 WLD boosten</button>
+  <button class="primary-action" id="boost-construction" aria-describedby="boost-construction-status" ${!boost.eligible ? "disabled" : ""}>${copy.boostConstruction}</button>
   <small id="boost-construction-status" data-boost-construction-status>${boostDetail}</small>`;
 }
 
@@ -29,43 +36,44 @@ function maximumLevelAction(context, building) {
   const { runtimeMode, selectedBuilding, busy, state } = context;
   const canPrestige =
     runtimeMode === "world" && selectedBuilding === "townhall";
+  const { copy } = context;
   const prestigeAction = canPrestige
-    ? `<button class="primary-action" id="prestige" ${busy ? "disabled" : ""}>Prestige ${state.prestigeCount + 1} starten</button>`
+    ? `<button class="primary-action" id="prestige" ${busy ? "disabled" : ""}>${copy.prestigeStart(state.prestigeCount + 1)}</button>`
     : "";
   const detail =
     selectedBuilding === "townhall"
-      ? "Prestige setzt das Dorf zurück und erhöht Produktion dauerhaft um 10 %."
-      : "Für dieses Gebäude ist kein weiterer Ausbau möglich.";
+      ? copy.prestigeDetail
+      : copy.noFurtherUpgrade;
 
   return `<div class="requirement-box">
-    <span>MAXIMALSTUFE ERREICHT</span>
-    <b>${building.label} ist vollständig ausgebaut.</b>
+    <span>${copy.maxLevel}</span>
+    <b>${copy.fullyUpgraded(building.label)}</b>
     <small>${detail}</small>
   </div>${prestigeAction}`;
 }
 
 function lockedUpgradeAction(context, requirements) {
-  const { buildings, selectedBuilding } = context;
+  const { buildings, selectedBuilding, copy } = context;
 
   return `<div class="requirement-box">
-    <span>AUSBAU GESPERRT</span>
+    <span>${copy.upgradeLocked}</span>
     <b>${requirementsLine(requirements, buildings)}</b>
-    <small>Erfülle diese Stufen, um den Ausbau freizuschalten.</small>
+    <small>${copy.unlockUpgrade}</small>
   </div>
-  <button class="primary-action" data-building="${selectedBuilding}" disabled>Voraussetzungen erfüllen</button>`;
+  <button class="primary-action" data-building="${selectedBuilding}" disabled>${copy.meetRequirements}</button>`;
 }
 
-function durationInfo(runtimeMode, duration) {
+function durationInfo(runtimeMode, duration, copy) {
   if (runtimeMode !== "world") {
     return "";
   }
   if (duration == null) {
-    return '<small class="build-duration">On-chain-Bauzeit: wird aus dem Contract geladen …</small>';
+    return `<small class="build-duration">${copy.buildDurationLoading}</small>`;
   }
   if (duration === false) {
-    return '<small class="build-duration">On-chain-Bauzeit: derzeit nicht lesbar</small>';
+    return `<small class="build-duration">${copy.buildDurationUnavailable}</small>`;
   }
-  return `<small class="build-duration">On-chain-Bauzeit: ${clock(duration)}</small>`;
+  return `<small class="build-duration">${copy.buildDuration(clock(duration))}</small>`;
 }
 
 function availableUpgradeAction(context, level, cost) {
@@ -77,6 +85,7 @@ function availableUpgradeAction(context, level, cost) {
     format,
     buildDuration,
     state,
+    copy,
   } = context;
   const nextLevel = level + 1;
   const duration = buildDuration(selectedBuilding, nextLevel);
@@ -85,13 +94,13 @@ function availableUpgradeAction(context, level, cost) {
   );
   const actionLabel =
     runtimeMode === "world"
-      ? `Ausbau auf Stufe ${nextLevel} starten`
-      : `Auf Stufe ${nextLevel} ausbauen`;
+      ? copy.startWorldUpgrade(nextLevel)
+      : copy.startDemoUpgrade(nextLevel);
 
   return `<div class="upgrade-cost">
-    <span>KOSTEN FÜR STUFE ${nextLevel}</span>
+    <span>${copy.upgradeCost(nextLevel)}</span>
     <div>${costLine(cost, resourceDefs, format)}</div>
-    ${durationInfo(runtimeMode, duration)}
+    ${durationInfo(runtimeMode, duration, copy)}
   </div>
   <button class="primary-action" data-building="${selectedBuilding}" ${!affordable || busy ? "disabled" : ""}>${actionLabel}</button>`;
 }
@@ -112,7 +121,10 @@ function nextProductionLine(context, building) {
   }
 
   const rates = context.nextBuildingProduction(context.selectedBuilding);
-  const unit = context.runtimeMode === "world" ? "/Tag" : "/s";
+  const unit =
+    context.runtimeMode === "world"
+      ? `/${context.copy.perDay}`
+      : `/${context.copy.perSecond}`;
   const production = Object.keys(building.produces)
     .map(
       (id) =>
@@ -120,10 +132,11 @@ function nextProductionLine(context, building) {
     )
     .join(" · ");
 
-  return ` Nächste Produktion: ${production}.`;
+  return context.copy.nextProduction(production);
 }
 
 export function buildPanel(context) {
+  context = { copy: civilizationMessages("de-DE"), ...context };
   const {
     state,
     selectedBuilding,
@@ -147,12 +160,12 @@ export function buildPanel(context) {
   return `<div class="inspector build-inspector">
     <div class="inspector-art ${assetResult?.failed.includes(BUILDING_ASSETS[selectedBuilding]) ? "has-asset-error" : ""}" data-asset-container>
       <img src="${BUILDING_ASSETS[selectedBuilding]}" alt="" data-asset-fallback>
-      <i class="asset-building-fallback" role="status">${copy?.buildingAssetUnavailable?.(building.label) || `${building.label}-Symbol nicht verfügbar.`}</i>
+      <i class="asset-building-fallback" role="status">${copy.buildingAssetUnavailable(building.label)}</i>
     </div>
     <div class="inspector-title">
-      <p>GEBÄUDEDETAIL</p>
+      <p>${copy.buildDetail}</p>
       <h2>${building.label}</h2>
-      <span>Stufe ${level} → ${level + 1}</span>
+      <span>${copy.level} ${level} → ${level + 1}</span>
     </div>
     <p class="inspector-copy">${building.detail}${productionLine}</p>
     <div class="inspector-divider"></div>
