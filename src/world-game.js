@@ -15,10 +15,13 @@ export {
   claimEligibility,
   getContractBuildingCost,
   getContractCapacity,
+  getContractConstructionCapacity,
+  getContractDefense,
   getContractProduction,
   getContractRequirements,
   getContractTroopRequirements,
   projectCivilizationState,
+  projectContractUpgradeImpact,
 } from "./world-game/projections.js";
 export {
   encodeWalletRegistration,

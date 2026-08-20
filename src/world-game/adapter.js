@@ -11,6 +11,7 @@ import {
   claimEligibility,
   getContractBuildingCost,
   getContractCapacity,
+  projectContractUpgradeImpact,
   getContractProduction,
   getContractRequirements,
   getContractTroopRequirements,
@@ -250,6 +251,7 @@ export function createWorldGameAdapter({
     getTroopRequirements: getContractTroopRequirements,
     getCapacity: getContractCapacity,
     getProduction: getContractProduction,
+    projectUpgradeImpact: projectContractUpgradeImpact,
     projectState: projectCivilizationState,
     claimEligibility,
     readBuildDuration(buildingId, nextLevel) {

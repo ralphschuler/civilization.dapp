@@ -267,6 +267,10 @@ function createController(runtime) {
         );
         return Object.fromEntries(nextRates);
       },
+      upgradeImpact: (id) =>
+        runtime.mode === "world"
+          ? runtime.adapter.projectUpgradeImpact(runtime.state, id)
+          : null,
       troopRequirements: (id) =>
         runtime.mode === "world"
           ? runtime.adapter.getTroopRequirements(runtime.state, id)

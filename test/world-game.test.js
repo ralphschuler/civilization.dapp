@@ -23,6 +23,7 @@ import {
   constructionBoostEligibility,
   claimEligibility,
   getContractBuildingCost,
+  projectContractUpgradeImpact,
   projectCivilizationState,
   registerWalletWithMiniKit,
 } from "../src/world-game.js";
@@ -777,6 +778,50 @@ test("live field projection is monotonic, uses the contract hourly formula, caps
     null,
     "RPC/error state never invents resources",
   );
+});
+
+test("upgrade impact projection matches contract fixture boundaries for rounding, slots, defense, and unlocks", () => {
+  const fixture = projectedSnapshot();
+  fixture.buildings.warehouse = 1;
+  const warehouse = projectContractUpgradeImpact(fixture, "warehouse");
+  assert.deepEqual(warehouse.capacity, { before: 500, after: 850, delta: 350 });
+
+  fixture.buildings.workshop = 10;
+  const workshop10 = projectContractUpgradeImpact(fixture, "workshop");
+  assert.deepEqual(workshop10.constructionSlots, {
+    before: 1,
+    after: 2,
+    delta: 1,
+  });
+  fixture.buildings.workshop = 20;
+  const workshop20 = projectContractUpgradeImpact(fixture, "workshop");
+  assert.deepEqual(workshop20.constructionSlots, {
+    before: 2,
+    after: 3,
+    delta: 1,
+  });
+  fixture.buildings.workshop = 21;
+  assert.equal(
+    projectContractUpgradeImpact(fixture, "workshop").constructionSlots,
+    null,
+  );
+
+  fixture.buildings.townhall = 2;
+  fixture.buildings.workshop = 1;
+  const townhall = projectContractUpgradeImpact(fixture, "townhall");
+  assert.deepEqual(townhall.defense, { before: 40, after: 60, delta: 20 });
+  assert.deepEqual(townhall.unlocks.buildings, ["barracks"]);
+
+  fixture.buildings.townhall = 3;
+  fixture.buildings.workshop = 1;
+  fixture.buildings.barracks = 3;
+  const workshop = projectContractUpgradeImpact(fixture, "workshop");
+  assert.deepEqual(workshop.unlocks.troops, ["rider"]);
+  fixture.buildings.townhall = 30;
+  assert.deepEqual(projectContractUpgradeImpact(fixture, "townhall"), {
+    available: false,
+    reason: "max_level",
+  });
 });
 
 test("claim eligibility requires a fresh chain anchor, elapsed cooldown, whole transferable stock, and treats gold independently", () => {

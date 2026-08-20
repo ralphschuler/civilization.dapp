@@ -637,6 +637,7 @@ button {
   line-height: 1.35;
 }
 .upgrade-cost,
+.upgrade-impact,
 .requirement-box,
 .gold-boundary,
 .raid-result {
@@ -652,6 +653,52 @@ button {
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem;
+}
+.upgrade-impact {
+  border-color: #738a5c;
+  background: #142015;
+}
+.upgrade-impact h3 {
+  margin: 0;
+  color: #e8ebc4;
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+}
+.upgrade-impact ul {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.upgrade-impact li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.1rem 0.5rem;
+  align-items: baseline;
+  font-size: 0.66rem;
+}
+.upgrade-impact li > span {
+  color: #c1ccb3;
+}
+.upgrade-impact li > b {
+  color: #fff9df;
+  white-space: nowrap;
+}
+.upgrade-impact li > em {
+  grid-column: 2;
+  color: #b6df87;
+  font-style: normal;
+}
+.upgrade-impact-unlocks > b {
+  white-space: normal !important;
+}
+.upgrade-impact-note,
+.upgrade-impact-unavailable p {
+  margin: 0;
+  color: #aebda1;
+  font-size: 0.6rem;
+  line-height: 1.4;
 }
 .cost {
   font-size: 0.65rem;
@@ -1156,6 +1203,7 @@ button {
     display: none;
   }
 }
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *:before,
