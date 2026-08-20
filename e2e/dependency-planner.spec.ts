@@ -26,7 +26,7 @@ const plannerState = {
 };
 
 const plannerBuildings = Object.fromEntries(
-  Object.keys(plannerState.buildings).map((id) => [
+  Object.keys(plannerState.buildings).map((id: string) => [
     id,
     { label: id, detail: `${id} details`, produces: {} },
   ]),
@@ -38,7 +38,7 @@ function dependencyPlan() {
     target: { id: "workshop", level: 1 },
     requirementsForLevel: getContractRequirementsForLevel,
     buildingCost: getContractBuildingCost,
-    buildDuration: (_id, level) => level * 120,
+    buildDuration: (_id: string, level: number) => level * 120,
     constructionCapacity: getContractConstructionCapacity,
   });
 }
@@ -60,7 +60,7 @@ async function mountDependencyPlanner(page: Page) {
         ["wood", "clay", "stone", "gold"].map((id) => [id, { label: id }]),
       ),
       format: String,
-      buildDuration: (_id, level) => level * 120,
+      buildDuration: (_id: string, level: number) => level * 120,
       nextBuildingProduction: () => ({}),
       remainingTime: () => 0,
       busy: false,
