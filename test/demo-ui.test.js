@@ -617,6 +617,18 @@ test("mobile HUD keeps all four resources in one bounded row", async () => {
   assert.doesNotMatch(mobile, /\.collect-button span\s*\{\s*display: none/);
 });
 
+test("construction jobs span the full build inspector width", async () => {
+  const css = await readFile(
+    new URL("../src/styles.css", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(
+    css,
+    /\.build-inspector\s*>\s*\.construction-jobs\s*\{[\s\S]*?grid-column:\s*1\s*\/\s*-1[\s\S]*?display:\s*grid[\s\S]*?gap:\s*0\.8rem/,
+  );
+});
+
 test("app lifecycle owns timer setup and teardown while bindings live outside markup", async () => {
   const [app, bindings] = await Promise.all([
     readFile(new URL("../src/app.js", import.meta.url), "utf8"),

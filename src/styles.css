@@ -618,6 +618,11 @@ button {
   height: 1px;
   background: #99a16d42;
 }
+.build-inspector > .construction-jobs {
+  grid-column: 1/-1;
+  display: grid;
+  gap: 0.8rem;
+}
 .upgrade-cost,
 .requirement-box,
 .gold-boundary,
