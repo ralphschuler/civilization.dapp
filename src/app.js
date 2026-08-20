@@ -1,4 +1,7 @@
 import "./styles.css";
+import { createElement } from "react";
+import { createRoot } from "react-dom/client";
+import { GameShellHud } from "./components/GameShellHud";
 import { canRenderGameWorld } from "./world-gate.js";
 import {
   BUILDINGS,
@@ -92,6 +95,7 @@ function createRuntime(options) {
     visibilityHandler: null,
     assetState: "loading",
     assetResult: { failed: [] },
+    hudRoot: null,
   };
 }
 
@@ -190,6 +194,28 @@ function createController(runtime) {
   };
 
   let world;
+  const renderHud = () => {
+    const hud = runtime.root?.querySelector("[data-game-shell-hud]");
+    if (!hud) return;
+    runtime.hudRoot ??= createRoot(hud);
+    runtime.hudRoot.render(
+      createElement(GameShellHud, {
+        assetResult: runtime.assetResult,
+        capacity: capacity(),
+        copy: civilizationMessages(runtime.locale),
+        locale: runtime.locale,
+        onOpenSettings: actions.openSettings,
+        production: production(),
+        resourceDefs: RESOURCE_DEFS,
+        resourceFormat,
+        resources: runtime.state.resources,
+        runtimeMode: runtime.mode,
+        tokens: TOKEN_REGISTRY,
+        worldApp: runtime.worldApp,
+        worldBadge: runtime.worldBadge,
+      }),
+    );
+  };
   const panel = () => {
     const context = {
       state: runtime.state,
@@ -346,6 +372,8 @@ function createController(runtime) {
       (total, value) => total + value,
       0,
     );
+    runtime.hudRoot?.unmount();
+    runtime.hudRoot = null;
     runtime.root.innerHTML = gameShell({
       state: runtime.state,
       runtimeMode: runtime.mode,
@@ -376,6 +404,7 @@ function createController(runtime) {
       settingsOpen: runtime.settingsOpen,
       reducedMotion: runtime.reducedMotion,
     });
+    renderHud();
     bindGameActions(runtime.root, actions);
     world.requestBuildDuration(
       runtime.selectedBuilding,
@@ -470,6 +499,7 @@ function createController(runtime) {
       copy: civilizationMessages(runtime.locale),
       locale: runtime.locale,
     });
+    renderHud();
   };
   return { render, refreshWorld: world.refresh, refreshTickValues, actions };
 }
@@ -554,5 +584,8 @@ export function stopCivilizationApp() {
   runtime.timer = null;
   runtime.visibilityHandler = null;
   runtime.adapter = null;
+  // The parent React tree is removing the imperative root at this point.
+  // Calling unmount on its nested HUD root during that render races React.
+  runtime.hudRoot = null;
   runtime.state = null;
 }

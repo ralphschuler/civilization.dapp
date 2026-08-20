@@ -213,10 +213,7 @@ test("shell rendering receives explicit state and no controller callbacks", () =
   assert.match(html, /<p>panel<\/p>/);
   assert.match(html, /asset-loading/);
   assert.match(html, /id="gather"/);
-  assert.match(
-    html,
-    /data-open-settings[^>]*aria-haspopup="dialog"[^>]*aria-label="Settings"[^>]*title="Settings">\s*<span aria-hidden="true">⚙<\/span>\s*<\/button>/,
-  );
+  assert.match(html, /<div data-game-shell-hud><\/div>/);
   assert.match(html, /role="dialog" aria-modal="true"/);
   assert.match(html, /Connected wallet/);
   assert.match(html, /0x0000000000000000000000000000000000000001/);
@@ -312,8 +309,8 @@ test("failed resource and building sprites retain visible accessible fallbacks",
       ],
     },
   });
-  assert.match(html, /resource wood has-asset-error/);
   assert.match(html, /map-townhall[^>]*has-asset-error/);
+  assert.match(html, /collection-resource has-asset-error/);
   assert.match(html, /Holz-Symbol nicht verfügbar/);
   assert.match(html, /Rathaus-Symbol nicht verfügbar/);
   assert.match(html, /role="status"/);
@@ -354,7 +351,7 @@ test("imperative shell uses the selected locale for navigation and dynamic claim
   });
   assert.match(html, /aria-label="Village actions"/);
   assert.match(html, /1,234\.5 collect/);
-  assert.match(html, /data-open-settings[^>]*aria-label="Settings"/);
+  assert.match(html, /data-game-shell-hud/);
 });
 
 test("World market UI requires a live on-chain quote and exposes fee and liquidity", () => {
@@ -551,7 +548,7 @@ test("map buildings use normalized bottom-centre anchors across renders and atla
   assert.doesNotMatch(css, /--ground-anchor/);
 });
 
-test("resource HUD omits field stock while the collect button exposes it once", () => {
+test("imperative shell omits the React HUD while collect status exposes field stock once", () => {
   const state = {
     resources: { wood: 2_410_426_546, clay: 1, stone: 1, gold: 0 },
     unclaimed: { wood: 4, clay: 0, stone: 0, gold: 0 },
@@ -603,23 +600,9 @@ test("resource HUD omits field stock while the collect button exposes it once", 
     production: { wood: 35_100, gold: 0 },
   });
 
-  assert.match(demo, /data-resource-value>2,4Mrd<\/strong>/);
-  assert.match(
-    demo,
-    /data-resource-production aria-hidden="true" ><span class="resource-production-label">Produktion <\/span><span data-resource-production-value>\+35,1K\/s/,
-  );
-  assert.match(
-    world,
-    /data-resource-production aria-hidden="true" ><span class="resource-production-label">Produktion <\/span><span data-resource-production-value>\+35,1K\/Tag/,
-  );
-  assert.match(demo, /role="group" aria-label="Holz"/);
-  assert.doesNotMatch(demo, /aria-describedby=/);
-  assert.match(demo, /class="resource-values" aria-hidden="true"/);
+  assert.match(demo, /<div data-game-shell-hud><\/div>/);
+  assert.doesNotMatch(demo, /data-resource="wood"/);
   assert.doesNotMatch(demo, /data-resource-field|Feldbestand/);
-  assert.match(
-    demo,
-    /class="resource-accessibility">[\s\S]*role="progressbar" aria-label="Holz-Speicher"[\s\S]*aria-valuetext="2410426546 von 100"[\s\S]*Produktion: \+35100\/s/,
-  );
   assert.match(
     demo,
     /class="collection-resources" aria-hidden="true">[\s\S]*data-collection-resource="wood"[\s\S]*<img [^>]*alt=""[^>]*>[\s\S]*data-collection-resource-value>4<\/b>/,
@@ -632,12 +615,7 @@ test("resource HUD omits field stock while the collect button exposes it once", 
     demo,
     /data-ready-to-claim aria-hidden="true">4 sammeln<\/b>[\s\S]*data-ready-to-claim-accessible>4 sammeln<\/span>/,
   );
-  assert.doesNotMatch(world, /data-resource="gold"[\s\S]*?storage-capacity/);
-  assert.match(
-    world,
-    /data-resource="gold"[\s\S]*?data-resource-production aria-hidden="true" hidden>[\s\S]*?data-resource-production-value><\/span><\/em>/,
-  );
-  assert.doesNotMatch(world, /Gold[\s\S]*?Produktion \+0/);
+  assert.match(world, /<div data-game-shell-hud><\/div>/);
 });
 
 test("mobile HUD keeps all four resources in one bounded row", async () => {
@@ -1040,20 +1018,8 @@ test("second tick updates collect stock, claim, construction, and raid controls"
     '[data-collection-resource="wood"] [data-collection-resource-value]',
     {},
   );
-  const production = add(
-    '[data-resource="wood"] [data-resource-production]',
-    {},
-  );
-  const productionValue = add(
-    '[data-resource="wood"] [data-resource-production-value]',
-    {},
-  );
   const accessibleCollectionValue = add(
     '[data-collection-resource-accessible="wood"]',
-    {},
-  );
-  const accessibleProduction = add(
-    '[data-resource="wood"] [data-resource-accessible-production]',
     {},
   );
   const claim = add("[data-ready-to-claim]", {});
@@ -1074,10 +1040,7 @@ test("second tick updates collect stock, claim, construction, and raid controls"
     },
   });
   assert.equal(collectionValue.textContent, "2,4Mrd");
-  assert.equal(productionValue.textContent, "+35,1K/Tag");
-  assert.equal(production.hidden, false);
   assert.equal(accessibleCollectionValue.textContent, "2410426546");
-  assert.equal(accessibleProduction.textContent, "Produktion: +35100/Tag");
   assert.equal(claim.textContent, "2410426546 sammeln");
   assert.equal(accessibleClaim.textContent, "2410426546 sammeln");
   assert.equal(claimStatus.textContent, "FELD");
@@ -1154,30 +1117,18 @@ test("boost UI is clickable at exactly one hour and explains guarded states", ()
   assert.match(pending, /laufende Transaktion wird noch bestätigt/);
 });
 
-test("ticks update collect stock and production independently without rerendering", () => {
+test("ticks update collect stock without writing React-owned production nodes", () => {
   const nodes = new Map();
   const add = (selector, node = {}) => nodes.set(selector, node);
   const collectionValue = {};
-  const production = {};
-  const productionValue = {};
   const accessibleCollectionValue = {};
-  const accessibleProduction = {};
   add(
     '[data-collection-resource="gold"] [data-collection-resource-value]',
     collectionValue,
   );
-  add('[data-resource="gold"] [data-resource-production]', production);
-  add(
-    '[data-resource="gold"] [data-resource-production-value]',
-    productionValue,
-  );
   add(
     '[data-collection-resource-accessible="gold"]',
     accessibleCollectionValue,
-  );
-  add(
-    '[data-resource="gold"] [data-resource-accessible-production]',
-    accessibleProduction,
   );
   const root = { querySelector: (selector) => nodes.get(selector) || null };
   const tick = (rate, stock) =>
@@ -1195,28 +1146,15 @@ test("ticks update collect stock and production independently without rerenderin
 
   tick(0, 3);
   assert.equal(collectionValue.textContent, "3");
-  assert.equal(productionValue.textContent, "");
-  assert.equal(production.hidden, true);
   tick(1, 4);
   assert.equal(collectionValue.textContent, "4");
-  assert.equal(productionValue.textContent, "+1/s");
-  assert.equal(production.hidden, false);
   tick(0, 5);
   assert.equal(collectionValue.textContent, "5");
-  assert.equal(productionValue.textContent, "");
-  assert.equal(production.hidden, true);
-  assert.equal(accessibleProduction.hidden, true);
   tick(Number.NaN, 6);
   assert.equal(collectionValue.textContent, "6");
-  assert.equal(productionValue.textContent, "");
-  assert.equal(production.hidden, true);
 
   tick(-1, 7);
-  assert.equal(productionValue.textContent, "");
-  assert.equal(production.hidden, true);
   tick(Infinity, 8);
-  assert.equal(productionValue.textContent, "");
-  assert.equal(production.hidden, true);
 });
 
 test("ticks update collect stock without a matching production entry", () => {
@@ -1231,18 +1169,6 @@ test("ticks update collect stock without a matching production entry", () => {
   );
   const accessibleCollectionValue = add(
     '[data-collection-resource-accessible="clay"]',
-    {},
-  );
-  const production = add(
-    '[data-resource="clay"] [data-resource-production]',
-    {},
-  );
-  const productionValue = add(
-    '[data-resource="clay"] [data-resource-production-value]',
-    {},
-  );
-  const accessibleProduction = add(
-    '[data-resource="clay"] [data-resource-accessible-production]',
     {},
   );
   const root = { querySelector: (selector) => nodes.get(selector) || null };
@@ -1261,7 +1187,4 @@ test("ticks update collect stock without a matching production entry", () => {
 
   assert.equal(collectionValue.textContent, "9");
   assert.equal(accessibleCollectionValue.textContent, "9");
-  assert.equal(productionValue.textContent, "");
-  assert.equal(production.hidden, true);
-  assert.equal(accessibleProduction.hidden, true);
 });

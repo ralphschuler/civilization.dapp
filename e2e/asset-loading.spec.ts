@@ -66,3 +66,22 @@ test("failed building and resource sprites keep their controls usable", async ({
   await expect(page.locator("#gather")).toBeEnabled();
   await page.locator("#gather").press("Enter");
 });
+
+test("React-owned resource HUD renders formatted state and retains its settings control", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page
+    .getByTestId("wallet-access-e2e-scenario")
+    .selectOption("registered");
+  await page.locator(".civilization-login__action").click();
+
+  const wood = page.locator('[data-resource="wood"]');
+  await expect(wood).toContainText("HOLZ · SPEICHER");
+  await expect(wood.locator("[data-resource-value]")).toHaveText("240");
+  await expect(wood.locator("[data-resource-production-value]")).toHaveText(
+    "+0,6/s",
+  );
+  await page.locator("[data-open-settings]").click();
+  await expect(page.locator(".settings-dialog")).toBeVisible();
+});

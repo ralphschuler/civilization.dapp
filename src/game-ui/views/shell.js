@@ -5,11 +5,7 @@ import {
   RESOURCE_ASSETS,
 } from "../constants.js";
 import { mapBuildingAnchorStyle } from "../map-coordinates.js";
-import {
-  compactResourceValue,
-  escapeHtml,
-  productionRateText,
-} from "../helpers.js";
+import { compactResourceValue, escapeHtml } from "../helpers.js";
 import { civilizationMessages } from "../../lib/civilization-locale.ts";
 // Game feedback can include provider, contract, or contact supplied text.
 // Keep this as the sole markup boundary for the imperative game shell.
@@ -19,72 +15,6 @@ function feedbackText(feedback) {
 
 function assetFailed(assetResult, src) {
   return assetResult?.failed.includes(src);
-}
-
-function resourceHudItem({
-  id,
-  definition,
-  state,
-  runtimeMode,
-  tokens,
-  capacity,
-  production,
-  resourceFormat,
-  copy,
-  locale,
-  assetResult,
-}) {
-  const label = copy.resourceNames[id] || definition.label;
-  const exactValue = (amount) =>
-    Number.isFinite(amount) ? resourceFormat(amount) : resourceFormat(0);
-  const compactValue = (amount) =>
-    compactResourceValue(amount, resourceFormat, locale);
-  const stored = Number.isFinite(state.resources[id]) ? state.resources[id] : 0;
-  const storageCapacity = Number.isFinite(capacity) ? capacity : 0;
-  const productionText = productionRateText({
-    resourceId: id,
-    rate: production?.[id],
-    mode: runtimeMode,
-    formatValue: compactValue,
-    dayUnit: copy.perDay,
-    secondUnit: copy.perSecond,
-  });
-  const accessibleProductionText = productionRateText({
-    resourceId: id,
-    rate: production?.[id],
-    mode: runtimeMode,
-    formatValue: exactValue,
-    dayUnit: copy.perDay,
-    secondUnit: copy.perSecond,
-  });
-  const hasProduction = productionText !== "";
-  const gold = runtimeMode === "world" && id === "gold";
-  const capacityMarkup = gold
-    ? ""
-    : `
-    <b class="storage-capacity" data-resource-capacity>/${compactValue(storageCapacity)}</b>
-    <div class="storage-progress ${stored >= storageCapacity ? "is-full" : ""}">
-      <i data-resource-progress style="transform:scaleX(${storageCapacity ? Math.min(1, stored / storageCapacity) : 0})">
-</i>
-    </div>`;
-  const accessibleStorageMarkup = gold
-    ? `<span>${copy.walletBalance}: ${exactValue(stored)}.</span>`
-    : `<span role="progressbar" aria-label="${label}-${copy.storageAccessible}" aria-valuemin="0" aria-valuemax="${storageCapacity}" aria-valuenow="${stored}" aria-valuetext="${exactValue(stored)} ${copy.from} ${exactValue(storageCapacity)}"></span>`;
-  return `
-    <div class="resource ${definition.color} ${assetFailed(assetResult, RESOURCE_ASSETS[id]) ? "has-asset-error" : ""}" data-resource="${id}" data-asset-container role="group" aria-label="${label}">
-      <img src="${RESOURCE_ASSETS[id]}" alt="" aria-hidden="true" data-asset-fallback>
-      <span class="asset-icon-fallback" role="status">${copy.resourceAssetUnavailable(label)}</span>
-      <span class="resource-values" aria-hidden="true">
-        <small>${gold ? "CGOLD" : tokens[id].symbol} · ${gold ? copy.wallet : copy.storage}</small>
-        <strong data-resource-value>${compactValue(stored)}</strong>
-        ${capacityMarkup}
-      </span>
-      <em class="resource-production" data-resource-production aria-hidden="true" ${hasProduction ? "" : "hidden"}><span class="resource-production-label">${copy.production} </span><span data-resource-production-value>${productionText}</span></em>
-      <span class="resource-accessibility">
-        ${accessibleStorageMarkup}
-        <span data-resource-accessible-production ${hasProduction ? "" : "hidden"}>${hasProduction ? `${copy.production}: ${accessibleProductionText}` : ""}</span>
-      </span>
-    </div>`;
 }
 
 function collectionResources({
@@ -240,18 +170,14 @@ export function gameShell(ctx) {
   const {
     state,
     runtimeMode,
-    worldApp,
-    worldBadge,
     feedback,
     activePanel,
     panel,
-    production,
     capacity,
     displayState,
     collection,
     readyToClaim,
     resourceDefs,
-    tokens,
     format,
     resourceFormat,
     busy,
@@ -264,23 +190,6 @@ export function gameShell(ctx) {
     reducedMotion,
     review,
   } = ctx;
-  const hud = Object.entries(resourceDefs)
-    .map(([id, definition]) =>
-      resourceHudItem({
-        id,
-        definition,
-        state,
-        runtimeMode,
-        tokens,
-        capacity,
-        production,
-        resourceFormat,
-        copy,
-        locale,
-        assetResult,
-      }),
-    )
-    .join("");
   const spots = BUILDING_IDS.map((id) => buildingSpot(id, ctx)).join("");
   const navigation = tabs(activePanel, copy);
   const collectionStock = collectionResources({
@@ -294,18 +203,7 @@ export function gameShell(ctx) {
   const mobileNavigation = tabs(activePanel, copy, "mobile");
   return `
     <section class="game-shell village-shell ${reducedMotion ? "motion-reduced" : ""}">
-      <header class="hud village-hud">
-        <div class="game-mark">
-<span>CD</span>
-<div>
-<b>CIVILIZATION</b>
-<small>DAPP · ${copy.villageOf}</small>
-</div>
-</div>
-        <button type="button" class="resource-settings" data-open-settings aria-haspopup="dialog" aria-label="${copy.settings}" title="${copy.settings}"><span aria-hidden="true">⚙</span></button>
-        <div class="resource-hud">${hud}</div>
-        <span class="demo-badge ${worldApp.installed ? "is-world" : ""}">${worldBadge}</span>
-      </header>
+      <div data-game-shell-hud></div>
       <main class="command-layout">
         <section class="village-map ${assetFailed(assetResult, CITY_MAPS.desktop) || assetFailed(assetResult, CITY_MAPS.mobile) ? "has-asset-error" : ""}" id="dorf" aria-label="${copy.interactiveMap}" data-asset-container>
           <picture class="village-map-terrain" aria-hidden="true">
