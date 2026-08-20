@@ -5,6 +5,8 @@ import { WORLD_CHAIN_ID } from "../world-chain.js";
 import { CIVILIZATION_GAME_ADDRESS, TROOP_IDS } from "./constants.js";
 import { encodeWorldGameAction, validUserOpHash } from "./actions.js";
 import { constructionBoostEligibility } from "./boost-eligibility.js";
+import { decodeCivilizationRevert } from "./reverts.js";
+import { browserRuntimeGate } from "./runtime-gate.js";
 import {
   claimEligibility,
   getContractBuildingCost,
@@ -22,6 +24,16 @@ import {
 } from "./reads.js";
 
 const marketResources = { wood: 0, clay: 1, stone: 2 };
+// These writes rely on the V2 construction queue or market interfaces. V1-safe
+// actions deliberately retain their normal direct preflight and dispatch flow.
+const runtimeGatedActions = new Set([
+  "upgrade",
+  "complete_upgrade",
+  "boost",
+  "prestige",
+  "market_buy",
+  "market_sell",
+]);
 
 function pendingStorage(wallet, game) {
   const key = `civilization:pending-user-op:${wallet.toLowerCase()}:${game.toLowerCase()}`;
@@ -69,6 +81,8 @@ export function createWorldGameAdapter({
   miniKit = MiniKit,
   readState: suppliedReadState = undefined,
   readBuildDuration: suppliedBuildDuration = undefined,
+  preflight: suppliedPreflight = undefined,
+  runtimeGate = browserRuntimeGate(),
 }) {
   const wallet = getAddress(walletAddress);
   const game = getAddress(contractAddress);
@@ -95,6 +109,22 @@ export function createWorldGameAdapter({
     pendingUserOpHash = null;
     pendingAction = null;
     persistPending(storage, wallet, game, null, null);
+  };
+  const preflight = async (transactions) => {
+    try {
+      if (suppliedPreflight)
+        return await suppliedPreflight({ wallet, game, transactions });
+      // A read-only eth_call is intentionally required before wallet dispatch.
+      return await worldGameClient.call({
+        account: wallet,
+        to: transactions.at(-1).to,
+        data: transactions.at(-1).data,
+        value: 0n,
+      });
+    } catch (error) {
+      const decoded = decodeCivilizationRevert(error);
+      throw new Error(decoded?.code || "transaction_preflight_failed");
+    }
   };
   const executeAction = async (type, payload) => {
     if (pendingUserOpHash && pendingAction !== type)
@@ -128,14 +158,18 @@ export function createWorldGameAdapter({
     }
     let userOpHash = pendingUserOpHash;
     if (!userOpHash) {
+      const transactions = encodeWorldGameAction(
+        type,
+        payload,
+        game,
+        worldTokenAddress,
+      );
+      if (runtimeGatedActions.has(type) && typeof runtimeGate === "function")
+        await runtimeGate();
+      await preflight(transactions);
       const response = await sendTransaction({
         chainId: WORLD_CHAIN_ID,
-        transactions: encodeWorldGameAction(
-          type,
-          payload,
-          game,
-          worldTokenAddress,
-        ),
+        transactions,
       });
       if (response.executedWith !== "minikit")
         throw new Error("world_app_wallet_required");
@@ -162,13 +196,17 @@ export function createWorldGameAdapter({
         return { state: await readState(), pending: true, userOpHash };
       if (error instanceof Error && error.message === "Transaction failed") {
         clearPending();
-        throw new Error("transaction_failed");
+        throw new Error(
+          decodeCivilizationRevert(error)?.code || "transaction_failed",
+        );
       }
       throw error;
     }
     if (receipt?.status !== "success") {
       clearPending();
-      throw new Error("transaction_failed");
+      throw new Error(
+        decodeCivilizationRevert(receipt)?.code || "transaction_failed",
+      );
     }
     if (type === "resolve_raid") {
       const resolved = parseEventLogs({

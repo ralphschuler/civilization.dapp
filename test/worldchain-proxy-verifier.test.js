@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { keccak256 } from "viem";
+import { keccak256, toFunctionSelector } from "viem";
 import {
   createJsonRpc,
   EIP1967_IMPLEMENTATION_SLOT,
@@ -24,6 +24,9 @@ const fixtureRpc = ({
   timelockResult = word(admin),
   pausedResult = word("0x0000000000000000000000000000000000000000"),
   pausedRpcError = false,
+  constructionCapacityResult = `0x${"00".repeat(31)}03`,
+  constructionJobResult = `0x${"00".repeat(32)}`,
+  completeUpgradeErrorData = toFunctionSelector("Unregistered()"),
 } = {}) => {
   const calls = [];
   const responseFor = async (method, params) => {
@@ -46,6 +49,12 @@ const fixtureRpc = ({
         if (pausedRpcError) throw { message: "execution reverted" };
         return pausedResult;
       }
+      if (data.startsWith(toFunctionSelector("constructionCapacity()")))
+        return constructionCapacityResult;
+      if (data.startsWith(toFunctionSelector("constructionJob(address,uint8)")))
+        return constructionJobResult;
+      if (data.startsWith(toFunctionSelector("completeUpgrade(uint8)")))
+        throw { data: completeUpgradeErrorData };
       return timelockResult;
     }
     throw new Error("unexpected method");
@@ -90,18 +99,38 @@ test("successful fixture reports decoded authority, pause state, and only safe R
     status: "supported",
     value: false,
   });
+  assert.equal(report.probes.constructionCapacity.value, 3);
+  assert.equal(report.probes.constructionJob.status, "supported");
+  assert.equal(
+    report.probes.completeUpgradeSlot.status,
+    "supported_expected_revert",
+  );
   assert.equal(report.proxy.code.hash, keccak256(code));
   assert.equal(report.implementation.code.hash, keccak256(code));
   assert.deepEqual(
     new Set(calls.map(({ method }) => method)),
     new Set(READ_ONLY_RPC_METHODS),
   );
-  assert.equal(calls.filter(({ method }) => method === "eth_call").length, 3);
+  assert.equal(calls.filter(({ method }) => method === "eth_call").length, 6);
   assert.ok(
     calls
       .filter(({ method }) => method === "eth_call")
       .every(({ params }) => params[0].value === undefined),
   );
+});
+
+test("V1-style missing construction selectors are reported safely, not as V2 support", async () => {
+  const { rpc } = fixtureRpc({ completeUpgradeErrorData: "0x" });
+  const report = await verifyWorldChainProxy({
+    rpc,
+    proxy,
+    expectedChainId: 480,
+  });
+  assert.deepEqual(report.probes.completeUpgradeSlot, {
+    address: proxy,
+    abi: "completeUpgrade(uint8)",
+    status: "unsupported_or_reverted",
+  });
 });
 
 test("paused() reports a supported true result", async () => {

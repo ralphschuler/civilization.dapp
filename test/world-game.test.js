@@ -302,6 +302,34 @@ test("registered wallet skips registration transaction and unregistered wallet s
   );
 });
 
+test("wallet registration bypasses the runtime gate and can dispatch", async () => {
+  const wallet = "0x1111111111111111111111111111111111111111";
+  let gateRequests = 0;
+  let sends = 0;
+  const result = await registerWalletWithMiniKit({
+    walletAddress: wallet,
+    readState: async () => ({ registered: sends > 0 }),
+    pollReceipt: async () => ({ receipt: { status: "success" } }),
+    // An ignored legacy option proves registration makes no runtime-gate request.
+    runtimeGate: async () => {
+      gateRequests += 1;
+      throw new Error("contract_runtime_mismatched");
+    },
+    miniKit: {
+      sendTransaction: async () => {
+        sends += 1;
+        return {
+          executedWith: "minikit",
+          data: { status: "success", userOpHash, from: wallet },
+        };
+      },
+    },
+  });
+  assert.equal(result.alreadyRegistered, false);
+  assert.equal(gateRequests, 0);
+  assert.equal(sends, 1);
+});
+
 test("an unavailable authoritative registration read never opens a registration transaction", async () => {
   const wallet = "0x1111111111111111111111111111111111111111";
   let sends = 0;

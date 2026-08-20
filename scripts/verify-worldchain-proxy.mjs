@@ -1,9 +1,15 @@
 #!/usr/bin/env node
 // Read-only World Chain proxy verifier. It never constructs transactions and
 // limits JSON-RPC traffic to the methods listed in READ_ONLY_RPC_METHODS.
-import { encodeFunctionData, getAddress, isAddress, keccak256 } from "viem";
+import {
+  encodeFunctionData,
+  getAddress,
+  isAddress,
+  keccak256,
+  toFunctionSelector,
+} from "viem";
 
-export const VERIFIER_VERSION = "1.1.0";
+export const VERIFIER_VERSION = "1.2.0";
 export const RPC_FETCH_TIMEOUT_MS = 10_000;
 export const READ_ONLY_RPC_METHODS = Object.freeze([
   "eth_chainId",
@@ -43,13 +49,41 @@ const PAUSED_ABI = Object.freeze([
     outputs: [{ type: "bool" }],
   },
 ]);
+const CONSTRUCTION_CAPACITY_ABI = Object.freeze([
+  {
+    type: "function",
+    name: "constructionCapacity",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "uint8" }],
+  },
+]);
+const CONSTRUCTION_JOB_ABI = Object.freeze([
+  {
+    type: "function",
+    name: "constructionJob",
+    stateMutability: "view",
+    inputs: [{ type: "address" }, { type: "uint8" }],
+    outputs: [{ type: "uint256" }],
+  },
+]);
+const COMPLETE_UPGRADE_SLOT_ABI = Object.freeze([
+  {
+    type: "function",
+    name: "completeUpgrade",
+    stateMutability: "nonpayable",
+    inputs: [{ type: "uint8" }],
+    outputs: [],
+  },
+]);
 const HEX_WORD = /^0x[0-9a-fA-F]{64}$/;
 const HEX_DATA = /^0x(?:[0-9a-fA-F]{2})*$/;
 
 class RpcMethodError extends Error {
-  constructor(method) {
+  constructor(method, data) {
     super(`RPC ${method} returned an error response`);
     this.name = "RpcMethodError";
+    this.data = data;
   }
 }
 
@@ -103,6 +137,26 @@ const encodeOwnerProbe = () =>
 const encodePausedProbe = () =>
   encodeFunctionData({ abi: PAUSED_ABI, functionName: "paused" });
 
+const encodeConstructionCapacityProbe = () =>
+  encodeFunctionData({
+    abi: CONSTRUCTION_CAPACITY_ABI,
+    functionName: "constructionCapacity",
+  });
+
+const encodeConstructionJobProbe = (account) =>
+  encodeFunctionData({
+    abi: CONSTRUCTION_JOB_ABI,
+    functionName: "constructionJob",
+    args: [account, 0],
+  });
+
+const encodeCompleteUpgradeSlotProbe = () =>
+  encodeFunctionData({
+    abi: COMPLETE_UPGRADE_SLOT_ABI,
+    functionName: "completeUpgrade",
+    args: [0],
+  });
+
 const decodeAddressProbe = (result, label) => {
   if (typeof result !== "string" || !HEX_WORD.test(result))
     fail(`${label} returned malformed ABI address data`);
@@ -121,6 +175,36 @@ const decodePausedProbe = (result) => {
       "eth_call paused() probe at proxy returned an invalid ABI boolean value",
     );
   return result.endsWith("1");
+};
+
+const decodeUint8Probe = (result, label) => {
+  if (typeof result !== "string" || !HEX_WORD.test(result))
+    fail(`${label} returned malformed ABI uint8 data`);
+  if (!/^0x0{62}[0-9a-fA-F]{2}$/.test(result))
+    fail(`${label} returned an ABI uint8 with non-zero high bits`);
+  return Number.parseInt(result.slice(-2), 16);
+};
+
+const decodeUint256Probe = (result, label) => {
+  if (typeof result !== "string" || !HEX_WORD.test(result))
+    fail(`${label} returned malformed ABI uint256 data`);
+  return result.toLowerCase();
+};
+
+const COMPLETE_UPGRADE_EXPECTED_REVERTS = new Set(
+  [
+    "Unregistered()",
+    "NoConstructionPending()",
+    "InvalidConstructionSlot(uint8)",
+    "ConstructionNotReady(uint64)",
+  ].map(toFunctionSelector),
+);
+
+const safeRpcErrorData = (error) => {
+  const candidate = error?.data?.data || error?.data;
+  return typeof candidate === "string" && HEX_DATA.test(candidate)
+    ? candidate.toLowerCase()
+    : undefined;
 };
 
 export const createJsonRpc = ({
@@ -163,7 +247,8 @@ export const createJsonRpc = ({
     } catch {
       fail(`RPC request for ${method} returned invalid JSON`);
     }
-    if (payload?.error) throw new RpcMethodError(method);
+    if (payload?.error)
+      throw new RpcMethodError(method, safeRpcErrorData(payload.error));
     if (!("result" in (payload || {})))
       fail(`RPC ${method} response omitted result`);
     return payload.result;
@@ -245,6 +330,57 @@ export const verifyWorldChainProxy = async ({
     if (!(error instanceof RpcMethodError)) throw error;
     paused = { status: "unsupported_or_reverted" };
   }
+  const capabilityProbe = async (invoke, decode) => {
+    try {
+      return {
+        status: "supported",
+        value: decode(
+          await rpc("eth_call", [
+            { to: proxyAddress, data: invoke() },
+            "latest",
+          ]),
+        ),
+      };
+    } catch (error) {
+      if (error instanceof RpcMethodError)
+        return { status: "unsupported_or_reverted" };
+      throw error;
+    }
+  };
+  const constructionCapacity = await capabilityProbe(
+    encodeConstructionCapacityProbe,
+    (result) =>
+      decodeUint8Probe(
+        result,
+        "eth_call constructionCapacity() probe at proxy",
+      ),
+  );
+  const constructionJob = await capabilityProbe(
+    () => encodeConstructionJobProbe(proxyAddress),
+    (result) =>
+      decodeUint256Probe(
+        result,
+        "eth_call constructionJob(address,uint8) probe at proxy",
+      ),
+  );
+  let completeUpgradeSlot;
+  try {
+    // A state-changing selector is exercised only through eth_call. A V2
+    // contract must reject this unregistered, zero-value call with one of its
+    // declared game errors; a missing V1 overload/fallback is not capability.
+    const result = await rpc("eth_call", [
+      { to: proxyAddress, data: encodeCompleteUpgradeSlotProbe() },
+      "latest",
+    ]);
+    completeUpgradeSlot = { status: "unexpected_success" };
+    void result;
+  } catch (error) {
+    if (!(error instanceof RpcMethodError)) throw error;
+    const selector = error.data?.slice(0, 10);
+    completeUpgradeSlot = COMPLETE_UPGRADE_EXPECTED_REVERTS.has(selector)
+      ? { status: "supported_expected_revert" }
+      : { status: "unsupported_or_reverted" };
+  }
 
   return {
     ok: true,
@@ -268,6 +404,21 @@ export const verifyWorldChainProxy = async ({
       timelock: { address: proxyAddress, abi: "timelock()", value: timelock },
       owner: { address: admin, abi: "owner()", value: owner },
       paused: { address: proxyAddress, abi: "paused()", ...paused },
+      constructionCapacity: {
+        address: proxyAddress,
+        abi: "constructionCapacity()",
+        ...constructionCapacity,
+      },
+      constructionJob: {
+        address: proxyAddress,
+        abi: "constructionJob(address,uint8)",
+        ...constructionJob,
+      },
+      completeUpgradeSlot: {
+        address: proxyAddress,
+        abi: "completeUpgrade(uint8)",
+        ...completeUpgradeSlot,
+      },
     },
   };
 };

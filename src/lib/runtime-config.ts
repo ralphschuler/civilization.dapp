@@ -21,6 +21,8 @@ export type RuntimeConfiguration = Readonly<{
   missing: string[];
   world: PublicWorldRuntimeConfiguration;
   walletAuthUrl: string;
+  /** Server-only HTTPS endpoint. Never include this in client props or JSON. */
+  worldchainRpcUrl: string;
   walletAuthAbuse: Readonly<{
     rateLimitSecret: string;
     trustedProxyHops: number;
@@ -112,6 +114,16 @@ function commonMissing(
     missing.push("WALLET_AUTH_RATE_LIMIT_SECRET");
   if (!/^\d+$/.test(value(env, "WALLET_AUTH_TRUSTED_PROXY_HOPS")))
     missing.push("WALLET_AUTH_TRUSTED_PROXY_HOPS");
+  if (
+    !hasHttpsOrigin(
+      profileValue(
+        env,
+        civilizationEnvironment(env),
+        "CIVILIZATION_WORLDCHAIN_RPC_URL",
+      ),
+    )
+  )
+    missing.push(`${prefix}CIVILIZATION_WORLDCHAIN_RPC_URL`);
   return missing;
 }
 
@@ -164,6 +176,11 @@ export function runtimeConfiguration(
   const environment = civilizationEnvironment(env);
   const world = publicWorld(env, environment);
   const walletAuthUrl = profileValue(env, environment, "WALLET_AUTH_URL");
+  const worldchainRpcUrl = profileValue(
+    env,
+    environment,
+    "CIVILIZATION_WORLDCHAIN_RPC_URL",
+  );
   const walletAuthAbuse = {
     rateLimitSecret: value(env, "WALLET_AUTH_RATE_LIMIT_SECRET"),
     trustedProxyHops: Number(value(env, "WALLET_AUTH_TRUSTED_PROXY_HOPS")),
@@ -179,6 +196,7 @@ export function runtimeConfiguration(
     missing,
     world,
     walletAuthUrl,
+    worldchainRpcUrl,
     walletAuthAbuse,
   };
 }

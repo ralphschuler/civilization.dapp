@@ -14,7 +14,9 @@ export const CONTRACT_STATUS = Object.freeze({
       status: "mainnet_wallet_registration_deployed_not_independently_audited",
     }),
   ]),
-  onChainActionsEnabled: true,
+  // Wallet actions remain fail-closed until a V2 address/runtime hash is
+  // published and the read-only verifier can establish a release baseline.
+  onChainActionsEnabled: false,
   custodyEnabled: false,
   paymentsEnabled: false,
   withdrawalsEnabled: false,

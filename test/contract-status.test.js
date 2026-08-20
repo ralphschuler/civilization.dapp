@@ -23,7 +23,7 @@ test("contract status identifies the unaudited World Chain mainnet deployment wi
       status: "mainnet_wallet_registration_deployed_not_independently_audited",
     },
   ]);
-  assert.equal(CONTRACT_STATUS.onChainActionsEnabled, true);
+  assert.equal(CONTRACT_STATUS.onChainActionsEnabled, false);
   assert.equal(CONTRACT_STATUS.custodyEnabled, false);
   assert.equal(CONTRACT_STATUS.paymentsEnabled, false);
   assert.equal(CONTRACT_STATUS.withdrawalsEnabled, false);
