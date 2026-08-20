@@ -7,3 +7,12 @@ export const SOLIDITY_RELEASE_PROFILE = Object.freeze({
 });
 
 export const EIP170_RUNTIME_LIMIT = 24_576;
+
+export const SOLIDITY_RELEASE_SOLC_ARGS =
+  "--optimize --optimize-runs 10 --via-ir";
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  if (process.argv[2] !== "--solc-args")
+    throw new Error("expected --solc-args");
+  process.stdout.write(`${SOLIDITY_RELEASE_SOLC_ARGS}\n`);
+}

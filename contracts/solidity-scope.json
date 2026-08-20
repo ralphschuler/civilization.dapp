@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "production": [
+    "contracts/src/CivilizationBuybackVault.sol",
+    "contracts/src/CivilizationGame.sol",
+    "contracts/src/CivilizationProxyArchitecture.sol",
+    "contracts/src/CivilizationReleaseRegistry.sol",
+    "contracts/src/CivilizationRevenueSplitter.sol",
+    "contracts/src/CivilizationRewardDistributor.sol",
+    "contracts/src/GoldSettlementRegistry.sol"
+  ],
+  "fixtures": [
+    "contracts/src/CivilizationGameV2Fixture.sol",
+    "test/fixtures/MockBuybackV3Pool.sol",
+    "test/fixtures/MockBuybackV3Router.sol",
+    "test/fixtures/MockWorldIdVerifier.sol",
+    "test/fixtures/MockWorldToken.sol"
+  ]
+}
