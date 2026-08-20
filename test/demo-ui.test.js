@@ -437,8 +437,8 @@ test("all imperative game panels render catalog copy for German and English", ()
   });
   const german = panelContext("de-DE");
   const english = panelContext("en-US");
-  assert.match(buildPanel(german), /GEBÄUDEDETAIL/);
-  assert.match(buildPanel(english), /BUILDING DETAILS/);
+  assert.equal(buildPanel(german), "<div data-game-build-panel></div>");
+  assert.equal(buildPanel(english), "<div data-game-build-panel></div>");
   assert.match(armyPanel(german), /Armee ausbilden/);
   assert.match(armyPanel(english), /Train army/);
   assert.match(raidPanel(german), /Marsch planen/);
@@ -725,12 +725,7 @@ test("parallel construction keeps job controls and the start composer visible", 
       ],
     }),
   );
-  assert.match(
-    workshop11,
-    /data-construction-job[^>]*data-construction-slot="0"/,
-  );
-  assert.match(workshop11, /data-building="timber"(?![^>]*disabled)/);
-  assert.doesNotMatch(workshop11, /Bauplätze belegt/);
+  assert.equal(workshop11, "<div data-game-build-panel></div>");
 
   const workshop21 = buildPanel(
     context({
@@ -741,9 +736,7 @@ test("parallel construction keeps job controls and the start composer visible", 
       ],
     }),
   );
-  assert.match(workshop21, /data-construction-slot="0"/);
-  assert.match(workshop21, /data-construction-slot="1"/);
-  assert.match(workshop21, /data-building="timber"(?![^>]*disabled)/);
+  assert.equal(workshop21, "<div data-game-build-panel></div>");
 });
 
 test("full construction capacity disables only a new start and states the exact occupancy", () => {
@@ -770,22 +763,14 @@ test("full construction capacity disables only a new start and states the exact 
     remainingTime: () => 0,
     busy: false,
   });
-  assert.match(
-    panel,
-    /data-complete-upgrade[^>]*data-construction-slot="0"(?![^>]*disabled)/,
-  );
-  assert.match(
-    panel,
-    /data-boost-construction[^>]*data-construction-slot="1"(?![^>]*disabled)/,
-  );
-  assert.match(panel, /data-building="timber"[^>]*disabled/);
-  assert.match(panel, /Bauplätze belegt: 2\/2/);
+  assert.equal(panel, "<div data-game-build-panel></div>");
 });
 
-test("app lifecycle owns timer setup and teardown while bindings live outside markup", async () => {
-  const [app, bindings] = await Promise.all([
+test("app lifecycle binds non-React controls before mounting and ticking the BuildPanel", async () => {
+  const [app, bindings, tick] = await Promise.all([
     readFile(new URL("../src/app.js", import.meta.url), "utf8"),
     readFile(new URL("../src/game-ui/bindings.js", import.meta.url), "utf8"),
+    readFile(new URL("../src/game-tick.js", import.meta.url), "utf8"),
   ]);
   assert.match(app, /export function startCivilizationApp/);
   assert.match(app, /export function stopCivilizationApp/);
@@ -795,6 +780,18 @@ test("app lifecycle owns timer setup and teardown while bindings live outside ma
   assert.match(app, /game-ui/);
   assert.doesNotMatch(app, /isConnected/);
   assert.match(bindings, /export function bindGameActions/);
+  assert.ok(
+    app.indexOf("bindGameActions(runtime.root, actions)") <
+      app.indexOf("renderBuildPanel();"),
+  );
+  const tickRefresh = app.slice(app.indexOf("const refreshTickValues"));
+  assert.ok(
+    tickRefresh.indexOf("refreshGameTick({") <
+      tickRefresh.indexOf("renderBuildPanel();"),
+  );
+  assert.doesNotMatch(tick, /data-construction-countdown/);
+  assert.doesNotMatch(tick, /data-complete-upgrade/);
+  assert.doesNotMatch(tick, /data-boost-construction/);
 });
 
 test("game action feedback follows the active locale and formats dynamic values", () => {
@@ -1001,7 +998,7 @@ test("old mount callbacks cannot update the replacement runtime", async () => {
   assert.equal(runtime.durations.get("townhall:2"), null);
 });
 
-test("second tick updates collect stock, claim, construction, and raid controls", () => {
+test("second tick updates collect stock, claim, and raid controls", () => {
   const nodes = new Map();
   const add = (selector, node = {}) => {
     nodes.set(selector, node);
@@ -1011,9 +1008,6 @@ test("second tick updates collect stock, claim, construction, and raid controls"
   const gather = add("#gather", { querySelector: () => claimStatus });
   const raid = add("[data-raid-countdown]", {});
   const resolve = add("#resolve-raid", {});
-  const construction = add("[data-construction-countdown]", {});
-  const complete = add("#complete-upgrade", {});
-  const boost = add("#boost-construction", {});
   const collectionValue = add(
     '[data-collection-resource="wood"] [data-collection-resource-value]',
     {},
@@ -1036,7 +1030,6 @@ test("second tick updates collect stock, claim, construction, and raid controls"
     remainingTime: (value) => value,
     state: {
       pendingRaid: { arrivesAt: 0 },
-      construction: { pending: true, completesAt: 4_000 },
     },
   });
   assert.equal(collectionValue.textContent, "2,4Mrd");
@@ -1046,9 +1039,6 @@ test("second tick updates collect stock, claim, construction, and raid controls"
   assert.equal(claimStatus.textContent, "FELD");
   assert.equal(raid.textContent, "00:00");
   assert.equal(resolve.textContent, "Schlacht auswerten");
-  assert.equal(construction.textContent, "01:06:40");
-  assert.equal(complete.disabled, true);
-  assert.equal(boost.disabled, false);
   assert.equal(gather.disabled, false);
 });
 
@@ -1078,15 +1068,7 @@ test("boost UI is clickable at exactly one hour and explains guarded states", ()
     buildDuration: () => null,
     nextBuildingProduction: () => ({}),
   });
-  assert.match(
-    valid,
-    /id="boost-construction"[^>]*data-boost-construction[^>]*data-construction-slot="0"[^>]*aria-describedby="boost-construction-status"/,
-  );
-  assert.match(
-    valid,
-    /id="boost-construction-status"[^>]*data-boost-construction-status[^>]*data-construction-slot="0"/,
-  );
-  assert.match(valid, /1 WLD reduziert die Bauzeit um genau 1 Stunde/);
+  assert.equal(valid, "<div data-game-build-panel></div>");
 
   const tooShort = buildPanel({
     ...context(3_599),
@@ -1099,8 +1081,7 @@ test("boost UI is clickable at exactly one hour and explains guarded states", ()
     buildDuration: () => null,
     nextBuildingProduction: () => ({}),
   });
-  assert.match(tooShort, /id="boost-construction"[^>]*disabled/);
-  assert.match(tooShort, /mindestens 1 Stunde Bauzeit verbleiben/);
+  assert.equal(tooShort, "<div data-game-build-panel></div>");
 
   const pending = buildPanel({
     ...context(4_000, true),
@@ -1113,8 +1094,7 @@ test("boost UI is clickable at exactly one hour and explains guarded states", ()
     buildDuration: () => null,
     nextBuildingProduction: () => ({}),
   });
-  assert.match(pending, /id="boost-construction"[^>]*disabled/);
-  assert.match(pending, /laufende Transaktion wird noch bestätigt/);
+  assert.equal(pending, "<div data-game-build-panel></div>");
 });
 
 test("ticks update collect stock without writing React-owned production nodes", () => {

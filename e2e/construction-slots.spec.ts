@@ -1,57 +1,11 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
-import { readFile } from "node:fs/promises";
-import { buildPanel } from "../src/game-ui/views/build.js";
-import { projectContractUpgradeImpact } from "../src/world-game/projections.js";
-
-function constructionPanel(workshop: number, jobs: number) {
-  const constructions = Array.from({ length: jobs }, (_, slot) => ({
-    pending: true,
-    buildingId: slot === 0 ? "quarry" : "timber",
-    completesAt: 3_600_000,
-    slot,
-  }));
-  return buildPanel({
-    state: {
-      resources: { wood: 999, clay: 999, stone: 999, gold: 999 },
-      buildings: { timber: 1, workshop },
-      construction: constructions[0],
-      constructions,
-      constructionOccupied: jobs,
-      constructionCapacity: workshop >= 21 ? 3 : 2,
-    },
-    selectedBuilding: "timber",
-    buildings: {
-      timber: { label: "Holzfäller", detail: "Erzeugt Holz.", produces: {} },
-      quarry: { label: "Steinbruch", detail: "Erzeugt Stein.", produces: {} },
-    },
-    requirements: () => [],
-    buildingCost: () => ({ wood: 1, clay: 1, stone: 1, gold: 0 }),
-    runtimeMode: "world",
-    resourceDefs: { wood: {}, clay: {}, stone: {}, gold: {} },
-    format: String,
-    buildDuration: () => 3_600,
-    nextBuildingProduction: () => ({}),
-    remainingTime: () => 3_600,
-    busy: false,
-  });
-}
-
-async function mountPanel(page: Page, workshop: number, jobs: number) {
-  const css = await readFile(
-    new URL("../src/styles.css", import.meta.url),
-    "utf8",
-  );
-  await page.setContent(
-    `<style>${css}</style><main>${constructionPanel(workshop, jobs)}</main>`,
-  );
-  await page.locator('[data-building="timber"]').evaluate((button) => {
-    const target = window as Window & { constructionStarts?: number };
-    target.constructionStarts = 0;
-    button.addEventListener("click", () => {
-      target.constructionStarts = (target.constructionStarts || 0) + 1;
-    });
-  });
+async function mountPanel(
+  page: Page,
+  scenario: "one-job" | "two-jobs" | "impact",
+) {
+  await page.goto(`/?buildPanelE2e=${scenario}`);
+  await expect(page.getByTestId("build-panel-e2e-harness")).toBeVisible();
 }
 
 async function expectNoHorizontalOverflow(page: Page, width: number) {
@@ -66,7 +20,7 @@ async function expectNoHorizontalOverflow(page: Page, width: number) {
 test("workshop 11 with one job retains a keyboard-reachable start composer at 320px and 390px", async ({
   page,
 }) => {
-  await mountPanel(page, 11, 1);
+  await mountPanel(page, "one-job");
   await expect(page.locator("[data-construction-job]")).toHaveCount(1);
   const start = page.locator('[data-building="timber"]');
   await expect(start).toBeEnabled();
@@ -75,21 +29,13 @@ test("workshop 11 with one job retains a keyboard-reachable start composer at 32
   await start.focus();
   await expect(start).toBeFocused();
   await page.keyboard.press("Enter");
-  await expect
-    .poll(() =>
-      page.evaluate(
-        () =>
-          (window as Window & { constructionStarts?: number })
-            .constructionStarts,
-      ),
-    )
-    .toBe(1);
+  await expect(page.getByTestId("build-panel-upgrade-starts")).toHaveText("1");
 });
 
 test("workshop 21 with two jobs preserves each slot and a keyboard-reachable start composer", async ({
   page,
 }) => {
-  await mountPanel(page, 21, 2);
+  await mountPanel(page, "two-jobs");
   await expect(
     page.locator('[data-construction-job][data-construction-slot="0"]'),
   ).toHaveCount(1);
@@ -103,69 +49,13 @@ test("workshop 21 with two jobs preserves each slot and a keyboard-reachable sta
   await start.focus();
   await expect(start).toBeFocused();
   await page.keyboard.press("Space");
-  await expect
-    .poll(() =>
-      page.evaluate(
-        () =>
-          (window as Window & { constructionStarts?: number })
-            .constructionStarts,
-      ),
-    )
-    .toBe(1);
+  await expect(page.getByTestId("build-panel-upgrade-starts")).toHaveText("1");
 });
 
 test("upgrade impact comparison stays accessible and responsive at mobile widths and 200% zoom", async ({
   page,
 }) => {
-  const css = await readFile(
-    new URL("../src/styles.css", import.meta.url),
-    "utf8",
-  );
-  const state = {
-    resources: { wood: 999, clay: 999, stone: 999, gold: 999 },
-    buildings: {
-      townhall: 2,
-      timber: 2,
-      claypit: 2,
-      quarry: 2,
-      warehouse: 1,
-      workshop: 10,
-      goldmine: 0,
-      barracks: 0,
-    },
-    troops: { spear: 0, archer: 0, rider: 0 },
-  };
-  await page.setContent(
-    `<style>${css}</style><main>${buildPanel({
-      state,
-      selectedBuilding: "workshop",
-      buildings: {
-        workshop: { label: "Werkstatt", detail: "", produces: {} },
-        townhall: { label: "Rathaus" },
-        timber: { label: "Holzfäller" },
-        claypit: { label: "Lehmgrube" },
-        quarry: { label: "Steinbruch" },
-        warehouse: { label: "Speicher" },
-        goldmine: { label: "Goldschacht" },
-        barracks: { label: "Kaserne" },
-      },
-      requirements: () => [],
-      buildingCost: () => ({ wood: 1, clay: 1, stone: 1, gold: 0 }),
-      runtimeMode: "world",
-      resourceDefs: {
-        wood: { label: "Holz" },
-        clay: { label: "Lehm" },
-        stone: { label: "Stein" },
-        gold: { label: "Gold" },
-      },
-      format: String,
-      buildDuration: () => 120,
-      nextBuildingProduction: () => ({}),
-      upgradeImpact: (id: string) => projectContractUpgradeImpact(state, id),
-      remainingTime: () => 0,
-      busy: false,
-    })}</main>`,
-  );
+  await mountPanel(page, "impact");
   await expect(
     page.getByRole("region", { name: "AUSBAU-AUSWIRKUNG" }),
   ).toBeVisible();

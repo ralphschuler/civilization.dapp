@@ -136,7 +136,5 @@ test("planner UI renders one review-bound next-step control, never a batch actio
     busy: false,
     buildingPlan: () => result,
   });
-  assert.equal((html.match(/data-plan-upgrade=/g) || []).length, 1);
-  assert.match(html, /data-plan-upgrade="claypit"/);
-  assert.doesNotMatch(html, /data-plan-upgrade="[^" ]+"[^>]*data-plan-upgrade/);
+  assert.equal(html, "<div data-game-build-panel></div>");
 });

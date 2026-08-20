@@ -2,6 +2,7 @@ import "./styles.css";
 import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { GameShellHud } from "./components/GameShellHud";
+import { BuildPanel } from "./components/BuildPanel";
 import { canRenderGameWorld } from "./world-gate.js";
 import {
   BUILDINGS,
@@ -96,6 +97,7 @@ function createRuntime(options) {
     assetState: "loading",
     assetResult: { failed: [] },
     hudRoot: null,
+    buildPanelRoot: null,
   };
 }
 
@@ -216,7 +218,7 @@ function createController(runtime) {
       }),
     );
   };
-  const panel = () => {
+  const panelContext = () => {
     const context = {
       state: runtime.state,
       runtimeMode: runtime.mode,
@@ -331,8 +333,12 @@ function createController(runtime) {
                 runtime.state.buildings[required] < level,
             ),
     };
+    return context;
+  };
+  const panel = () => {
+    const context = panelContext();
     if (runtime.activePanel === "build") {
-      return buildPanel(context);
+      return buildPanel();
     }
     if (runtime.activePanel === "army") {
       return armyPanel(context);
@@ -341,6 +347,23 @@ function createController(runtime) {
       return marketPanel(context);
     }
     return raidPanel(context);
+  };
+  const renderBuildPanel = () => {
+    if (runtime.activePanel !== "build") return;
+    const mount = runtime.root?.querySelector("[data-game-build-panel]");
+    if (!mount) return;
+    runtime.buildPanelRoot ??= createRoot(mount);
+    const context = panelContext();
+    runtime.buildPanelRoot.render(
+      createElement(BuildPanel, {
+        ...context,
+        onUpgrade: actions.upgrade,
+        onCompleteUpgrade: actions.completeUpgrade,
+        onBoost: actions.boost,
+        onPrestige: actions.prestige,
+        onOpenMarket: () => actions.selectPanel("market"),
+      }),
+    );
   };
   const render = () => {
     if (!isCurrent(runtime.token)) {
@@ -374,6 +397,8 @@ function createController(runtime) {
     );
     runtime.hudRoot?.unmount();
     runtime.hudRoot = null;
+    runtime.buildPanelRoot?.unmount();
+    runtime.buildPanelRoot = null;
     runtime.root.innerHTML = gameShell({
       state: runtime.state,
       runtimeMode: runtime.mode,
@@ -406,6 +431,9 @@ function createController(runtime) {
     });
     renderHud();
     bindGameActions(runtime.root, actions);
+    // Keep the BuildPanel outside the imperative binding pass: its controls
+    // are owned exclusively by React.
+    renderBuildPanel();
     world.requestBuildDuration(
       runtime.selectedBuilding,
       runtime.state.buildings[runtime.selectedBuilding] + 1,
@@ -500,6 +528,7 @@ function createController(runtime) {
       locale: runtime.locale,
     });
     renderHud();
+    renderBuildPanel();
   };
   return { render, refreshWorld: world.refresh, refreshTickValues, actions };
 }
