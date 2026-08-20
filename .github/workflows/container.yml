@@ -38,6 +38,8 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Validate production and fixture Solidity scope
+        run: pnpm security:scope
       - name: Record deterministic offline contract-assurance manifest
         env:
           SECURITY_ASSURANCE_REF: ${{ github.sha }}

@@ -3,6 +3,7 @@
 // checkout SHA; local callers must supply the commit they checked out.
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
+import { SCOPE_FILE, checkedSolidityScope } from "./solidity-scope.mjs";
 
 const reference = process.env.SECURITY_ASSURANCE_REF || process.env.GITHUB_SHA;
 if (!/^[0-9a-f]{40}$/i.test(reference || "")) {
@@ -11,13 +12,10 @@ if (!/^[0-9a-f]{40}$/i.test(reference || "")) {
   );
 }
 
+const solidityScope = await checkedSolidityScope();
 const scopedFiles = [
-  "contracts/src/CivilizationGame.sol",
-  "contracts/src/CivilizationGameV2Fixture.sol",
-  "contracts/src/CivilizationProxyArchitecture.sol",
-  "contracts/src/CivilizationReleaseRegistry.sol",
-  "contracts/src/CivilizationRevenueSplitter.sol",
-  "contracts/src/GoldSettlementRegistry.sol",
+  SCOPE_FILE,
+  ...solidityScope.production,
   "contracts/storage-layout-v1.snapshot.json",
   "contracts/proxy-deployment-plan.example.json",
   "contracts/worldchain-proxy-release-plan.mainnet.example.json",

@@ -50,10 +50,13 @@ if ! "$SOLC_BINARY" --version | grep -Fq "$SOLC_VERSION"; then
   exit 1
 fi
 
+fixture_filter="$(node scripts/solidity-scope.mjs --fixture-filter)"
+release_solc_args="$(node scripts/solidity-release-profile.mjs --solc-args)"
+
 slither contracts/src \
   --solc "$SOLC_BINARY" \
   --solc-remaps "@openzeppelin/=node_modules/@openzeppelin/" \
-  --solc-args "--optimize --optimize-runs 200" \
+  --solc-args "$release_solc_args" \
   --exclude-dependencies \
-  --filter-paths "node_modules/|contracts/src/CivilizationGameV2Fixture.sol" \
+  --filter-paths "node_modules/|$fixture_filter" \
   --exclude "weak-prng,incorrect-equality,uninitialized-local,reentrancy-events,timestamp,assembly,pragma,dead-code,solc-version,low-level-calls,missing-inheritance,costly-loop,cache-array-length"

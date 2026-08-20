@@ -8,13 +8,18 @@ proxy, governance and economics is still outstanding.
 
 ## Scope and reproducible evidence
 
-The scope is exactly the tracked files emitted by `pnpm security:offline`:
-the Solidity sources under `contracts/src`, the V1 storage-layout snapshot, and
-the proxy release-plan JSON examples listed in that command's JSON output. The
-test fixture contracts, pinned `solc`/OpenZeppelin dependencies and
-`test/civilization-contract.test.js` are verification inputs, not deployment
-artifacts. The deployed World Chain target is observed only through the
-read-only proxy verifier; it is not inferred from source.
+`contracts/solidity-scope.json` is the single machine-readable Solidity scope
+source. It explicitly classifies every project Solidity file under
+`contracts/src` and `test/fixtures` as either `production` or `fixtures`.
+`pnpm security:scope` rejects duplicate, missing, or unclassified sources; CI
+runs it before the assurance manifest and Slither. The offline manifest hashes
+the scope file and every `production` entry, so `CivilizationBuybackVault.sol`
+and `CivilizationRewardDistributor.sol` are production evidence while
+`CivilizationGameV2Fixture.sol` and the `Mock*.sol` files are explicit
+non-deployment inputs. The V1 storage-layout snapshot and proxy release-plan
+JSON examples remain in the manifest. The deployed World Chain target is
+observed only through the read-only proxy verifier; it is not inferred from
+source.
 
 Every CI run invokes the command with GitHub's immutable checkout SHA
 (`github.sha`) and emits SHA-256 for every scoped file plus a manifest hash.
@@ -30,15 +35,15 @@ that was copied into this document and immediately went stale.
 
 ## Internal coverage and severity
 
-| Area | Evidence | Finding severity / regression mapping |
-| --- | --- | --- |
-| Wallet ownership and one-time registration | local EVM state-machine sequence plus existing direct-call tests | Critical/High regression: cross-wallet mutation or duplicate registration must fail tests. Residual: permissionless multi-wallet farming is intentional. |
+| Area                                         | Evidence                                                             | Finding severity / regression mapping                                                                                                                               |
+| -------------------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Wallet ownership and one-time registration   | local EVM state-machine sequence plus existing direct-call tests     | Critical/High regression: cross-wallet mutation or duplicate registration must fail tests. Residual: permissionless multi-wallet farming is intentional.            |
 | CGOLD/resources, market rounding and reserve | deterministic adversarial market sequences; existing local EVM tests | Critical/High regression: asset creation, loss, or reserve/inventory mismatch must fail. Residual: pricing, liquidity and economics are not independently modelled. |
-| Claim and construction time boundaries | state-machine cooldown boundary checks; construction tests | High regression: early claim or temporal boundary bypass must fail. Residual: block timestamps are validator-controlled within normal chain limits. |
-| Proxy initialization, storage and upgrades | real OZ proxy/timelock V1↔V2 tests and frozen storage snapshot | Critical regression: implementation initialization, storage, or timelock bypass must fail. Residual: live roles and future upgrade bytecode require a new review. |
-| WLD splitter | splitter allocation/rotation/backing and boost delta tests | High regression: unauthorized distribution or under-backed claims must fail. Residual: token behavior and recipient operations need independent review. |
-| Static patterns | pinned Slither in GitHub CI | Informational/Medium triage input; analyzer output is not a proof of absence of vulnerabilities. |
-| Live World Chain proxy | mandatory mocked/offline verifier tests; opt-in read-only RPC check | High operational mismatch must fail the explicit RPC command. Residual: CI does not trust an unauthenticated public RPC endpoint as proof of live state. |
+| Claim and construction time boundaries       | state-machine cooldown boundary checks; construction tests           | High regression: early claim or temporal boundary bypass must fail. Residual: block timestamps are validator-controlled within normal chain limits.                 |
+| Proxy initialization, storage and upgrades   | real OZ proxy/timelock V1↔V2 tests and frozen storage snapshot       | Critical regression: implementation initialization, storage, or timelock bypass must fail. Residual: live roles and future upgrade bytecode require a new review.   |
+| WLD splitter                                 | splitter allocation/rotation/backing and boost delta tests           | High regression: unauthorized distribution or under-backed claims must fail. Residual: token behavior and recipient operations need independent review.             |
+| Static patterns                              | pinned Slither in GitHub CI                                          | Informational/Medium triage input; analyzer output is not a proof of absence of vulnerabilities.                                                                    |
+| Live World Chain proxy                       | mandatory mocked/offline verifier tests; opt-in read-only RPC check  | High operational mismatch must fail the explicit RPC command. Residual: CI does not trust an unauthenticated public RPC endpoint as proof of live state.            |
 
 No unresolved internal finding is represented as fixed merely because a test
 passes. The residual risks above, external dependencies, World ID/Portal
@@ -58,16 +63,15 @@ verify the same compiler, then run:
 SOLC_BINARY=/absolute/path/to/solc-linux-amd64-v0.8.30+commit.73712a01 pnpm security:slither
 ```
 
-The command passes `contracts/src` to Slither, so it analyzes every production
-Solidity source in that directory: `CivilizationGame`,
-`CivilizationProxyArchitecture`, `CivilizationReleaseRegistry`,
-`CivilizationRevenueSplitter`, and `GoldSettlementRegistry`.
-`CivilizationGameV2Fixture.sol` is explicitly excluded by path: its source
-header identifies it as a test-only upgrade target and it is not a deployment
-artifact. Imported `node_modules` sources are likewise filtered by path after
-compilation; they are pinned verification inputs, not project production
-source. The command fails when Slither or the exact compiler is absent or
-mismatched. The CI baseline excludes only the following reviewed detector
+The command passes `contracts/src` to Slither and derives its fixture filter
+from `contracts/solidity-scope.json`, so it analyzes every production source,
+including `CivilizationBuybackVault` and `CivilizationRewardDistributor`.
+It uses the same compiler flags as the reviewed release profile: optimizer
+enabled with 10 runs and `viaIR`; this is asserted by the Solidity tests and
+not a separate analysis-only bytecode profile. Imported `node_modules` sources
+are filtered by path after compilation; they are pinned verification inputs,
+not project production source. The command fails when Slither or the exact
+compiler is absent or mismatched. The CI baseline excludes only the following reviewed detector
 classes across that complete production suite; every other enabled Slither
 detector fails CI: `weak-prng` (a deterministic modulus remainder, not entropy),
 `incorrect-equality`/`uninitialized-local` (deliberate zero-value guards),
