@@ -198,7 +198,10 @@ test("shell rendering receives explicit state and no controller callbacks", () =
   assert.match(html, /<p>panel<\/p>/);
   assert.match(html, /asset-loading/);
   assert.match(html, /id="gather"/);
-  assert.match(html, /data-open-settings[^>]*aria-haspopup="dialog"/);
+  assert.match(
+    html,
+    /data-open-settings[^>]*aria-haspopup="dialog"[^>]*aria-label="Settings"[^>]*title="Settings">\s*<span aria-hidden="true">⚙<\/span>\s*<\/button>/,
+  );
   assert.match(html, /role="dialog" aria-modal="true"/);
   assert.match(html, /Connected wallet/);
   assert.match(html, /0x0000000000000000000000000000000000000001/);
@@ -579,6 +582,18 @@ test("mobile HUD keeps all four resources in one bounded row", async () => {
   const mobile = css.slice(css.indexOf("@media (max-width: 640px)"));
   assert.match(
     mobile,
+    /\.resource-settings\s*\{[\s\S]*?order: 0[\s\S]*?margin-left: auto/,
+  );
+  assert.match(
+    mobile,
+    /\.resource-hud\s*\{[\s\S]*?order: 1[\s\S]*?flex-basis: 100%[\s\S]*?width: 100%/,
+  );
+  assert.match(
+    css,
+    /\.resource-settings\s*\{[\s\S]*?width: 2\.75rem[\s\S]*?min-height: 2\.75rem/,
+  );
+  assert.match(
+    css,
     /\.resource-production\s*\{[\s\S]*?display: block[\s\S]*?max-width: 100%[\s\S]*?white-space: nowrap/,
   );
   assert.match(
