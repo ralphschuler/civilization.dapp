@@ -22,7 +22,7 @@ import {
   MAP_BUILDING_ANCHORS,
   mapBuildingAnchorStyle,
 } from "../src/game-ui/map-coordinates.js";
-import { gameShell } from "../src/game-ui/views/shell.js";
+import { gameShell, runtimeGateView } from "../src/game-ui/views/shell.js";
 import { buildPanel } from "../src/game-ui/views/build.js";
 import { marketPanel } from "../src/game-ui/views/market.js";
 import { armyPanel } from "../src/game-ui/views/army.js";
@@ -222,6 +222,53 @@ test("shell rendering receives explicit state and no controller callbacks", () =
   assert.match(html, /0x0000000000000000000000000000000000000001/);
   assert.match(html, /data-reduced-motion checked/);
   assert.match(html, /motion-reduced/);
+});
+
+test("game feedback escapes dynamic contact, provider, and contract messages once", () => {
+  const state = createInitialState();
+  const feedback =
+    '<img src=x onerror="globalThis.pwned=1"> "quoted" & Käse 🏰';
+  const html = gameShell({
+    state,
+    runtimeMode: "demo",
+    worldApp: { installed: false },
+    worldBadge: "DEMO · LOKAL",
+    feedback,
+    activePanel: "build",
+    selectedBuilding: "townhall",
+    panel: "",
+    production: { wood: 0, clay: 0, stone: 0, gold: 0 },
+    capacity: 100,
+    displayState: state,
+    collection: { locked: false, detail: "FELD" },
+    readyToClaim: 0,
+    resourceDefs: {},
+    tokens: {},
+    format: String,
+    resourceFormat: String,
+    buildings: Object.fromEntries(
+      BUILDING_IDS.map((id) => [id, { label: id }]),
+    ),
+    busy: false,
+    copy: civilizationMessages("en-US"),
+  });
+
+  assert.match(
+    html,
+    /<p class="map-feedback" aria-live="polite">&lt;img src=x onerror=&quot;globalThis\.pwned=1&quot;&gt; &quot;quoted&quot; &amp; Käse 🏰<\/p>/,
+  );
+  assert.doesNotMatch(html, /<img src=x onerror=/);
+
+  const gateHtml = runtimeGateView({
+    loading: false,
+    feedback,
+    copy: civilizationMessages("en-US"),
+  });
+  assert.match(
+    gateHtml,
+    /&lt;img src=x onerror=&quot;globalThis\.pwned=1&quot;&gt;/,
+  );
+  assert.doesNotMatch(gateHtml, /<img src=x onerror=/);
 });
 
 test("game navigation exposes one current area per navigation and retains a visible focus treatment", async () => {

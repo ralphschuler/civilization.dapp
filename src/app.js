@@ -15,7 +15,7 @@ import {
 import { loadDemoState, saveDemoState } from "./demo/storage.js";
 import { MAX_BUILDING_LEVEL } from "./game-ui/constants.js";
 import { loadCriticalAssets } from "./game-ui/assets.js";
-import { clock, escapeHtml, remainingTime } from "./game-ui/helpers.js";
+import { clock, remainingTime } from "./game-ui/helpers.js";
 import { buildPanel } from "./game-ui/views/build.js";
 import { armyPanel } from "./game-ui/views/army.js";
 import { marketPanel } from "./game-ui/views/market.js";
@@ -297,7 +297,6 @@ function createController(runtime) {
       runtime.root.innerHTML = runtimeGateView({
         loading: runtime.loading,
         feedback: runtime.feedback,
-        escapeHtml,
         copy: civilizationMessages(runtime.locale),
       });
       bindGameActions(runtime.root, {
