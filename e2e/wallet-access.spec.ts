@@ -95,7 +95,7 @@ test("game area navigation announces its current area, keeps keyboard focus, and
   const navigation = useDesktopNavigation
     ? desktopNavigation
     : mobileNavigation;
-  const buildActionName = useDesktopNavigation ? "Bauen" : "Bauplan";
+  const buildActionName = "Bauen";
 
   await expect(
     navigation.getByRole("button", { name: buildActionName }),
