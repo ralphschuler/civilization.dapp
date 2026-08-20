@@ -19,6 +19,16 @@ const copy = {
     account: "Konto",
     connectedWallet: "Verbundene Wallet",
     copyAddress: "Adresse kopieren",
+    reviewTitle: "Wallet-Aktion prüfen",
+    reviewInvalidatedTitle: "Prüfung ungültig",
+    reviewNotice:
+      "Prüfe diese unveränderliche Aktion, bevor deine Wallet geöffnet wird.",
+    reviewFinality:
+      "Die Aktion wurde an die Wallet/Chain übergeben. Finalität wird geprüft.",
+    reviewInvalidated:
+      "Markteingaben haben sich geändert. Lade eine neue Quote und prüfe erneut.",
+    reviewConfirm: "In Wallet bestätigen",
+    reviewCancel: "Abbrechen",
     addressCopied: "Wallet-Adresse kopiert.",
     addressCopyFailed:
       "Adresse konnte nicht kopiert werden. Bitte erneut versuchen.",
@@ -358,6 +368,15 @@ const copy = {
     account: "Account",
     connectedWallet: "Connected wallet",
     copyAddress: "Copy address",
+    reviewTitle: "Review wallet action",
+    reviewInvalidatedTitle: "Review invalidated",
+    reviewNotice: "Review this immutable action before your wallet is opened.",
+    reviewFinality:
+      "The action was handed to the wallet/chain. Finality is being checked.",
+    reviewInvalidated:
+      "Market inputs changed. Load a new quote and review again.",
+    reviewConfirm: "Confirm in wallet",
+    reviewCancel: "Cancel",
     addressCopied: "Wallet address copied.",
     addressCopyFailed: "The address could not be copied. Please try again.",
     session: "Session",

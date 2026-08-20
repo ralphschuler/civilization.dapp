@@ -30,3 +30,4 @@ export {
   constructionBoostEligibility,
 } from "./world-game/boost-eligibility.js";
 export { createWorldGameAdapter } from "./world-game/adapter.js";
+export { createWalletIntent, createWalletReview } from "./world-game/review.js";

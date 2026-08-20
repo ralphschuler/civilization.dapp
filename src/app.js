@@ -28,6 +28,7 @@ import {
 import { bindGameActions } from "./game-ui/bindings.js";
 import { createGameActions } from "./game-actions.js";
 import { createWorldRuntime } from "./game-world-runtime.js";
+import { createWalletReview } from "./world-game/review.js";
 import { refreshGameTick } from "./game-tick.js";
 import {
   civilizationMessages,
@@ -55,6 +56,7 @@ function createRuntime(options) {
     ready: options.runtimeMode === "demo",
     loading: options.runtimeMode === "world",
     busy: false,
+    review: createWalletReview(),
     refreshing: false,
     refreshTicks: 0,
     worldStateEpoch: 0,
@@ -190,6 +192,7 @@ function createController(runtime) {
       state: runtime.state,
       runtimeMode: runtime.mode,
       busy: runtime.busy,
+      review: runtime.review.state(),
       locale: runtime.locale,
       copy: civilizationMessages(runtime.locale),
       assetResult: runtime.assetResult,
@@ -336,6 +339,7 @@ function createController(runtime) {
       resourceFormat,
       buildings: BUILDINGS,
       busy: runtime.busy,
+      review: runtime.review.state(),
       locale: runtime.locale,
       copy: civilizationMessages(runtime.locale),
       locale: runtime.locale,
@@ -365,7 +369,9 @@ function createController(runtime) {
   const actions = createGameActions(runtime, {
     render,
     requireAccess,
-    performWorldAction: world.performAction,
+    requestWorldAction: world.requestAction,
+    confirmWorldReview: world.confirmReview,
+    cancelWorldReview: world.cancelReview,
     refreshWorld: world.refresh,
     errorText: (error) => errorText(error, runtime.locale),
     copy: () => civilizationMessages(runtime.locale),

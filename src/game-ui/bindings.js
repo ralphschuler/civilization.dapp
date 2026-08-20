@@ -30,6 +30,8 @@ export function bindGameActions(root, actions) {
   on("#prestige", actions.prestige);
   on("#pick-raid-contact", actions.pickOpponent);
   on("#resolve-raid", actions.resolveRaid);
+  on("[data-confirm-wallet-review]", actions.confirmReview);
+  on("[data-cancel-wallet-review]", actions.cancelReview);
   on("#reset", actions.reset);
   on("[data-open-settings]", actions.openSettings);
   all("[data-close-settings]", actions.closeSettings);
@@ -139,6 +141,11 @@ export function bindGameActions(root, actions) {
   );
   on("#market-buy", () => actions.marketOrder("buy"));
   on("#market-sell", () => actions.marketOrder("sell"));
+  root
+    .querySelectorAll("#market-resource, #market-amount")
+    .forEach((input) =>
+      input.addEventListener("input", () => actions.marketInputsChanged()),
+    );
   on("#send-raid", () => {
     const target =
       root.querySelector("#raid-target-address")?.value.trim() ||
