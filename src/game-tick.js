@@ -1,8 +1,4 @@
-import {
-  clock,
-  compactResourceValue,
-  productionRateText,
-} from "./game-ui/helpers.js";
+import { clock, compactResourceValue } from "./game-ui/helpers.js";
 import { boostConstructionStatus } from "./game-ui/boost-status.js";
 import { constructionBoostEligibility } from "./world-game/boost-eligibility.js";
 import { civilizationMessages } from "./lib/civilization-locale.ts";
@@ -11,7 +7,6 @@ export function refreshGameTick({
   root,
   state,
   busy,
-  mode,
   production,
   displayState,
   collection,
@@ -27,7 +22,6 @@ export function refreshGameTick({
   const compactValue = (value) =>
     compactResourceValue(value, resourceFormat, locale);
   for (const id of resourceIds) {
-    const rate = production?.[id];
     const fieldStock = Number.isFinite(displayState.unclaimed?.[id])
       ? displayState.unclaimed[id]
       : 0;
@@ -44,40 +38,8 @@ export function refreshGameTick({
       accessibleCollectionValue.textContent = resourceFormat(fieldStock);
     }
 
-    const productionNode = root.querySelector(
-      `[data-resource="${id}"] [data-resource-production]`,
-    );
-    const productionValue = root.querySelector(
-      `[data-resource="${id}"] [data-resource-production-value]`,
-    );
-    const accessibleProduction = root.querySelector(
-      `[data-resource="${id}"] [data-resource-accessible-production]`,
-    );
-    const productionText = productionRateText({
-      resourceId: id,
-      rate,
-      mode,
-      formatValue: compactValue,
-      dayUnit: copy.perDay,
-      secondUnit: copy.perSecond,
-    });
-    const accessibleProductionText = productionRateText({
-      resourceId: id,
-      rate,
-      mode,
-      formatValue: resourceFormat,
-      dayUnit: copy.perDay,
-      secondUnit: copy.perSecond,
-    });
-    const hasProduction = productionText !== "";
-    if (productionNode) productionNode.hidden = !hasProduction;
-    if (productionValue) productionValue.textContent = productionText;
-    if (accessibleProduction) {
-      accessibleProduction.textContent = hasProduction
-        ? `${copy.production}: ${accessibleProductionText}`
-        : "";
-      accessibleProduction.hidden = !hasProduction;
-    }
+    // Resource HUD values are React-owned. The imperative tick retains only
+    // collection, action, and panel updates below.
   }
 
   const total = Object.values(displayState.unclaimed ?? {}).reduce(
