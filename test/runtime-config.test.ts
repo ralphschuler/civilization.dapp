@@ -13,6 +13,8 @@ const productionEnvironment = () => ({
   CIVILIZATION_CONTRACT_ADDRESS: LIVE_CONTRACT,
   CIVILIZATION_CHAIN_ID: "480",
   CIVILIZATION_WORLD_TOKEN_ADDRESS: LIVE_WORLD_TOKEN,
+  WALLET_AUTH_RATE_LIMIT_SECRET: "a".repeat(32),
+  WALLET_AUTH_TRUSTED_PROXY_HOPS: "1",
 });
 
 const developmentEnvironment = () => ({
@@ -29,6 +31,8 @@ const developmentEnvironment = () => ({
   PGHOST: "civilization-dev-postgres",
   PGDATABASE: "civilization_dev",
   PGUSER: "civilization_dev",
+  WALLET_AUTH_RATE_LIMIT_SECRET: "a".repeat(32),
+  WALLET_AUTH_TRUSTED_PROXY_HOPS: "1",
 });
 
 test("production runtime configuration accepts the canonical World Chain pair", () => {
@@ -59,6 +63,21 @@ test("production runtime configuration fails closed when its token is missing", 
 
   assert.equal(configuration.ready, false);
   assert.deepEqual(configuration.missing, ["CIVILIZATION_WORLD_TOKEN_ADDRESS"]);
+});
+
+test("WalletAuth abuse controls require a secret and explicit proxy-hop contract", () => {
+  const secretMissing = productionEnvironment();
+  delete secretMissing.WALLET_AUTH_RATE_LIMIT_SECRET;
+  assert.deepEqual(runtimeConfiguration(secretMissing).missing, [
+    "WALLET_AUTH_RATE_LIMIT_SECRET",
+  ]);
+  assert.deepEqual(
+    runtimeConfiguration({
+      ...productionEnvironment(),
+      WALLET_AUTH_TRUSTED_PROXY_HOPS: "one",
+    }).missing,
+    ["WALLET_AUTH_TRUSTED_PROXY_HOPS"],
+  );
 });
 
 test("production runtime configuration rejects a wrong token or chain", () => {

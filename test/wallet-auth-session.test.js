@@ -25,6 +25,7 @@ test("a verified checksum wallet creates an opaque, secure short-lived session",
   assert.match(session.token, /^[A-Za-z0-9_-]{43}$/);
   assert.equal(session.address, address);
   assert.match(call.sql, /INSERT INTO wallet_auth_sessions/);
+  assert.match(call.sql, /DELETE FROM wallet_auth_sessions/);
   assert.notEqual(call.parameters[0], session.token);
   assert.equal(call.parameters[1], address);
   const cookie = walletAuthSessionCookie(session.token, session.expiresAt);

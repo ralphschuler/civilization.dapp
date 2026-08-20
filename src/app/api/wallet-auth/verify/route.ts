@@ -7,6 +7,12 @@ import {
   createWalletAuthSession,
 } from "@/lib/wallet-auth-session";
 import { runtimeConfiguration } from "@/lib/runtime-config";
+import {
+  cleanupWalletAuthAbuseControls,
+  recordWalletAuthMetric,
+  takeWalletAuthRateLimit,
+  walletAuthClientSource,
+} from "@/lib/wallet-auth-abuse-controls";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,9 +38,40 @@ const verificationFailed = () =>
     { isValid: false, error: "wallet_auth_verification_failed" },
     { status: 400, headers: noStoreHeaders },
   );
+const limited = (retryAfter: number) =>
+  Response.json(
+    { isValid: false, error: "wallet_auth_rate_limited" },
+    {
+      status: 429,
+      headers: { ...noStoreHeaders, "Retry-After": String(retryAfter) },
+    },
+  );
 
 export async function POST(request: Request) {
-  if (!runtimeConfiguration().ready) {
+  const configuration = runtimeConfiguration();
+  if (!configuration.ready) {
+    return Response.json(
+      { error: "wallet_auth_unavailable" },
+      { status: 503, headers: noStoreHeaders },
+    );
+  }
+  try {
+    const rate = await takeWalletAuthRateLimit(
+      "verify",
+      walletAuthClientSource(
+        request.headers,
+        configuration.walletAuthAbuse.trustedProxyHops,
+      ),
+      configuration.walletAuthAbuse.rateLimitSecret,
+    );
+    if (!rate.allowed) {
+      await recordWalletAuthMetric("verify_rate_limited").catch(
+        () => undefined,
+      );
+      return limited(rate.retryAfter);
+    }
+    await cleanupWalletAuthAbuseControls().catch(() => undefined);
+  } catch {
     return Response.json(
       { error: "wallet_auth_unavailable" },
       { status: 503, headers: noStoreHeaders },
@@ -50,6 +87,7 @@ export async function POST(request: Request) {
     if (result.kind === "invalid_nonce") return invalidNonce();
     if (result.kind === "verification_failed") return verificationFailed();
     const session = await createWalletAuthSession(result.address);
+    await recordWalletAuthMetric("verify_succeeded").catch(() => undefined);
     return Response.json(
       { isValid: true, address: result.address },
       {

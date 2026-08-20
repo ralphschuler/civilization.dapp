@@ -29,6 +29,8 @@ test("a ready runtime configuration passes its World App ID to MiniKit", () => {
     CIVILIZATION_CONTRACT_ADDRESS: LIVE_CONTRACT,
     CIVILIZATION_CHAIN_ID: "480",
     CIVILIZATION_WORLD_TOKEN_ADDRESS: LIVE_WORLD_TOKEN,
+    WALLET_AUTH_RATE_LIMIT_SECRET: "a".repeat(32),
+    WALLET_AUTH_TRUSTED_PROXY_HOPS: "1",
   });
 
   assert.deepEqual(miniKitProviderConfiguration(configuration), {
