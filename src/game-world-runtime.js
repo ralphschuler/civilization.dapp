@@ -1,3 +1,5 @@
+import { createWalletReview } from "./world-game/review.js";
+
 export function createWorldRuntime({
   runtime,
   isCurrent,
@@ -6,7 +8,8 @@ export function createWorldRuntime({
   hasAccess,
   copy,
 }) {
-  async function performAction(type, payload, successMessage) {
+  runtime.review ||= createWalletReview();
+  async function dispatchReviewedAction(intent, successMessage) {
     if (!runtime.ready || !runtime.adapter || runtime.busy) return null;
 
     const token = runtime.token;
@@ -15,23 +18,53 @@ export function createWorldRuntime({
     render();
 
     try {
-      const result = await runtime.adapter.execute(type, payload);
+      const result = await runtime.adapter.execute(intent.type, intent.payload);
       if (!isCurrent(token)) return null;
 
       runtime.worldStateEpoch += 1;
       runtime.state = result.state;
+      if (result.pending) runtime.review.pending();
+      else runtime.review.confirmed();
       runtime.feedback = result.pending
         ? copy().feedback.worldTransactionPending
         : successMessage;
       return result;
     } catch (error) {
-      if (isCurrent(token)) runtime.feedback = errorText(error);
+      if (isCurrent(token)) {
+        runtime.review.reverted(
+          error instanceof Error ? error.message : "transaction_failed",
+        );
+        runtime.feedback = errorText(error);
+      }
       return null;
     } finally {
       if (!isCurrent(token)) return;
       runtime.busy = false;
       render();
     }
+  }
+
+  function requestAction(type, payload, successMessage, details = []) {
+    if (!runtime.ready || !runtime.adapter || runtime.busy) return null;
+    runtime.review.begin(type, payload, details);
+    runtime.feedback = copy().feedback.reviewRequired;
+    render();
+    return null;
+  }
+
+  async function confirmReview(successMessage) {
+    const snapshot = runtime.review.state();
+    if (snapshot.status !== "reviewing" || !snapshot.intent) return null;
+    runtime.review.confirm();
+    return dispatchReviewedAction(snapshot.intent, successMessage);
+  }
+
+  function cancelReview() {
+    const snapshot = runtime.review.state();
+    if (!["reviewing", "invalidated"].includes(snapshot.status)) return;
+    runtime.review.cancel();
+    runtime.feedback = copy().feedback.reviewCancelled;
+    render();
   }
 
   async function resumePending(token) {
@@ -123,5 +156,17 @@ export function createWorldRuntime({
       });
   }
 
-  return { performAction, refresh, requestBuildDuration };
+  // Kept for non-UI callers and existing read-only harnesses. The application
+  // exclusively uses requestAction/confirmReview, so browser writes cannot
+  // bypass the review step.
+  const performAction = (type, payload, successMessage) =>
+    dispatchReviewedAction({ type, payload }, successMessage);
+  return {
+    performAction,
+    requestAction,
+    confirmReview,
+    cancelReview,
+    refresh,
+    requestBuildDuration,
+  };
 }

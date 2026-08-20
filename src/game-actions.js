@@ -15,7 +15,9 @@ export function createGameActions(runtime, services) {
   const {
     render,
     requireAccess,
-    performWorldAction,
+    requestWorldAction,
+    confirmWorldReview,
+    cancelWorldReview,
     errorText,
     isCurrent,
     copy,
@@ -23,6 +25,8 @@ export function createGameActions(runtime, services) {
     resourceDefs,
     numberFormat,
   } = services;
+  const review = (type, payload, success, details) =>
+    requestWorldAction(type, payload, success, details);
   const save = () => {
     if (runtime.mode === "demo") saveDemoState(runtime.state);
   };
@@ -35,6 +39,35 @@ export function createGameActions(runtime, services) {
 
   return {
     troopIds: Object.keys(TROOPS),
+    confirmReview() {
+      const intent = runtime.review.state().intent;
+      if (!intent) return;
+      const success = {
+        claim: copy().feedback.worldClaim,
+        upgrade: copy().feedback.worldUpgradeStarted(
+          buildingLabel(intent.payload.building),
+        ),
+        complete_upgrade: copy().feedback.worldUpgradeComplete,
+        boost: copy().feedback.worldBoost,
+        prestige: copy().feedback.worldPrestige,
+        train: copy().feedback.worldTrainingComplete(
+          copy().troopNames[intent.payload.troop],
+        ),
+        market_buy: copy().feedback.marketBuyComplete,
+        market_sell: copy().feedback.marketSellComplete,
+        start_raid: copy().feedback.worldRaidStarted,
+        resolve_raid: copy().feedback.worldRaidResolved,
+      }[intent.type];
+      return confirmWorldReview(success);
+    },
+    cancelReview: () => cancelWorldReview(),
+    marketInputsChanged() {
+      runtime.marketQuote = null;
+      runtime.review.invalidate("market_inputs_changed");
+      if (runtime.review.state().status === "invalidated")
+        runtime.feedback = copy().feedback.reviewInvalidated;
+      render();
+    },
     retry: () => services.refreshWorld(),
     changeLocale: (locale) => services.changeLocale?.(locale),
     openSettings: () => services.openSettings?.(),
@@ -63,7 +96,9 @@ export function createGameActions(runtime, services) {
     gather() {
       if (!requireAccess()) return;
       if (runtime.mode === "world") {
-        return performWorldAction("claim", {}, copy().feedback.worldClaim);
+        return review("claim", {}, copy().feedback.worldClaim, [
+          "Claim field resources",
+        ]);
       }
       return demo(
         () => startGathering(runtime.state),
@@ -79,10 +114,11 @@ export function createGameActions(runtime, services) {
     upgrade(id) {
       if (!requireAccess()) return;
       if (runtime.mode === "world") {
-        return performWorldAction(
+        return review(
           "upgrade",
           { building: id },
           copy().feedback.worldUpgradeStarted(buildingLabel(id)),
+          [`Upgrade ${buildingLabel(id)}`],
         );
       }
       return demo(
@@ -97,28 +133,37 @@ export function createGameActions(runtime, services) {
     },
     completeUpgrade: (slot) =>
       requireAccess() &&
-      performWorldAction(
+      review(
         "complete_upgrade",
         Number.isInteger(slot) ? { slot } : {},
         copy().feedback.worldUpgradeComplete,
+        [
+          Number.isInteger(slot)
+            ? `Complete construction slot ${slot + 1}`
+            : "Complete active construction",
+        ],
       ),
     boost: (slot) =>
       requireAccess() &&
-      performWorldAction(
+      review(
         "boost",
         Number.isInteger(slot) ? { hours: 1, slot } : { hours: 1 },
         copy().feedback.worldBoost,
+        ["Spend 1 WLD to reduce construction by 1 hour"],
       ),
     prestige: () =>
       requireAccess() &&
-      performWorldAction("prestige", {}, copy().feedback.worldPrestige),
+      review("prestige", {}, copy().feedback.worldPrestige, [
+        "Reset village for the next prestige",
+      ]),
     train(id) {
       if (!requireAccess()) return;
       if (runtime.mode === "world") {
-        return performWorldAction(
+        return review(
           "train",
           { troop: id, amount: 1 },
           copy().feedback.worldTrainingComplete(copy().troopNames[id]),
+          [`Train 1 ${copy().troopNames[id]}`],
         );
       }
       return demo(
@@ -173,7 +218,7 @@ export function createGameActions(runtime, services) {
         render();
         return;
       }
-      return performWorldAction(
+      return review(
         side === "buy" ? "market_buy" : "market_sell",
         {
           resource: quote.resource,
@@ -184,6 +229,11 @@ export function createGameActions(runtime, services) {
         side === "buy"
           ? copy().feedback.marketBuyComplete
           : copy().feedback.marketSellComplete,
+        [
+          `${side === "buy" ? "Buy" : "Sell"} ${quote.amount} ${copy().resourceNames[quote.resource]}`,
+          `Limit: ${String(side === "buy" ? quote.buyGoldIn : quote.sellGoldOut)} CGOLD`,
+          `Quote expires: ${new Date(quote.deadline * 1000).toLocaleTimeString()}`,
+        ],
       );
     },
     async pickOpponent() {
@@ -208,10 +258,16 @@ export function createGameActions(runtime, services) {
     sendRaid(targetId, army) {
       if (!requireAccess()) return;
       if (runtime.mode === "world") {
-        return performWorldAction(
+        return review(
           "start_raid",
           { targetId, army },
           copy().feedback.worldRaidStarted,
+          [
+            `Target: ${targetId}`,
+            `Army: ${Object.entries(army)
+              .map(([id, amount]) => `${amount} ${copy().troopNames[id]}`)
+              .join(", ")}`,
+          ],
         );
       }
       return demo(
@@ -222,7 +278,9 @@ export function createGameActions(runtime, services) {
     },
     resolveRaid: () =>
       requireAccess() &&
-      performWorldAction("resolve_raid", {}, copy().feedback.worldRaidResolved),
+      review("resolve_raid", {}, copy().feedback.worldRaidResolved, [
+        "Resolve the arrived raid",
+      ]),
     reset() {
       if (runtime.mode !== "demo") return;
       runtime.state = createInitialState();
