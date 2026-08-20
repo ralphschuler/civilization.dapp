@@ -81,6 +81,58 @@ test("native WalletAuth/SIWE seam reaches an already registered game on the same
   await expectNoSeriousAxe(page, "[data-testid='civilization-game-root']");
 });
 
+test("game area navigation announces its current area, keeps keyboard focus, and fits narrow layouts", async ({
+  page,
+}) => {
+  await enterGame(page, "registered");
+  const desktopNavigation = page.getByRole("navigation", {
+    name: "Dorfaktionen",
+  });
+  const mobileNavigation = page.getByRole("navigation", {
+    name: "Schnellzugriff",
+  });
+  const navigation =
+    (page.viewportSize()?.width ?? 0) <= 960
+      ? mobileNavigation
+      : desktopNavigation;
+  const buildAction = navigation.locator('[data-panel="build"]');
+  const marketAction = navigation.locator('[data-panel="market"]');
+
+  await expect(buildAction).toHaveAttribute("aria-current", "page");
+  await marketAction.press("Enter");
+  await expect(marketAction).toHaveAttribute("aria-current", "page");
+  await expect(buildAction).not.toHaveAttribute("aria-current", "page");
+  await expect(marketAction).toBeFocused();
+  await expect(marketAction).toHaveCSS("outline-style", "solid");
+
+  if ((page.viewportSize()?.width ?? 0) <= 960) {
+    await page.setViewportSize({ width: 320, height: 700 });
+    await expect(mobileNavigation).toBeVisible();
+    const mobileMarket = mobileNavigation.getByRole("button", {
+      name: "Markt",
+    });
+    expect(
+      await mobileMarket.evaluate((button) => {
+        const { width, height } = button.getBoundingClientRect();
+        return width >= 44 && height >= 44;
+      }),
+    ).toBe(true);
+    expect(
+      await page
+        .locator("html")
+        .evaluate((node) => node.scrollWidth <= window.innerWidth),
+    ).toBe(true);
+
+    await page.setViewportSize({ width: 720, height: 900 });
+    expect(
+      await page
+        .locator("html")
+        .evaluate((node) => node.scrollWidth <= window.innerWidth),
+    ).toBe(true);
+  }
+  await expectNoSeriousAxe(page, "[data-testid='civilization-game-root']");
+});
+
 test("settings dialog traps focus, closes by Escape, and keeps motion preference locally", async ({
   page,
 }) => {

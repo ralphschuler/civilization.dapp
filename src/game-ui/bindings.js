@@ -105,9 +105,19 @@ export function bindGameActions(root, actions) {
   all("[data-map-building]", (event) =>
     actions.selectBuilding(event.currentTarget.dataset.mapBuilding),
   );
-  all("[data-panel]", (event) =>
-    actions.selectPanel(event.currentTarget.dataset.panel),
-  );
+  all("[data-panel]", (event) => {
+    const control = event.currentTarget;
+    const panel = control.dataset.panel;
+    const focusSelector = control.closest(".mobile-hud")
+      ? `.mobile-hud [data-panel="${panel}"]`
+      : control.closest(".command-tabs")
+        ? `.command-tabs [data-panel="${panel}"]`
+        : `.map-building[data-panel="${panel}"]`;
+    actions.selectPanel(panel);
+    // Rendering replaces the controls. Keep keyboard users on the equivalent
+    // navigation control after selecting a different game area.
+    requestAnimationFrame(() => root.querySelector(focusSelector)?.focus());
+  });
   all("[data-building]", (event) =>
     actions.upgrade(event.currentTarget.dataset.building),
   );

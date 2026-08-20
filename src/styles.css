@@ -9,7 +9,6 @@
   box-sizing: border-box;
 }
 body {
-  min-width: 320px;
   margin: 0;
   background: #07100e;
 }
@@ -20,6 +19,9 @@ select {
 }
 button {
   touch-action: manipulation;
+}
+.game-shell button {
+  min-height: 2.75rem;
 }
 .game-shell {
   min-height: 100dvh;
@@ -1674,4 +1676,14 @@ button {
 }
 .target-select input:focus {
   border-color: #e1c865;
+}
+
+/* A shared, non-colour-only focus treatment keeps game navigation and actions
+   visible at desktop, mobile, and magnified layouts. */
+.game-shell button:focus-visible,
+.game-shell input:focus-visible,
+.game-shell select:focus-visible {
+  outline: 3px solid #fff4bb;
+  outline-offset: 3px;
+  box-shadow: 0 0 0 6px #07100e;
 }

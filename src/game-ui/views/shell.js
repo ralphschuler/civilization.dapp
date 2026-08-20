@@ -167,17 +167,22 @@ function buildingSpot(id, ctx) {
     </button>`;
 }
 
-function tabs(activePanel, copy) {
+function tabs(activePanel, copy, variant = "desktop") {
   return [
     ["build", copy.build],
     ["army", copy.army],
     ["market", copy.market],
     ["raid", copy.raid],
   ]
-    .map(
-      ([id, label]) =>
-        `<button data-panel="${id}" class="${activePanel === id ? "is-active" : ""}">${label}</button>`,
-    )
+    .map(([id, label]) => {
+      const visibleLabel =
+        variant === "mobile" && id === "build"
+          ? copy.buildShort
+          : variant === "mobile" && id === "army"
+            ? copy.armyShort
+            : label;
+      return `<button type="button" data-panel="${id}" class="${activePanel === id ? "is-active" : ""}" aria-label="${label}" ${activePanel === id ? 'aria-current="page"' : ""}>${visibleLabel}</button>`;
+    })
     .join("");
 }
 
@@ -284,9 +289,7 @@ export function gameShell(ctx) {
     locale,
     assetResult,
   });
-  const mobileNavigation = navigation
-    .replaceAll(copy.build, copy.buildShort)
-    .replaceAll(copy.army, copy.armyShort);
+  const mobileNavigation = tabs(activePanel, copy, "mobile");
   return `
     <section class="game-shell village-shell ${reducedMotion ? "motion-reduced" : ""}">
       <header class="hud village-hud">
@@ -335,7 +338,7 @@ ${collectionStock}
         </section>
         <aside class="command-rail">
 <nav class="command-tabs" aria-label="${copy.villageActions}">${navigation}</nav>
-<section class="command-panel">${panel}</section>
+<section class="command-panel" id="game-command-panel">${panel}</section>
 </aside>
       </main>
       <footer class="game-footer">
