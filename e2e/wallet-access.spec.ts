@@ -91,10 +91,10 @@ test("game area navigation announces its current area, keeps keyboard focus, and
   const mobileNavigation = page.getByRole("navigation", {
     name: "Schnellzugriff",
   });
-  const useDesktopNavigation = await desktopNavigation.isVisible();
-  const navigation = useDesktopNavigation
-    ? desktopNavigation
-    : mobileNavigation;
+  const navigation =
+    (page.viewportSize()?.width ?? 0) <= 960
+      ? mobileNavigation
+      : desktopNavigation;
   const buildAction = navigation.locator('[data-panel="build"]');
   const marketAction = navigation.locator('[data-panel="market"]');
 
