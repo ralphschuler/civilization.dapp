@@ -54,7 +54,7 @@ async function mountDependencyPlanner(page: Page) {
       selectedBuilding: "workshop",
       buildings: plannerBuildings,
       requirements: () => [{ id: "townhall", level: 2 }],
-      buildingCost: (id) => getContractBuildingCost(plannerState, id),
+      buildingCost: (id: string) => getContractBuildingCost(plannerState, id),
       runtimeMode: "world",
       resourceDefs: Object.fromEntries(
         ["wood", "clay", "stone", "gold"].map((id) => [id, { label: id }]),
