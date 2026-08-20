@@ -91,6 +91,7 @@ test("Civilization contract state decodes CGOLD and chain timestamps for the UI"
     building: BUILDING_INDEX.goldmine,
     buildingId: "goldmine",
     completesAt: 1_700_000_444_000,
+    slot: 0,
   });
   assert.equal(state.gatherAvailableAt, 1_700_000_222_000);
   assert.equal(state.last, 1_700_000_001_000);
@@ -121,7 +122,43 @@ test("empty on-chain raid and construction tuples remain inactive", () => {
     building: 0,
     buildingId: "townhall",
     completesAt: 0,
+    slot: 0,
   });
+});
+
+test("construction reads retain stable slots for the legacy and parallel queues", () => {
+  const raw = [
+    true,
+    1n,
+    2n,
+    [0n, 0n, 0n, 0n],
+    [0n, 0n, 0n, 0n],
+    [0n, 0n, 0n, 0n, 0n, 21n, 0n, 0n],
+    [0n, 0n, 0n],
+    [zeroAddress, 0n, 0n, 0n, 0n],
+    [true, BUILDING_INDEX.timber, 100n],
+    0n,
+  ];
+  const packed = (building, completesAt) =>
+    1n | (BigInt(building) << 8n) | (BigInt(completesAt) << 16n);
+  const state = decodeCivilizationState(raw, 0n, null, null, {
+    jobs: [
+      packed(BUILDING_INDEX.timber, 100),
+      packed(BUILDING_INDEX.quarry, 200),
+      packed(BUILDING_INDEX.claypit, 300),
+    ],
+  });
+
+  assert.deepEqual(
+    state.constructions.map(({ slot, buildingId }) => ({ slot, buildingId })),
+    [
+      { slot: 0, buildingId: "timber" },
+      { slot: 1, buildingId: "quarry" },
+      { slot: 2, buildingId: "claypit" },
+    ],
+  );
+  assert.equal(state.constructionOccupied, 3);
+  assert.equal(state.constructionCapacity, 3);
 });
 
 test("World client mirrors the workshop CGOLD bootstrap cost only for level 1", () => {
@@ -547,6 +584,28 @@ test("construction boost uses the supplied validated WLD configuration", () => {
     }),
     { functionName: "boostConstruction", args: [2n] },
   );
+});
+
+test("construction slot ABI keeps slot zero legacy-compatible and addresses slots one and two", () => {
+  for (const [slot, completeSignature, boostSignature] of [
+    [0, "completeUpgrade()", "boostConstruction(uint256)"],
+    [1, "completeUpgrade(uint8)", "boostConstruction(uint8,uint256)"],
+    [2, "completeUpgrade(uint8)", "boostConstruction(uint8,uint256)"],
+  ]) {
+    const payload = slot ? { slot } : {};
+    const complete = encodeWorldGameAction("complete_upgrade", payload)[0];
+    const boost = encodeWorldGameAction(
+      "boost",
+      slot ? { slot, hours: 1 } : { hours: 1 },
+      CIVILIZATION_GAME_ADDRESS,
+      configuredWorldToken,
+    )[1];
+    assert.equal(
+      complete.data.slice(0, 10),
+      functionSelector(completeSignature),
+    );
+    assert.equal(boost.data.slice(0, 10), functionSelector(boostSignature));
+  }
 });
 
 test("construction boost eligibility matches the contract boundary and rejects invalid states", () => {

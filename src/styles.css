@@ -630,6 +630,12 @@ button {
   display: grid;
   gap: 0.8rem;
 }
+.construction-capacity-blocker {
+  grid-column: 1/-1;
+  color: #e0b193;
+  font-size: 0.68rem;
+  line-height: 1.35;
+}
 .upgrade-cost,
 .requirement-box,
 .gold-boundary,

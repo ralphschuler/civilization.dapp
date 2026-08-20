@@ -105,6 +105,7 @@ function availableUpgradeAction(context, level, cost) {
     buildDuration,
     state,
     copy,
+    constructionAtCapacity = false,
   } = context;
   const nextLevel = level + 1;
   const duration = buildDuration(selectedBuilding, nextLevel);
@@ -121,7 +122,8 @@ function availableUpgradeAction(context, level, cost) {
     <div>${costLine(cost, resourceDefs, format)}</div>
     ${durationInfo(runtimeMode, duration, copy)}
   </div>
-  <button class="primary-action" data-building="${selectedBuilding}" ${!affordable || busy ? "disabled" : ""}>${actionLabel}</button>`;
+  <button class="primary-action" data-building="${selectedBuilding}" ${!affordable || busy || constructionAtCapacity ? "disabled" : ""}>${actionLabel}</button>
+  ${constructionAtCapacity ? `<small class="construction-capacity-blocker" role="status">${copy.constructionSlotsOccupied(state.constructionOccupied, state.constructionCapacity)}</small>` : ""}`;
 }
 
 function upgradeAction(context, building, level, requirements, cost) {
@@ -170,11 +172,24 @@ export function buildPanel(context) {
   const level = state.buildings[selectedBuilding];
   const upgradeRequirements = requirements(selectedBuilding);
   const cost = buildingCost(selectedBuilding);
-  const action =
+  const hasConstruction =
     runtimeMode === "world" &&
-    (state.constructions?.length || state.construction?.pending)
-      ? pendingConstructionAction(context)
-      : upgradeAction(context, building, level, upgradeRequirements, cost);
+    (state.constructions?.length || state.construction?.pending);
+  const constructionAtCapacity =
+    hasConstruction &&
+    Number.isInteger(state.constructionOccupied) &&
+    Number.isInteger(state.constructionCapacity) &&
+    state.constructionOccupied >= state.constructionCapacity;
+  const composer = upgradeAction(
+    { ...context, constructionAtCapacity },
+    building,
+    level,
+    upgradeRequirements,
+    cost,
+  );
+  const action = hasConstruction
+    ? `${pendingConstructionAction(context)}${composer}`
+    : composer;
   const productionLine = nextProductionLine(context, building);
 
   return `<div class="inspector build-inspector">

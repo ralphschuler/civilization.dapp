@@ -136,6 +136,8 @@ const copy = {
     constructionRunning: "Bau läuft",
     completeUpgrade: "Ausbau abschließen",
     constructionNote: "Der Contract erhöht die Stufe erst nach Abschluss.",
+    constructionSlotsOccupied: (occupied: number, capacity: number) =>
+      `Bauplätze belegt: ${occupied}/${capacity}`,
     boostConstruction: "1 Stunde für 1 WLD boosten",
     maxLevel: "MAXIMALSTUFE ERREICHT",
     fullyUpgraded: (name: string) => `${name} ist vollständig ausgebaut.`,
@@ -477,6 +479,8 @@ const copy = {
     constructionRunning: "Construction in progress",
     completeUpgrade: "Complete upgrade",
     constructionNote: "The contract increases the level only after completion.",
+    constructionSlotsOccupied: (occupied: number, capacity: number) =>
+      `Construction slots occupied: ${occupied}/${capacity}`,
     boostConstruction: "Boost 1 hour for 1 WLD",
     maxLevel: "MAXIMUM LEVEL REACHED",
     fullyUpgraded: (name: string) => `${name} is fully upgraded.`,

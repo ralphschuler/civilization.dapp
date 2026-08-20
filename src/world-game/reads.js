@@ -59,6 +59,10 @@ export function decodeCivilizationState(
     building,
     buildingId: BUILDING_IDS[building] || "townhall",
     completesAt: number(tuple(build, "completesAt", 2)) * 1000,
+    // Slot zero remains backed by the legacy playerState tuple. Giving it an
+    // explicit slot lets the UI keep every job, its wallet intent, and later
+    // readback keyed to the same construction.
+    slot: 0,
   };
   const jobs = (queue?.jobs || []).map((packed, slot) => {
     const jobBuilding = Number((packed >> 8n) & 0xffn);
