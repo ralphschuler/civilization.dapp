@@ -6,6 +6,7 @@ RUN pnpm install --frozen-lockfile
 COPY public ./public
 COPY server ./server
 COPY scripts/db-migrate.mjs ./scripts/db-migrate.mjs
+COPY scripts/verify-worldchain-proxy.mjs ./scripts/verify-worldchain-proxy.mjs
 COPY scripts/lib/migrations.mjs ./scripts/lib/migrations.mjs
 COPY migrations ./migrations
 COPY src ./src

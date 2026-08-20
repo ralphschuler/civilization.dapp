@@ -13,6 +13,7 @@ const productionEnvironment = () => ({
   CIVILIZATION_CONTRACT_ADDRESS: LIVE_CONTRACT,
   CIVILIZATION_CHAIN_ID: "480",
   CIVILIZATION_WORLD_TOKEN_ADDRESS: LIVE_WORLD_TOKEN,
+  CIVILIZATION_WORLDCHAIN_RPC_URL: "https://worldchain-rpc.example.invalid",
   WALLET_AUTH_RATE_LIMIT_SECRET: "a".repeat(32),
   WALLET_AUTH_TRUSTED_PROXY_HOPS: "1",
 });
@@ -25,6 +26,8 @@ const developmentEnvironment = () => ({
     "0x0000000000000000000000000000000000000001",
   DEV_CIVILIZATION_CHAIN_ID: "480",
   DEV_CIVILIZATION_WORLD_TOKEN_ADDRESS: LIVE_WORLD_TOKEN,
+  DEV_CIVILIZATION_WORLDCHAIN_RPC_URL:
+    "https://worldchain-dev-rpc.example.invalid",
   DEV_PGHOST: "civilization-dev-postgres",
   DEV_PGDATABASE: "civilization_dev",
   DEV_PGUSER: "civilization_dev",
@@ -63,6 +66,21 @@ test("production runtime configuration fails closed when its token is missing", 
 
   assert.equal(configuration.ready, false);
   assert.deepEqual(configuration.missing, ["CIVILIZATION_WORLD_TOKEN_ADDRESS"]);
+});
+
+test("World Chain RPC is server-only, HTTPS, and required for readiness", () => {
+  const missing = productionEnvironment();
+  delete missing.CIVILIZATION_WORLDCHAIN_RPC_URL;
+  assert.deepEqual(runtimeConfiguration(missing).missing, [
+    "CIVILIZATION_WORLDCHAIN_RPC_URL",
+  ]);
+  assert.deepEqual(
+    runtimeConfiguration({
+      ...productionEnvironment(),
+      CIVILIZATION_WORLDCHAIN_RPC_URL: "http://rpc.invalid",
+    }).missing,
+    ["CIVILIZATION_WORLDCHAIN_RPC_URL"],
+  );
 });
 
 test("WalletAuth abuse controls require a secret and explicit proxy-hop contract", () => {

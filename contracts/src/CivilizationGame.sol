@@ -1084,6 +1084,10 @@ contract CivilizationGame is Initializable {
     }
 
     /// @notice V2 job lookup; legacy V1 state remains in playerState.
+    function constructionCapacity() external pure returns (uint8) {
+        return 3;
+    }
+
     function constructionJob(
         address account,
         uint8 slot

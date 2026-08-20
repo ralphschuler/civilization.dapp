@@ -66,6 +66,18 @@ export const CIVILIZATION_WORLD_ID_COMPATIBILITY_ABI = [
 ];
 
 export const CIVILIZATION_GAME_ABI = [
+  { type: "error", name: "MissingBuildingRequirement", inputs: [] },
+  { type: "error", name: "InsufficientResources", inputs: [] },
+  {
+    type: "error",
+    name: "ConstructionSlotsFull",
+    inputs: [
+      { name: "capacity", type: "uint8" },
+      { name: "occupied", type: "uint8" },
+    ],
+  },
+  { type: "error", name: "BuildingMaxLevel", inputs: [] },
+  { type: "error", name: "Unregistered", inputs: [] },
   {
     type: "function",
     name: "totalSupply",
@@ -253,6 +265,13 @@ export const CIVILIZATION_GAME_ABI = [
       { name: "hoursToBoost", type: "uint256" },
     ],
     outputs: [],
+  },
+  {
+    type: "function",
+    name: "constructionCapacity",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint8" }],
   },
   {
     type: "function",

@@ -268,6 +268,24 @@ const copy = {
         "Ein Boost ist erst ab mindestens 1 Stunde verbleibender Bauzeit möglich.",
       construction_time_unavailable:
         "Die verbleibende Bauzeit konnte nicht zuverlässig geprüft werden.",
+      contract_missing_building_requirement:
+        "Voraussetzung für dieses Gebäude fehlt.",
+      contract_insufficient_resources:
+        "Nicht genügend Rohstoffe für diesen Ausbau.",
+      contract_construction_slots_full:
+        "Alle Bauslots sind belegt. Schließe erst einen Bau ab.",
+      contract_building_max_level:
+        "Dieses Gebäude hat bereits die maximale Stufe.",
+      contract_unregistered:
+        "Dieses Wallet ist noch nicht für Civilization registriert.",
+      transaction_preflight_failed:
+        "Die Aktion konnte vor dem Versand nicht sicher geprüft werden.",
+      contract_runtime_mismatched:
+        "Die veröffentlichte Contract-Version passt nicht zu den Bauaufträgen. Keine Wallet-Aktion wurde geöffnet.",
+      contract_runtime_failed:
+        "Die Contract-Version konnte nicht sicher geprüft werden. Keine Wallet-Aktion wurde geöffnet.",
+      contract_runtime_unavailable:
+        "Die Contract-Prüfung ist derzeit nicht verfügbar. Keine Wallet-Aktion wurde geöffnet.",
       default: (reason: string) =>
         `World-Chain-Aktion fehlgeschlagen: ${reason}.`,
     },
@@ -582,6 +600,24 @@ const copy = {
         "At least 1 hour of construction time must remain to boost.",
       construction_time_unavailable:
         "The remaining construction time could not be checked reliably.",
+      contract_missing_building_requirement:
+        "A prerequisite for this building is missing.",
+      contract_insufficient_resources:
+        "There are not enough resources for this upgrade.",
+      contract_construction_slots_full:
+        "All construction slots are occupied. Finish a construction first.",
+      contract_building_max_level:
+        "This building is already at its maximum level.",
+      contract_unregistered:
+        "This wallet is not yet registered for Civilization.",
+      transaction_preflight_failed:
+        "The action could not be safely checked before it was sent.",
+      contract_runtime_mismatched:
+        "The published contract version does not match construction jobs. No wallet action was opened.",
+      contract_runtime_failed:
+        "The contract version could not be verified safely. No wallet action was opened.",
+      contract_runtime_unavailable:
+        "Contract verification is currently unavailable. No wallet action was opened.",
       default: (reason: string) => `World Chain action failed: ${reason}.`,
     },
     feedback: {

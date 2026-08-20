@@ -24,6 +24,15 @@ const scopedFiles = [
   "contracts/worldchain-proxy-release-plan.testnet.example.json",
   "contracts/world-id-deployment.example.json",
   "contracts/worldchain.tokens.example.json",
+  "scripts/verify-worldchain-proxy.mjs",
+  "server/contract-runtime-status.js",
+  "server/contract-runtime-projection.js",
+  "server/contract-status.js",
+  "src/lib/runtime-config.ts",
+  "src/app/api/contracts/status/route.ts",
+  "src/app/api/readyz/route.ts",
+  "src/world-game/runtime-gate.js",
+  "test/worldchain-proxy-verifier.test.js",
 ];
 
 const sha256 = (value) => createHash("sha256").update(value).digest("hex");
@@ -32,7 +41,37 @@ const files = Object.fromEntries(
     scopedFiles.map(async (file) => [file, sha256(await readFile(file))]),
   ),
 );
-const manifest = JSON.stringify({ reference: reference.toLowerCase(), files });
+const runtimeSource = await readFile(
+  "server/contract-runtime-status.js",
+  "utf8",
+);
+const configSource = await readFile("src/lib/runtime-config.ts", "utf8");
+const verifierRegression = await readFile(
+  "test/worldchain-proxy-verifier.test.js",
+  "utf8",
+);
+if (
+  !runtimeSource.includes('worldAppId: "app_civilization"') ||
+  !runtimeSource.includes('"constructionCapacity()"') ||
+  !runtimeSource.includes('"constructionJob(address,uint8)"') ||
+  !runtimeSource.includes('"completeUpgrade(uint8)"') ||
+  !runtimeSource.includes('"unverified"') ||
+  !configSource.includes("CIVILIZATION_WORLDCHAIN_RPC_URL") ||
+  !verifierRegression.includes("V1-style missing construction selectors")
+)
+  throw new Error("runtime release identity/capability binding is missing");
+const manifest = JSON.stringify({
+  reference: reference.toLowerCase(),
+  files,
+  worldAppId: "app_civilization",
+  requiredCapabilities: [
+    "timelock()",
+    "owner()",
+    "constructionCapacity()",
+    "constructionJob(address,uint8)",
+    "completeUpgrade(uint8)",
+  ],
+});
 process.stdout.write(
   `${JSON.stringify(
     {
@@ -40,6 +79,14 @@ process.stdout.write(
       kind: "civilization-security-offline-manifest/v1",
       reference: reference.toLowerCase(),
       files,
+      worldAppId: "app_civilization",
+      requiredCapabilities: [
+        "timelock()",
+        "owner()",
+        "constructionCapacity()",
+        "constructionJob(address,uint8)",
+        "completeUpgrade(uint8)",
+      ],
       manifestSha256: sha256(manifest),
     },
     null,
