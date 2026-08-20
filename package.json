@@ -16,6 +16,7 @@
     "verify:worldchain:proxy": "node scripts/verify-worldchain-proxy.mjs",
     "gate:worldchain:production": "node --experimental-strip-types scripts/release-worldchain-gate.mjs",
     "security:offline": "node scripts/security-offline-verification.mjs",
+    "security:workflows": "node scripts/verify-workflow-security.mjs",
     "security:scope": "node scripts/solidity-scope.mjs",
     "security:slither": "bash scripts/security-slither.sh",
     "security:worldchain:fork": "node scripts/security-worldchain-fork.mjs",

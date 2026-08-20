@@ -5,6 +5,7 @@
 
 version: 2
 updates:
+  # Review-only: Dependabot opens weekly PRs; repository automation must not auto-merge them.
   - package-ecosystem: "github-actions" # See documentation for possible values
     directory: "/" # Location of package manifests
     schedule:
@@ -13,6 +14,7 @@ updates:
     directory: "/" # Location of package manifests
     schedule:
       interval: "weekly"
+  # Review-only: validate tag-to-digest changes before manually merging each PR.
   - package-ecosystem: "docker" # See documentation for possible values
     directory: "/" # Location of package manifests
     schedule:
