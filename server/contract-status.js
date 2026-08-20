@@ -1,11 +1,12 @@
 // This is public release metadata, not a transaction interface or credential
 // configuration.
+import { PRODUCT_CATALOG_POLICY } from "./product-catalog-policy.js";
+
 export const CONTRACT_STATUS = Object.freeze({
   release: "mainnet_wallet_registration_deployed_no_settlement",
   deployment: "worldchain_mainnet_wallet_registration_deployed",
   independentlyAudited: false,
-  settlementEnabled: false,
-  buybackEnabled: false,
+  ...PRODUCT_CATALOG_POLICY.contractStatusFlags,
   deployedContracts: Object.freeze([
     Object.freeze({
       name: "CivilizationGame",
@@ -17,9 +18,7 @@ export const CONTRACT_STATUS = Object.freeze({
   // Wallet actions remain fail-closed until a V2 address/runtime hash is
   // published and the read-only verifier can establish a release baseline.
   onChainActionsEnabled: false,
-  custodyEnabled: false,
-  paymentsEnabled: false,
-  withdrawalsEnabled: false,
+  productCatalog: PRODUCT_CATALOG_POLICY,
   contracts: Object.freeze([
     Object.freeze({
       source: "contracts/src/CivilizationGame.sol",
