@@ -44,6 +44,8 @@ jobs:
         run: pnpm security:workflows
       - name: Validate production and fixture Solidity scope
         run: pnpm security:scope
+      - name: Verify offline V1/V2 proxy compatibility and size budgets
+        run: pnpm verify:proxy:v2-compatibility
       - name: Record deterministic offline contract-assurance manifest
         env:
           SECURITY_ASSURANCE_REF: ${{ github.sha }}

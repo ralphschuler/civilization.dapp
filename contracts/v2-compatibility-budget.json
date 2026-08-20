@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "artifactProfile": {
+    "solc": "0.8.30+commit.73712a01.Emscripten.clang",
+    "optimizerRuns": 10,
+    "viaIR": true
+  },
+  "budgets": {
+    "CivilizationGame": {
+      "maxRuntimeBytes": 24576,
+      "rationale": "EIP-170 maximum deployed runtime size; no exception is permitted."
+    }
+  }
+}
+

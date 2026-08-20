@@ -14,6 +14,7 @@
     "test:e2e:wallet": "playwright test --config=playwright.wallet.config.ts",
     "test:worldchain:proxy-verifier": "node --test test/worldchain-proxy-verifier.test.js",
     "verify:worldchain:proxy": "node scripts/verify-worldchain-proxy.mjs",
+    "verify:proxy:v2-compatibility": "node scripts/verify-proxy-v2-compatibility.mjs",
     "gate:worldchain:production": "node --experimental-strip-types scripts/release-worldchain-gate.mjs",
     "security:offline": "node scripts/security-offline-verification.mjs",
     "security:workflows": "node scripts/verify-workflow-security.mjs",

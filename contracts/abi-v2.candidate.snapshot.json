@@ -1,0 +1,2467 @@
+{
+  "schemaVersion": 1,
+  "kind": "civilization-proxy-abi/v2-source-candidate-not-deployed",
+  "source": "contracts/src/CivilizationGame.sol",
+  "sourceSha256": "3a101c77cd06060e476f03e5952dd1d633f4b215f6ae27499373d042ba2618c1",
+  "compiler": "0.8.30+commit.73712a01.Emscripten.clang",
+  "profile": {
+    "optimizer": {
+      "enabled": true,
+      "runs": 10
+    },
+    "viaIR": true
+  },
+  "abi": [
+    {
+      "inputs": [],
+      "name": "AlreadyRegistered",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "BoostExceedsRemainingTime",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "BuildingMaxLevel",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "BuybackVaultNotConfigured",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint64",
+          "name": "availableAt",
+          "type": "uint64"
+        }
+      ],
+      "name": "ClaimOnCooldown",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint64",
+          "name": "completesAt",
+          "type": "uint64"
+        }
+      ],
+      "name": "ConstructionAlreadyPending",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint64",
+          "name": "completesAt",
+          "type": "uint64"
+        }
+      ],
+      "name": "ConstructionNotReady",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint8",
+          "name": "capacity",
+          "type": "uint8"
+        },
+        {
+          "internalType": "uint8",
+          "name": "occupied",
+          "type": "uint8"
+        }
+      ],
+      "name": "ConstructionSlotsFull",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InsufficientAllowance",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InsufficientGoldBalance",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InsufficientResources",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InsufficientTroops",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidAmount",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidBuildingLevel",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "vault",
+          "type": "address"
+        }
+      ],
+      "name": "InvalidBuybackVault",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint8",
+          "name": "slot",
+          "type": "uint8"
+        }
+      ],
+      "name": "InvalidConstructionSlot",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidInitialization",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidMarketPrice",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidMarketResource",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "splitter",
+          "type": "address"
+        }
+      ],
+      "name": "InvalidRevenueSplitter",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidWorldIdConfiguration",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "MarketAmountTooLarge",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "deadline",
+          "type": "uint256"
+        }
+      ],
+      "name": "MarketDeadlineExpired",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "available",
+          "type": "uint256"
+        }
+      ],
+      "name": "MarketInsufficientGoldReserve",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "available",
+          "type": "uint256"
+        }
+      ],
+      "name": "MarketInsufficientInventory",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "MarketNotConfigured",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "actual",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "limit",
+          "type": "uint256"
+        }
+      ],
+      "name": "MarketSlippage",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "available",
+          "type": "uint256"
+        }
+      ],
+      "name": "MarketStorageCapacityExceeded",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "MissingBuildingRequirement",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NoBoostableConstruction",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NoConstructionPending",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NoRaidPending",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NothingToClaim",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NotInitializing",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NullifierAlreadyUsed",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "PrestigeRequirementNotMet",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "RaidAlreadyPending",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint64",
+          "name": "arrivesAt",
+          "type": "uint64"
+        }
+      ],
+      "name": "RaidNotArrived",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "token",
+          "type": "address"
+        }
+      ],
+      "name": "SafeERC20FailedOperation",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "SelfRaid",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "UnauthorizedGovernance",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "UnexpectedWorldIdCredential",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "Unregistered",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "WorldTokenAmountMismatch",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "WorldTokenTransferFailed",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "ZeroAddress",
+      "type": "error"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "owner",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "spender",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "value",
+          "type": "uint256"
+        }
+      ],
+      "name": "Approval",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "player",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "enum CivilizationGame.Building",
+          "name": "building",
+          "type": "uint8"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "newLevel",
+          "type": "uint256"
+        }
+      ],
+      "name": "BuildingUpgraded",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "oldVault",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "newVault",
+          "type": "address"
+        }
+      ],
+      "name": "BuybackVaultUpdated",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "player",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "hoursBoosted",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "wldPaid",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint64",
+          "name": "completesAt",
+          "type": "uint64"
+        }
+      ],
+      "name": "ConstructionBoosted",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": false,
+          "internalType": "uint64",
+          "name": "version",
+          "type": "uint64"
+        }
+      ],
+      "name": "Initialized",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "player",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "enum CivilizationGame.Resource",
+          "name": "resource",
+          "type": "uint8"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "resourceAmount",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "goldIn",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "fee",
+          "type": "uint256"
+        }
+      ],
+      "name": "MarketBought",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "enum CivilizationGame.Resource",
+          "name": "resource",
+          "type": "uint8"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "priceWeiPerUnit",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "inventory",
+          "type": "uint256"
+        }
+      ],
+      "name": "MarketConfigured",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "player",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "enum CivilizationGame.Resource",
+          "name": "resource",
+          "type": "uint8"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "resourceAmount",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "goldOut",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "fee",
+          "type": "uint256"
+        }
+      ],
+      "name": "MarketSold",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "splitter",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "bytes32",
+          "name": "reasonHash",
+          "type": "bytes32"
+        }
+      ],
+      "name": "MonthlyPayoutDeferred",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "player",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "prestigeCount",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "productionMultiplierBps",
+          "type": "uint256"
+        }
+      ],
+      "name": "Prestiged",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "attacker",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "defender",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "bool",
+          "name": "attackerWon",
+          "type": "bool"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "attack",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "defense",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "wood",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "clay",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "stone",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "gold",
+          "type": "uint256"
+        }
+      ],
+      "name": "RaidResolved",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "attacker",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "defender",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint64",
+          "name": "arrivesAt",
+          "type": "uint64"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "spear",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "archer",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "rider",
+          "type": "uint256"
+        }
+      ],
+      "name": "RaidStarted",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "player",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "wood",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "clay",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "stone",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "gold",
+          "type": "uint256"
+        }
+      ],
+      "name": "ResourcesClaimed",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "oldSplitter",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "newSplitter",
+          "type": "address"
+        }
+      ],
+      "name": "RevenueSplitterUpdated",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "distributor",
+          "type": "address"
+        }
+      ],
+      "name": "RewardDistributorConfigured",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "from",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "to",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "value",
+          "type": "uint256"
+        }
+      ],
+      "name": "Transfer",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "player",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "enum CivilizationGame.Troop",
+          "name": "troop",
+          "type": "uint8"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "TroopsTrained",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "player",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "enum CivilizationGame.Building",
+          "name": "building",
+          "type": "uint8"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint64",
+          "name": "completesAt",
+          "type": "uint64"
+        }
+      ],
+      "name": "UpgradeStarted",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "player",
+          "type": "address"
+        }
+      ],
+      "name": "WalletRegistered",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "player",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "nullifierHash",
+          "type": "uint256"
+        }
+      ],
+      "name": "WorldIdRegistered",
+      "type": "event"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "owner",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "spender",
+          "type": "address"
+        }
+      ],
+      "name": "allowance",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "spender",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "value",
+          "type": "uint256"
+        }
+      ],
+      "name": "approve",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "account",
+          "type": "address"
+        }
+      ],
+      "name": "balanceOf",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "BOOST_DURATION",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "hoursToBoost",
+          "type": "uint256"
+        }
+      ],
+      "name": "boostConstruction",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint8",
+          "name": "slot",
+          "type": "uint8"
+        },
+        {
+          "internalType": "uint256",
+          "name": "hoursToBoost",
+          "type": "uint256"
+        }
+      ],
+      "name": "boostConstruction",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "enum CivilizationGame.Building",
+          "name": "",
+          "type": "uint8"
+        },
+        {
+          "internalType": "uint256",
+          "name": "nextLevel",
+          "type": "uint256"
+        }
+      ],
+      "name": "buildDuration",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "value",
+          "type": "uint256"
+        }
+      ],
+      "name": "burn",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "buybackVault",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "enum CivilizationGame.Resource",
+          "name": "resource",
+          "type": "uint8"
+        },
+        {
+          "internalType": "uint256",
+          "name": "resourceAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "maxGoldIn",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "deadline",
+          "type": "uint256"
+        }
+      ],
+      "name": "buyResource",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "CLAIM_COOLDOWN",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "claim",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "completeUpgrade",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint8",
+          "name": "slot",
+          "type": "uint8"
+        }
+      ],
+      "name": "completeUpgrade",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "enum CivilizationGame.Resource",
+          "name": "resource",
+          "type": "uint8"
+        },
+        {
+          "internalType": "uint256",
+          "name": "priceWeiPerUnit",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "inventory",
+          "type": "uint256"
+        }
+      ],
+      "name": "configureMarket",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "distributor",
+          "type": "address"
+        }
+      ],
+      "name": "configureRewardDistributor",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "constructionCapacity",
+      "outputs": [
+        {
+          "internalType": "uint8",
+          "name": "",
+          "type": "uint8"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "account",
+          "type": "address"
+        },
+        {
+          "internalType": "uint8",
+          "name": "slot",
+          "type": "uint8"
+        }
+      ],
+      "name": "constructionJob",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "packed",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "decimals",
+      "outputs": [
+        {
+          "internalType": "uint8",
+          "name": "",
+          "type": "uint8"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "GOLD_UNIT",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "components": [
+            {
+              "internalType": "address",
+              "name": "worldIdVerifier",
+              "type": "address"
+            },
+            {
+              "internalType": "string",
+              "name": "worldActionId",
+              "type": "string"
+            },
+            {
+              "internalType": "uint64",
+              "name": "worldRpId",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint64",
+              "name": "worldIssuerSchemaId",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint256",
+              "name": "credentialGenesisIssuedAtMin",
+              "type": "uint256"
+            },
+            {
+              "internalType": "address",
+              "name": "worldIdLegacyRouter",
+              "type": "address"
+            },
+            {
+              "internalType": "string",
+              "name": "worldIdLegacyAppId",
+              "type": "string"
+            },
+            {
+              "internalType": "string",
+              "name": "worldIdLegacyActionId",
+              "type": "string"
+            },
+            {
+              "internalType": "address",
+              "name": "worldToken",
+              "type": "address"
+            },
+            {
+              "internalType": "address",
+              "name": "revenueSplitter",
+              "type": "address"
+            },
+            {
+              "internalType": "address",
+              "name": "timelock",
+              "type": "address"
+            }
+          ],
+          "internalType": "struct CivilizationGame.InitConfig",
+          "name": "config",
+          "type": "tuple"
+        }
+      ],
+      "name": "initialize",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "MARKET_FEE_BPS",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "MARKET_MAX_AMOUNT",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "marketGoldReserve",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "enum CivilizationGame.Resource",
+          "name": "resource",
+          "type": "uint8"
+        }
+      ],
+      "name": "marketInventory",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "enum CivilizationGame.Resource",
+          "name": "resource",
+          "type": "uint8"
+        }
+      ],
+      "name": "marketPrice",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "MAX_BUILD_DURATION_SECONDS",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "MAX_BUILDING_LEVEL",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "MAX_OFFLINE_SECONDS",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "recipient",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "mintReward",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "MONTHLY_PAYOUT_CALL_GAS",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "name",
+      "outputs": [
+        {
+          "internalType": "string",
+          "name": "",
+          "type": "string"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "value",
+          "type": "uint256"
+        }
+      ],
+      "name": "nullifierOwner",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "account",
+          "type": "address"
+        }
+      ],
+      "name": "playerState",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "registered",
+          "type": "bool"
+        },
+        {
+          "internalType": "uint64",
+          "name": "lastAccruedAt",
+          "type": "uint64"
+        },
+        {
+          "internalType": "uint64",
+          "name": "claimAvailableAt",
+          "type": "uint64"
+        },
+        {
+          "components": [
+            {
+              "internalType": "uint256",
+              "name": "wood",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "clay",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "stone",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "gold",
+              "type": "uint256"
+            }
+          ],
+          "internalType": "struct CivilizationGame.Resources",
+          "name": "stored",
+          "type": "tuple"
+        },
+        {
+          "components": [
+            {
+              "internalType": "uint256",
+              "name": "wood",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "clay",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "stone",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "gold",
+              "type": "uint256"
+            }
+          ],
+          "internalType": "struct CivilizationGame.Resources",
+          "name": "field",
+          "type": "tuple"
+        },
+        {
+          "components": [
+            {
+              "internalType": "uint256",
+              "name": "townhall",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "timber",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "claypit",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "quarry",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "warehouse",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "workshop",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "goldmine",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "barracks",
+              "type": "uint256"
+            }
+          ],
+          "internalType": "struct CivilizationGame.Buildings",
+          "name": "buildings",
+          "type": "tuple"
+        },
+        {
+          "components": [
+            {
+              "internalType": "uint256",
+              "name": "spear",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "archer",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "rider",
+              "type": "uint256"
+            }
+          ],
+          "internalType": "struct CivilizationGame.Troops",
+          "name": "troops",
+          "type": "tuple"
+        },
+        {
+          "components": [
+            {
+              "internalType": "address",
+              "name": "defender",
+              "type": "address"
+            },
+            {
+              "internalType": "uint64",
+              "name": "arrivesAt",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint256",
+              "name": "spear",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "archer",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "rider",
+              "type": "uint256"
+            }
+          ],
+          "internalType": "struct CivilizationGame.Raid",
+          "name": "pendingRaid",
+          "type": "tuple"
+        },
+        {
+          "components": [
+            {
+              "internalType": "bool",
+              "name": "pending",
+              "type": "bool"
+            },
+            {
+              "internalType": "enum CivilizationGame.Building",
+              "name": "building",
+              "type": "uint8"
+            },
+            {
+              "internalType": "uint64",
+              "name": "completesAt",
+              "type": "uint64"
+            }
+          ],
+          "internalType": "struct CivilizationGame.Construction",
+          "name": "construction",
+          "type": "tuple"
+        },
+        {
+          "internalType": "uint256",
+          "name": "prestigeCount",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "prestige",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "prestigeCount",
+          "type": "uint256"
+        }
+      ],
+      "name": "prestigeMultiplierBps",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "account",
+          "type": "address"
+        }
+      ],
+      "name": "previewAccrual",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "uint256",
+              "name": "wood",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "clay",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "stone",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "gold",
+              "type": "uint256"
+            }
+          ],
+          "internalType": "struct CivilizationGame.Resources",
+          "name": "wholeField",
+          "type": "tuple"
+        },
+        {
+          "components": [
+            {
+              "internalType": "uint256",
+              "name": "wood",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "clay",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "stone",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "gold",
+              "type": "uint256"
+            }
+          ],
+          "internalType": "struct CivilizationGame.Resources",
+          "name": "fractionalRemainder",
+          "type": "tuple"
+        },
+        {
+          "internalType": "uint256",
+          "name": "fractionScale",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint64",
+          "name": "asOf",
+          "type": "uint64"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "account",
+          "type": "address"
+        }
+      ],
+      "name": "previewPlayerState",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "registered",
+          "type": "bool"
+        },
+        {
+          "internalType": "uint64",
+          "name": "lastAccruedAt",
+          "type": "uint64"
+        },
+        {
+          "internalType": "uint64",
+          "name": "claimAvailableAt",
+          "type": "uint64"
+        },
+        {
+          "components": [
+            {
+              "internalType": "uint256",
+              "name": "wood",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "clay",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "stone",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "gold",
+              "type": "uint256"
+            }
+          ],
+          "internalType": "struct CivilizationGame.Resources",
+          "name": "stored",
+          "type": "tuple"
+        },
+        {
+          "components": [
+            {
+              "internalType": "uint256",
+              "name": "wood",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "clay",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "stone",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "gold",
+              "type": "uint256"
+            }
+          ],
+          "internalType": "struct CivilizationGame.Resources",
+          "name": "field",
+          "type": "tuple"
+        },
+        {
+          "components": [
+            {
+              "internalType": "uint256",
+              "name": "townhall",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "timber",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "claypit",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "quarry",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "warehouse",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "workshop",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "goldmine",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "barracks",
+              "type": "uint256"
+            }
+          ],
+          "internalType": "struct CivilizationGame.Buildings",
+          "name": "buildings",
+          "type": "tuple"
+        },
+        {
+          "components": [
+            {
+              "internalType": "uint256",
+              "name": "spear",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "archer",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "rider",
+              "type": "uint256"
+            }
+          ],
+          "internalType": "struct CivilizationGame.Troops",
+          "name": "troops",
+          "type": "tuple"
+        },
+        {
+          "components": [
+            {
+              "internalType": "address",
+              "name": "defender",
+              "type": "address"
+            },
+            {
+              "internalType": "uint64",
+              "name": "arrivesAt",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint256",
+              "name": "spear",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "archer",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "rider",
+              "type": "uint256"
+            }
+          ],
+          "internalType": "struct CivilizationGame.Raid",
+          "name": "pendingRaid",
+          "type": "tuple"
+        },
+        {
+          "components": [
+            {
+              "internalType": "bool",
+              "name": "pending",
+              "type": "bool"
+            },
+            {
+              "internalType": "enum CivilizationGame.Building",
+              "name": "building",
+              "type": "uint8"
+            },
+            {
+              "internalType": "uint64",
+              "name": "completesAt",
+              "type": "uint64"
+            }
+          ],
+          "internalType": "struct CivilizationGame.Construction",
+          "name": "construction",
+          "type": "tuple"
+        },
+        {
+          "internalType": "uint256",
+          "name": "prestigeCount",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "account",
+          "type": "address"
+        }
+      ],
+      "name": "productionMultiplierBps",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "enum CivilizationGame.Resource",
+          "name": "resource",
+          "type": "uint8"
+        },
+        {
+          "internalType": "uint256",
+          "name": "resourceAmount",
+          "type": "uint256"
+        }
+      ],
+      "name": "quoteMarket",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "buyGoldIn",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "buyFee",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "sellGoldOut",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "sellFee",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "RAID_MARCH_DURATION",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "registerWallet",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "nullifierHash",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "nonce",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "signalHash",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint64",
+          "name": "expiresAtMin",
+          "type": "uint64"
+        },
+        {
+          "internalType": "uint64",
+          "name": "issuerSchemaId",
+          "type": "uint64"
+        },
+        {
+          "internalType": "uint256[5]",
+          "name": "proof",
+          "type": "uint256[5]"
+        }
+      ],
+      "name": "registerWorldId",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "root",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "signalHash",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "nullifierHash",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256[8]",
+          "name": "proof",
+          "type": "uint256[8]"
+        }
+      ],
+      "name": "registerWorldIdLegacy",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "resolveRaid",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "revenueSplitter",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "rewardDistributor",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "enum CivilizationGame.Resource",
+          "name": "resource",
+          "type": "uint8"
+        },
+        {
+          "internalType": "uint256",
+          "name": "resourceAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "minGoldOut",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "deadline",
+          "type": "uint256"
+        }
+      ],
+      "name": "sellResource",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "vault",
+          "type": "address"
+        }
+      ],
+      "name": "setBuybackVault",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "splitter",
+          "type": "address"
+        }
+      ],
+      "name": "setRevenueSplitter",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "defender",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "spear",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "archer",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "rider",
+          "type": "uint256"
+        }
+      ],
+      "name": "startRaid",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "symbol",
+      "outputs": [
+        {
+          "internalType": "string",
+          "name": "",
+          "type": "string"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "timelock",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "totalSupply",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "enum CivilizationGame.Troop",
+          "name": "troop",
+          "type": "uint8"
+        },
+        {
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "train",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "to",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "value",
+          "type": "uint256"
+        }
+      ],
+      "name": "transfer",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "from",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "to",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "value",
+          "type": "uint256"
+        }
+      ],
+      "name": "transferFrom",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "enum CivilizationGame.Building",
+          "name": "building",
+          "type": "uint8"
+        }
+      ],
+      "name": "upgrade",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "WORLD_ID_LEGACY_GROUP_ID",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "WORLD_TOKEN_UNIT",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "worldIdAction",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "worldIdLegacyExternalNullifier",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "worldIdLegacyRouter",
+      "outputs": [
+        {
+          "internalType": "contract IWorldIDLegacyRouter",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "worldIdRpId",
+      "outputs": [
+        {
+          "internalType": "uint64",
+          "name": "",
+          "type": "uint64"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "worldIdVerifier",
+      "outputs": [
+        {
+          "internalType": "contract IWorldIDVerifier",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "worldToken",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "abiSha256": "bd254c2cfe3aa774616682caf23166f2d647ee8569f2cabcf72688b2f130acf3"
+}
+
