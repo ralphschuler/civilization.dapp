@@ -25,7 +25,9 @@ const scopedFiles = [
   "contracts/world-id-deployment.example.json",
   "contracts/worldchain.tokens.example.json",
   "scripts/verify-worldchain-proxy.mjs",
+  "scripts/release-worldchain-gate.mjs",
   "server/contract-runtime-status.js",
+  "server/production-release-gate.js",
   "server/contract-runtime-projection.js",
   "server/contract-status.js",
   "src/lib/runtime-config.ts",
@@ -33,6 +35,7 @@ const scopedFiles = [
   "src/app/api/readyz/route.ts",
   "src/world-game/runtime-gate.js",
   "test/worldchain-proxy-verifier.test.js",
+  "test/production-release-gate.test.js",
 ];
 
 const sha256 = (value) => createHash("sha256").update(value).digest("hex");
@@ -55,7 +58,7 @@ if (
   !runtimeSource.includes('"constructionCapacity()"') ||
   !runtimeSource.includes('"constructionJob(address,uint8)"') ||
   !runtimeSource.includes('"completeUpgrade(uint8)"') ||
-  !runtimeSource.includes('"unverified"') ||
+  !runtimeSource.includes('"verified"') ||
   !configSource.includes("CIVILIZATION_WORLDCHAIN_RPC_URL") ||
   !verifierRegression.includes("V1-style missing construction selectors")
 )

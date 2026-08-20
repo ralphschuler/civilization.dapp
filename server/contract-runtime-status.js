@@ -3,6 +3,13 @@
 import { getAddress } from "viem";
 import { verifyWorldChainProxy } from "../scripts/verify-worldchain-proxy.mjs";
 
+// This is the historical implementation currently observed behind the proxy.
+// It is intentionally a denial baseline, never a V2 release identity.
+const HISTORICAL_V1_IMPLEMENTATION =
+  "0x7330C22d7b61CCcDB7794435535aaB349D9aFF79";
+const HISTORICAL_V1_IMPLEMENTATION_CODEHASH =
+  "0x0a2ceb5853ae7ba5d020948baf97c08526f7d19ef990c3e3fc61c35ac794b12a";
+
 export const WORLDCHAIN_RELEASE_BASELINE = Object.freeze({
   chainId: "480",
   proxy: "0x0E6689d0649Ad9037465d178231b10F18518D2b0",
@@ -30,9 +37,24 @@ let cached;
 let inFlight;
 const sameAddress = (left, right) => getAddress(left) === getAddress(right);
 
+function isReviewedV2Identity(implementation) {
+  return (
+    !sameAddress(
+      implementation.implementationAddress,
+      HISTORICAL_V1_IMPLEMENTATION,
+    ) &&
+    implementation.implementationCodeHash !==
+      HISTORICAL_V1_IMPLEMENTATION_CODEHASH
+  );
+}
+
 function matchesObservedIdentity(report, configuration) {
   const b = WORLDCHAIN_RELEASE_BASELINE;
+  const expectedImplementation = configuration.worldchainRelease;
   return (
+    isReviewedV2Identity(expectedImplementation) &&
+    !sameAddress(report.implementation.address, HISTORICAL_V1_IMPLEMENTATION) &&
+    report.implementation.code.hash !== HISTORICAL_V1_IMPLEMENTATION_CODEHASH &&
     configuration.world.worldChainId === Number(b.chainId) &&
     sameAddress(configuration.world.civilizationContractAddress, b.proxy) &&
     configuration.world.worldAppId === b.worldAppId &&
@@ -42,7 +64,13 @@ function matchesObservedIdentity(report, configuration) {
     sameAddress(report.authority.proxyTimelock, b.timelock) &&
     sameAddress(report.authority.proxyAdminOwner, b.timelock) &&
     report.proxy.code.hash === b.proxyCodeHash &&
-    report.admin.code.hash === b.adminCodeHash
+    report.admin.code.hash === b.adminCodeHash &&
+    sameAddress(
+      report.implementation.address,
+      expectedImplementation.implementationAddress,
+    ) &&
+    report.implementation.code.hash ===
+      expectedImplementation.implementationCodeHash
   );
 }
 
@@ -66,6 +94,36 @@ function sanitized(status, observedAt) {
   };
 }
 
+/**
+ * Assess the configured production release against a live, read-only RPC
+ * observation. The returned object intentionally contains no RPC URL or RPC
+ * error data, so it is safe for delivery logs and machine processing.
+ */
+export async function assessWorldChainRelease(
+  configuration,
+  { verify = verifyWorldChainProxy } = {},
+) {
+  if (!configuration.ready || !configuration.worldchainRpcUrl)
+    return { status: "missing_configuration" };
+  try {
+    const report = await verify({
+      rpcUrl: configuration.worldchainRpcUrl,
+      proxy: configuration.world.civilizationContractAddress,
+      expectedChainId: configuration.world.worldChainId,
+    });
+    return {
+      status:
+        matchesObservedIdentity(report, configuration) &&
+        hasRequiredCapabilities(report)
+          ? "verified"
+          : "mismatched",
+      report,
+    };
+  } catch {
+    return { status: "failed" };
+  }
+}
+
 /** Returns only safe status labels and timestamps; provider URLs/errors never escape. */
 export async function contractRuntimeStatus(
   configuration,
@@ -85,20 +143,9 @@ export async function contractRuntimeStatus(
   const promise = (async () => {
     const observedAt = new Date(now()).toISOString();
     try {
-      const report = await verify({
-        rpcUrl: configuration.worldchainRpcUrl,
-        proxy: WORLDCHAIN_RELEASE_BASELINE.proxy,
-        expectedChainId: WORLDCHAIN_RELEASE_BASELINE.chainId,
+      const { status } = await assessWorldChainRelease(configuration, {
+        verify,
       });
-      // No V2 implementation address/codehash is published yet. An observed
-      // V1 or any ABI mismatch is explicitly mismatched; even a compatible
-      // candidate remains unverified rather than being promoted to a made-up
-      // V2 release baseline.
-      const status =
-        !matchesObservedIdentity(report, configuration) ||
-        !hasRequiredCapabilities(report)
-          ? "mismatched"
-          : "unverified";
       const value = sanitized(status, observedAt);
       cached = { key: cacheKey, at: now(), value };
       return value;
