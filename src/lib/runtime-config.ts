@@ -21,6 +21,10 @@ export type RuntimeConfiguration = Readonly<{
   missing: string[];
   world: PublicWorldRuntimeConfiguration;
   walletAuthUrl: string;
+  walletAuthAbuse: Readonly<{
+    rateLimitSecret: string;
+    trustedProxyHops: number;
+  }>;
 }>;
 
 type Environment = Record<string, string | undefined>;
@@ -96,6 +100,7 @@ function publicWorld(
 function commonMissing(
   world: PublicWorldRuntimeConfiguration,
   walletAuthUrl: string,
+  env: Environment,
   prefix = "",
 ) {
   const missing: string[] = [];
@@ -103,14 +108,19 @@ function commonMissing(
   if (!APP_ID.test(world.worldAppId)) missing.push(`${prefix}WORLD_APP_ID`);
   if (world.worldChainId !== WORLD_CHAIN_ID)
     missing.push(`${prefix}CIVILIZATION_CHAIN_ID`);
+  if (value(env, "WALLET_AUTH_RATE_LIMIT_SECRET").length < 32)
+    missing.push("WALLET_AUTH_RATE_LIMIT_SECRET");
+  if (!/^\d+$/.test(value(env, "WALLET_AUTH_TRUSTED_PROXY_HOPS")))
+    missing.push("WALLET_AUTH_TRUSTED_PROXY_HOPS");
   return missing;
 }
 
 function productionMissing(
+  env: Environment,
   world: PublicWorldRuntimeConfiguration,
   walletAuthUrl: string,
 ) {
-  const missing = commonMissing(world, walletAuthUrl);
+  const missing = commonMissing(world, walletAuthUrl, env);
   if (
     !isAddress(world.civilizationContractAddress) ||
     getAddress(world.civilizationContractAddress) !== getAddress(LIVE_CONTRACT)
@@ -130,7 +140,7 @@ function developmentMissing(
   world: PublicWorldRuntimeConfiguration,
   walletAuthUrl: string,
 ) {
-  const missing = commonMissing(world, walletAuthUrl, "DEV_");
+  const missing = commonMissing(world, walletAuthUrl, env, "DEV_");
   if (!hasIsolatedDevelopmentHttpsOrigin(walletAuthUrl))
     missing.push("DEV_WALLET_AUTH_URL");
   if (
@@ -154,11 +164,21 @@ export function runtimeConfiguration(
   const environment = civilizationEnvironment(env);
   const world = publicWorld(env, environment);
   const walletAuthUrl = profileValue(env, environment, "WALLET_AUTH_URL");
+  const walletAuthAbuse = {
+    rateLimitSecret: value(env, "WALLET_AUTH_RATE_LIMIT_SECRET"),
+    trustedProxyHops: Number(value(env, "WALLET_AUTH_TRUSTED_PROXY_HOPS")),
+  };
   const missing =
     environment === null
       ? ["CIVILIZATION_ENV"]
       : environment === "development"
         ? developmentMissing(env, world, walletAuthUrl)
-        : productionMissing(world, walletAuthUrl);
-  return { ready: missing.length === 0, missing, world, walletAuthUrl };
+        : productionMissing(env, world, walletAuthUrl);
+  return {
+    ready: missing.length === 0,
+    missing,
+    world,
+    walletAuthUrl,
+    walletAuthAbuse,
+  };
 }

@@ -55,7 +55,11 @@ export async function createWalletAuthSession(address, dependencies = {}) {
     dependencies.query ??
     ((sql, parameters) => database().query(sql, parameters));
   await query(
-    "INSERT INTO wallet_auth_sessions (session_hash, wallet_address, expires_at) VALUES ($1, $2, $3)",
+    `WITH retained AS (
+       DELETE FROM wallet_auth_sessions WHERE expires_at < now() - interval '1 day'
+     )
+     INSERT INTO wallet_auth_sessions (session_hash, wallet_address, expires_at)
+     VALUES ($1, $2, $3)`,
     [tokenHash(token), walletAddress, expiresAt],
   );
   return { token, expiresAt, address: walletAddress };

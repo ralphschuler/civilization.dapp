@@ -31,6 +31,7 @@ function readChallenge(value) {
 /** Returns only the checksum address accepted by the server-side SIWE verifier. */
 export async function verifyWalletForDirectGame({ fetchImpl, walletAuth }) {
   const nonceResponse = await fetchImpl("/api/wallet-auth/nonce", {
+    method: "POST",
     cache: "no-store",
   });
   if (!nonceResponse.ok) throw new Error("nonce_unavailable");
