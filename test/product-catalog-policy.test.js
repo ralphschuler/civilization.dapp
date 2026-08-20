@@ -116,4 +116,3 @@ test("contract payment and custody flags are centrally fail-closed", () => {
     true,
   );
 });
-
