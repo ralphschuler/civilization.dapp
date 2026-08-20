@@ -195,6 +195,21 @@ test("shell rendering receives explicit state and no controller callbacks", () =
     reducedMotion: true,
   });
   assert.match(html, /data-panel="build"/);
+  assert.match(
+    html,
+    /<nav class="command-tabs" aria-label="Village actions">[\s\S]*?data-panel="build"[^>]*aria-label="Build"[^>]*aria-current="page"/,
+  );
+  assert.match(
+    html,
+    /<nav class="mobile-hud" aria-label="Quick access">[\s\S]*?data-panel="build"[^>]*aria-label="Build"[^>]*aria-current="page"/,
+  );
+  assert.doesNotMatch(html, /role="tab"/);
+  assert.equal(
+    html.match(/aria-current="page"/g)?.length,
+    2,
+    "desktop and mobile navigation each expose exactly one current area",
+  );
+  assert.match(html, /id="game-command-panel"/);
   assert.match(html, /<p>panel<\/p>/);
   assert.match(html, /asset-loading/);
   assert.match(html, /id="gather"/);
@@ -207,6 +222,21 @@ test("shell rendering receives explicit state and no controller callbacks", () =
   assert.match(html, /0x0000000000000000000000000000000000000001/);
   assert.match(html, /data-reduced-motion checked/);
   assert.match(html, /motion-reduced/);
+});
+
+test("game navigation exposes one current area per navigation and retains a visible focus treatment", async () => {
+  const [css, bindings] = await Promise.all([
+    readFile(new URL("../src/styles.css", import.meta.url), "utf8"),
+    readFile(new URL("../src/game-ui/bindings.js", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(css, /\.game-shell button\s*\{\s*min-height:\s*2\.75rem/);
+  assert.match(
+    css,
+    /\.game-shell button:focus-visible,[\s\S]*?outline:\s*3px solid #fff4bb[\s\S]*?box-shadow:\s*0 0 0 6px #07100e/,
+  );
+  assert.match(bindings, /requestAnimationFrame\(\(\)\s*=>/);
+  assert.match(bindings, /querySelector\(focusSelector\)\?\.focus\(\)/);
 });
 
 test("failed resource and building sprites retain visible accessible fallbacks", () => {
