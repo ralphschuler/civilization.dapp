@@ -1,6 +1,8 @@
+import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { buildPanel } from "../src/game-ui/views/build.js";
+import { projectContractUpgradeImpact } from "../src/world-game/projections.js";
 
 function constructionPanel(workshop: number, jobs: number) {
   const constructions = Array.from({ length: jobs }, (_, slot) => ({
@@ -110,4 +112,77 @@ test("workshop 21 with two jobs preserves each slot and a keyboard-reachable sta
       ),
     )
     .toBe(1);
+});
+
+test("upgrade impact comparison stays accessible and responsive at mobile widths and 200% zoom", async ({
+  page,
+}) => {
+  const css = await readFile(
+    new URL("../src/styles.css", import.meta.url),
+    "utf8",
+  );
+  const state = {
+    resources: { wood: 999, clay: 999, stone: 999, gold: 999 },
+    buildings: {
+      townhall: 2,
+      timber: 2,
+      claypit: 2,
+      quarry: 2,
+      warehouse: 1,
+      workshop: 10,
+      goldmine: 0,
+      barracks: 0,
+    },
+    troops: { spear: 0, archer: 0, rider: 0 },
+  };
+  await page.setContent(
+    `<style>${css}</style><main>${buildPanel({
+      state,
+      selectedBuilding: "workshop",
+      buildings: {
+        workshop: { label: "Werkstatt", detail: "", produces: {} },
+        townhall: { label: "Rathaus" },
+        timber: { label: "Holzfäller" },
+        claypit: { label: "Lehmgrube" },
+        quarry: { label: "Steinbruch" },
+        warehouse: { label: "Speicher" },
+        goldmine: { label: "Goldschacht" },
+        barracks: { label: "Kaserne" },
+      },
+      requirements: () => [],
+      buildingCost: () => ({ wood: 1, clay: 1, stone: 1, gold: 0 }),
+      runtimeMode: "world",
+      resourceDefs: {
+        wood: { label: "Holz" },
+        clay: { label: "Lehm" },
+        stone: { label: "Stein" },
+        gold: { label: "Gold" },
+      },
+      format: String,
+      buildDuration: () => 120,
+      nextBuildingProduction: () => ({}),
+      upgradeImpact: (id: string) => projectContractUpgradeImpact(state, id),
+      remainingTime: () => 0,
+      busy: false,
+    })}</main>`,
+  );
+  await expect(
+    page.getByRole("region", { name: "AUSBAU-AUSWIRKUNG" }),
+  ).toBeVisible();
+  await expect(page.getByText("Bauplätze")).toBeVisible();
+  for (const width of [320, 390]) await expectNoHorizontalOverflow(page, width);
+  await page.evaluate(() => {
+    document.body.style.zoom = "2";
+  });
+  await expect(
+    page.getByRole("region", { name: "AUSBAU-AUSWIRKUNG" }),
+  ).toBeVisible();
+  const results = await new AxeBuilder({ page })
+    .include(".upgrade-impact")
+    .analyze();
+  expect(
+    results.violations.filter(
+      (item) => item.impact === "serious" || item.impact === "critical",
+    ),
+  ).toEqual([]);
 });

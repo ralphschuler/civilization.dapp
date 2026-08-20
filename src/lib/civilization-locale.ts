@@ -156,6 +156,28 @@ const copy = {
     startDemoUpgrade: (level: number) => `Auf Stufe ${level} ausbauen`,
     nextProduction: (production: string) =>
       ` Nächste Produktion: ${production}.`,
+    upgradeImpactTitle: "AUSBAU-AUSWIRKUNG",
+    upgradeImpactProduction: (resource: string) => `${resource}-Produktion`,
+    upgradeImpactCapacity: "Speicherkapazität je Rohstoff",
+    upgradeImpactSlots: "Bauplätze",
+    upgradeImpactDefense: "Verteidigung",
+    upgradeImpactUnlocks: "Wird freigeschaltet",
+    upgradeImpactNoDirectEffect:
+      "Für diesen Ausbau ist keine direkte, lesbare Auswirkung im Contract hinterlegt.",
+    upgradeImpactDemoUnavailable:
+      "Contract-Vergleich im lokalen Demo-Modus nicht verfügbar.",
+    upgradeImpactUnavailable:
+      "Contract-gesteuerte Auswirkungen sind für diesen Spielstand derzeit nicht lesbar.",
+    upgradeImpactMaxLevel:
+      "Keine weitere Vergleichsprojektion: Die Contract-Maximalstufe ist erreicht.",
+    upgradeImpactCapacityRule:
+      "Contract-Regel: Start bei 500; je Speicherstufe ×1,7, jeweils abgerundet.",
+    upgradeImpactSlotsRule:
+      "Contract-Regel: 2 Plätze ab Werkstatt 11, 3 ab Werkstatt 21.",
+    upgradeImpactDefenseRule:
+      "Contract-Regel: Rathausstufen geben jeweils +20; Truppenwerte und Abrundung bleiben unverändert.",
+    upgradeImpactContractGated:
+      "Read-only Contract-Projektion. Voraussetzungen, Kontostand und Transaktions-Preflight bleiben maßgeblich.",
     perDay: "Tag",
     perSecond: "s",
     barracksTitle: "KASERNE",
@@ -501,6 +523,28 @@ const copy = {
     startWorldUpgrade: (level: number) => `Start upgrade to level ${level}`,
     startDemoUpgrade: (level: number) => `Upgrade to level ${level}`,
     nextProduction: (production: string) => ` Next production: ${production}.`,
+    upgradeImpactTitle: "UPGRADE IMPACT",
+    upgradeImpactProduction: (resource: string) => `${resource} production`,
+    upgradeImpactCapacity: "Storage capacity per resource",
+    upgradeImpactSlots: "Construction slots",
+    upgradeImpactDefense: "Defense",
+    upgradeImpactUnlocks: "Newly unlocked",
+    upgradeImpactNoDirectEffect:
+      "No direct readable contract effect is defined for this upgrade.",
+    upgradeImpactDemoUnavailable:
+      "Contract comparison is unavailable in local demo mode.",
+    upgradeImpactUnavailable:
+      "Contract-gated effects are currently unavailable for this game state.",
+    upgradeImpactMaxLevel:
+      "No further comparison is available: the contract maximum level has been reached.",
+    upgradeImpactCapacityRule:
+      "Contract rule: starts at 500; each warehouse level multiplies by 1.7 and rounds down.",
+    upgradeImpactSlotsRule:
+      "Contract rule: 2 slots from workshop level 11, 3 from level 21.",
+    upgradeImpactDefenseRule:
+      "Contract rule: each town hall level adds +20; troop values and rounding are unchanged.",
+    upgradeImpactContractGated:
+      "Read-only contract projection. Requirements, balances, and transaction preflight still apply.",
     perDay: "day",
     perSecond: "s",
     barracksTitle: "BARRACKS",

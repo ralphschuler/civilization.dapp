@@ -156,6 +156,101 @@ function nextProductionLine(context, building) {
   return context.copy.nextProduction(production);
 }
 
+function impactRow(label, before, after, delta, format, suffix = "") {
+  const deltaText = `${delta > 0 ? "+" : ""}${format(delta)}${suffix}`;
+  return `<li><span>${escapeHtml(label)}</span><b>${format(before)} → ${format(after)}</b><em>${deltaText}</em></li>`;
+}
+
+function upgradeImpact(context) {
+  const impact = context.upgradeImpact?.(context.selectedBuilding);
+  if (context.runtimeMode !== "world") {
+    return `<section class="upgrade-impact upgrade-impact-unavailable" aria-label="${escapeHtml(context.copy.upgradeImpactTitle)}">
+      <h3>${context.copy.upgradeImpactTitle}</h3><p>${context.copy.upgradeImpactDemoUnavailable}</p>
+    </section>`;
+  }
+  if (!impact) {
+    return `<section class="upgrade-impact upgrade-impact-unavailable" aria-label="${escapeHtml(context.copy.upgradeImpactTitle)}">
+      <h3>${context.copy.upgradeImpactTitle}</h3><p>${context.copy.upgradeImpactUnavailable}</p>
+    </section>`;
+  }
+  if (!impact?.available) {
+    return `<section class="upgrade-impact upgrade-impact-unavailable" aria-label="${escapeHtml(context.copy.upgradeImpactTitle)}">
+      <h3>${context.copy.upgradeImpactTitle}</h3><p>${context.copy.upgradeImpactMaxLevel}</p>
+    </section>`;
+  }
+
+  const rows = [
+    ...impact.production.map(({ resource, before, after, delta }) =>
+      impactRow(
+        context.copy.upgradeImpactProduction(
+          context.resourceDefs[resource].label,
+        ),
+        before,
+        after,
+        delta,
+        context.format,
+        `/${context.copy.perDay}`,
+      ),
+    ),
+    ...(impact.capacity
+      ? [
+          impactRow(
+            context.copy.upgradeImpactCapacity,
+            impact.capacity.before,
+            impact.capacity.after,
+            impact.capacity.delta,
+            context.format,
+          ),
+        ]
+      : []),
+    ...(impact.constructionSlots
+      ? [
+          impactRow(
+            context.copy.upgradeImpactSlots,
+            impact.constructionSlots.before,
+            impact.constructionSlots.after,
+            impact.constructionSlots.delta,
+            context.format,
+          ),
+        ]
+      : []),
+    ...(impact.defense
+      ? [
+          impactRow(
+            context.copy.upgradeImpactDefense,
+            impact.defense.before,
+            impact.defense.after,
+            impact.defense.delta,
+            context.format,
+          ),
+        ]
+      : []),
+  ];
+  const unlocks = [
+    ...impact.unlocks.buildings.map((id) => context.buildings[id]?.label),
+    ...impact.unlocks.troops.map((id) => context.copy.troopNames[id]),
+  ].filter(Boolean);
+  if (unlocks.length) {
+    rows.push(
+      `<li class="upgrade-impact-unlocks"><span>${context.copy.upgradeImpactUnlocks}</span><b>${unlocks.map(escapeHtml).join(" · ")}</b></li>`,
+    );
+  }
+  const condition =
+    context.selectedBuilding === "warehouse"
+      ? context.copy.upgradeImpactCapacityRule
+      : context.selectedBuilding === "workshop"
+        ? context.copy.upgradeImpactSlotsRule
+        : context.selectedBuilding === "townhall"
+          ? context.copy.upgradeImpactDefenseRule
+          : context.copy.upgradeImpactContractGated;
+
+  return `<section class="upgrade-impact" aria-labelledby="upgrade-impact-title">
+    <h3 id="upgrade-impact-title">${context.copy.upgradeImpactTitle}</h3>
+    ${rows.length ? `<ul>${rows.join("")}</ul>` : `<p>${context.copy.upgradeImpactNoDirectEffect}</p>`}
+    <p class="upgrade-impact-note">${condition}</p>
+  </section>`;
+}
+
 export function buildPanel(context) {
   context = { copy: civilizationMessages("de-DE"), ...context };
   const {
@@ -191,6 +286,7 @@ export function buildPanel(context) {
     ? `${pendingConstructionAction(context)}${composer}`
     : composer;
   const productionLine = nextProductionLine(context, building);
+  const impact = upgradeImpact(context);
 
   return `<div class="inspector build-inspector">
     <div class="inspector-art ${assetResult?.failed.includes(BUILDING_ASSETS[selectedBuilding]) ? "has-asset-error" : ""}" data-asset-container>
@@ -204,6 +300,7 @@ export function buildPanel(context) {
     </div>
     <p class="inspector-copy">${building.detail}${productionLine}</p>
     <div class="inspector-divider"></div>
+    ${impact}
     ${action}
   </div>`;
 }

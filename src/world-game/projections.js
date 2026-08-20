@@ -4,6 +4,8 @@ import {
   MAX_OFFLINE_SECONDS,
   PRESTIGE_BONUS_BPS,
   RESOURCE_BASE_DAILY_RATE,
+  BUILDING_IDS,
+  TROOP_IDS,
   monotonicNow,
 } from "./constants.js";
 
@@ -112,6 +114,115 @@ export function getContractProduction(state) {
       dailyRate * state.buildings[buildingForResource[resource]] * multiplier,
     ]),
   );
+}
+
+// Keep these display projections beside the matching read-side rules above.
+// They never make a contract call and must not be used as transaction
+// preflight: the contract remains the authority at execution time.
+export function getContractConstructionCapacity(state) {
+  const workshop = state.buildings?.workshop || 0;
+  if (workshop >= 21) return 3;
+  if (workshop >= 11) return 2;
+  return 1;
+}
+
+export function getContractDefense(state) {
+  const troops = state.troops || {};
+  const troopPower =
+    (troops.spear || 0) * 10 +
+    (troops.archer || 0) * 17 +
+    (troops.rider || 0) * 31;
+  return Math.max(
+    1,
+    Math.floor((troopPower * 65) / 100) + (state.buildings?.townhall || 0) * 20,
+  );
+}
+
+function nextBuildingState(state, id) {
+  return {
+    ...state,
+    buildings: { ...state.buildings, [id]: (state.buildings?.[id] || 0) + 1 },
+  };
+}
+
+function newlyUnlocked(state, nextState, requirements, ids) {
+  return ids.filter(
+    (id) =>
+      requirements(state, id).length > 0 &&
+      requirements(nextState, id).length === 0,
+  );
+}
+
+/**
+ * Read-only before/after upgrade comparison. All numeric rules intentionally
+ * reuse the same contract parity projections used by the wallet adapter.
+ */
+export function projectContractUpgradeImpact(state, id) {
+  if (!BUILDING_IDS.includes(id)) throw new Error("invalid_building");
+  const level = state.buildings?.[id] || 0;
+  if (level >= 30) return { available: false, reason: "max_level" };
+
+  const nextState = nextBuildingState(state, id);
+  const productionBefore = getContractProduction(state);
+  const productionAfter = getContractProduction(nextState);
+  const production = Object.entries(productionAfter)
+    .filter(([resource, after]) => after !== productionBefore[resource])
+    .map(([resource, after]) => ({
+      resource,
+      before: productionBefore[resource],
+      after,
+      delta: after - productionBefore[resource],
+    }));
+  const capacityBefore = getContractCapacity(state);
+  const capacityAfter = getContractCapacity(nextState);
+  const slotsBefore = getContractConstructionCapacity(state);
+  const slotsAfter = getContractConstructionCapacity(nextState);
+  const defenseBefore = getContractDefense(state);
+  const defenseAfter = getContractDefense(nextState);
+
+  return {
+    available: true,
+    level,
+    production,
+    capacity:
+      capacityAfter === capacityBefore
+        ? null
+        : {
+            before: capacityBefore,
+            after: capacityAfter,
+            delta: capacityAfter - capacityBefore,
+          },
+    constructionSlots:
+      slotsAfter === slotsBefore
+        ? null
+        : {
+            before: slotsBefore,
+            after: slotsAfter,
+            delta: slotsAfter - slotsBefore,
+          },
+    defense:
+      defenseAfter === defenseBefore
+        ? null
+        : {
+            before: defenseBefore,
+            after: defenseAfter,
+            delta: defenseAfter - defenseBefore,
+          },
+    unlocks: {
+      buildings: newlyUnlocked(
+        state,
+        nextState,
+        getContractRequirements,
+        BUILDING_IDS,
+      ),
+      troops: newlyUnlocked(
+        state,
+        nextState,
+        getContractTroopRequirements,
+        TROOP_IDS,
+      ),
+    },
+  };
 }
 
 /**
