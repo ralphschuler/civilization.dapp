@@ -120,6 +120,22 @@ export const CIVILIZATION_GAME_ABI = [
     outputs: [{ name: "", type: "uint256" }],
   },
   {
+    // Holder-authorized permanent CGOLD destruction. There is no public mint.
+    type: "function",
+    name: "burn",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "value", type: "uint256" }],
+    outputs: [],
+  },
+  {
+    // Optional append-only proxy capability for the source-only buyback vault.
+    type: "function",
+    name: "buybackVault",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "address" }],
+  },
+  {
     type: "function",
     name: "quoteMarket",
     stateMutability: "view",

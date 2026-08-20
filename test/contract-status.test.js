@@ -14,6 +14,7 @@ test("contract status identifies the unaudited World Chain mainnet deployment wi
   );
   assert.equal(CONTRACT_STATUS.independentlyAudited, false);
   assert.equal(CONTRACT_STATUS.settlementEnabled, false);
+  assert.equal(CONTRACT_STATUS.buybackEnabled, false);
   assert.deepEqual(CONTRACT_STATUS.deployedContracts, [
     {
       name: "CivilizationGame",
@@ -26,7 +27,11 @@ test("contract status identifies the unaudited World Chain mainnet deployment wi
   assert.equal(CONTRACT_STATUS.custodyEnabled, false);
   assert.equal(CONTRACT_STATUS.paymentsEnabled, false);
   assert.equal(CONTRACT_STATUS.withdrawalsEnabled, false);
-  assert.equal(CONTRACT_STATUS.contracts.length, 2);
+  assert.equal(CONTRACT_STATUS.contracts.length, 3);
+  assert.deepEqual(CONTRACT_STATUS.contracts.at(-1), {
+    source: "contracts/src/CivilizationBuybackVault.sol",
+    status: "source_only_not_deployed_timelock_configuration_required",
+  });
   assert.equal(
     CONTRACT_STATUS.contracts.some(({ source }) => /idle/i.test(source)),
     false,
