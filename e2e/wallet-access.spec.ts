@@ -95,23 +95,15 @@ test("game area navigation announces its current area, keeps keyboard focus, and
   const navigation = useDesktopNavigation
     ? desktopNavigation
     : mobileNavigation;
-  const buildActionName = "Bauen";
+  const buildAction = navigation.locator('[data-panel="build"]');
+  const marketAction = navigation.locator('[data-panel="market"]');
 
-  await expect(
-    navigation.getByRole("button", { name: buildActionName }),
-  ).toHaveAttribute("aria-current", "page");
-  await navigation.getByRole("button", { name: "Markt" }).press("Enter");
-  await expect(
-    navigation.getByRole("button", { name: "Markt" }),
-  ).toHaveAttribute("aria-current", "page");
-  await expect(
-    navigation.getByRole("button", { name: buildActionName }),
-  ).not.toHaveAttribute("aria-current", "page");
-  await expect(navigation.getByRole("button", { name: "Markt" })).toBeFocused();
-  await expect(navigation.getByRole("button", { name: "Markt" })).toHaveCSS(
-    "outline-style",
-    "solid",
-  );
+  await expect(buildAction).toHaveAttribute("aria-current", "page");
+  await marketAction.press("Enter");
+  await expect(marketAction).toHaveAttribute("aria-current", "page");
+  await expect(buildAction).not.toHaveAttribute("aria-current", "page");
+  await expect(marketAction).toBeFocused();
+  await expect(marketAction).toHaveCSS("outline-style", "solid");
 
   await page.setViewportSize({ width: 320, height: 700 });
   await expect(mobileNavigation).toBeVisible();
