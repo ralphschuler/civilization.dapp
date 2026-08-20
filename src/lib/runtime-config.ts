@@ -5,6 +5,11 @@ import { WORLD_CHAIN_ID } from "../world-chain.js";
 export const LIVE_CONTRACT = "0x0E6689d0649Ad9037465d178231b10F18518D2b0";
 /** WLD's World Chain mainnet contract; clients receive it through runtime config. */
 export const LIVE_WORLD_TOKEN = "0x2cFc85d8E48F8EAB294be644d9E25C3030863003";
+/** Historical V1 is never an admissible reviewed V2 release identity. */
+const HISTORICAL_V1_IMPLEMENTATION =
+  "0x7330C22d7b61CCcDB7794435535aaB349D9aFF79";
+const HISTORICAL_V1_IMPLEMENTATION_CODEHASH =
+  "0x0a2ceb5853ae7ba5d020948baf97c08526f7d19ef990c3e3fc61c35ac794b12a";
 
 export type CivilizationEnvironment = "production" | "development";
 
@@ -23,6 +28,11 @@ export type RuntimeConfiguration = Readonly<{
   walletAuthUrl: string;
   /** Server-only HTTPS endpoint. Never include this in client props or JSON. */
   worldchainRpcUrl: string;
+  /** Server-only V2 identity used by the production delivery gate. */
+  worldchainRelease: Readonly<{
+    implementationAddress: string;
+    implementationCodeHash: string;
+  }>;
   walletAuthAbuse: Readonly<{
     rateLimitSecret: string;
     trustedProxyHops: number;
@@ -143,6 +153,26 @@ function productionMissing(
     getAddress(world.worldTokenAddress) !== getAddress(LIVE_WORLD_TOKEN)
   )
     missing.push("CIVILIZATION_WORLD_TOKEN_ADDRESS");
+  const v2ImplementationAddress = value(
+    env,
+    "CIVILIZATION_WORLDCHAIN_V2_IMPLEMENTATION_ADDRESS",
+  );
+  const v2ImplementationCodehash = value(
+    env,
+    "CIVILIZATION_WORLDCHAIN_V2_IMPLEMENTATION_CODEHASH",
+  );
+  if (
+    !isAddress(v2ImplementationAddress) ||
+    getAddress(v2ImplementationAddress) ===
+      getAddress(HISTORICAL_V1_IMPLEMENTATION)
+  )
+    missing.push("CIVILIZATION_WORLDCHAIN_V2_IMPLEMENTATION_ADDRESS");
+  if (
+    !/^0x[0-9a-fA-F]{64}$/.test(v2ImplementationCodehash) ||
+    v2ImplementationCodehash.toLowerCase() ===
+      HISTORICAL_V1_IMPLEMENTATION_CODEHASH
+  )
+    missing.push("CIVILIZATION_WORLDCHAIN_V2_IMPLEMENTATION_CODEHASH");
   return missing;
 }
 
@@ -181,6 +211,18 @@ export function runtimeConfiguration(
     environment,
     "CIVILIZATION_WORLDCHAIN_RPC_URL",
   );
+  // Deliberately not DEV_-profiled: this identity gates only production
+  // delivery. Development keeps its isolated, non-production behavior.
+  const worldchainRelease = {
+    implementationAddress: value(
+      env,
+      "CIVILIZATION_WORLDCHAIN_V2_IMPLEMENTATION_ADDRESS",
+    ),
+    implementationCodeHash: value(
+      env,
+      "CIVILIZATION_WORLDCHAIN_V2_IMPLEMENTATION_CODEHASH",
+    ).toLowerCase(),
+  };
   const walletAuthAbuse = {
     rateLimitSecret: value(env, "WALLET_AUTH_RATE_LIMIT_SECRET"),
     trustedProxyHops: Number(value(env, "WALLET_AUTH_TRUSTED_PROXY_HOPS")),
@@ -197,6 +239,7 @@ export function runtimeConfiguration(
     world,
     walletAuthUrl,
     worldchainRpcUrl,
+    worldchainRelease,
     walletAuthAbuse,
   };
 }

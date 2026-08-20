@@ -10,19 +10,25 @@ const configuration = (overrides = {}) => ({
   ready: true,
   worldchainRpcUrl: "https://rpc.example.invalid/private-path",
   world: {
+    environment: "production",
     worldChainId: 480,
     civilizationContractAddress: baseline.proxy,
     worldAppId: baseline.worldAppId,
   },
+  worldchainRelease: {
+    implementationAddress: "0x0000000000000000000000000000000000000002",
+    implementationCodeHash:
+      "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  },
   ...overrides,
 });
-const observed = () => ({
+const reviewedV2Observation = () => ({
   chainId: "480",
   proxy: { address: baseline.proxy, code: { hash: baseline.proxyCodeHash } },
   implementation: {
-    address: "0x7330C22d7b61CCcDB7794435535aaB349D9aFF79",
+    address: "0x0000000000000000000000000000000000000002",
     code: {
-      hash: "0x0a2ceb5853ae7ba5d020948baf97c08526f7d19ef990c3e3fc61c35ac794b12a",
+      hash: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
     },
   },
   admin: { address: baseline.admin, code: { hash: baseline.adminCodeHash } },
@@ -39,18 +45,28 @@ const observed = () => ({
   },
 });
 
-test("runtime verifier caches a capability-compatible candidate but does not invent a V2 verification baseline", async () => {
+const historicalV1Observation = () => ({
+  ...reviewedV2Observation(),
+  implementation: {
+    address: "0x7330C22d7b61CCcDB7794435535aaB349D9aFF79",
+    code: {
+      hash: "0x0a2ceb5853ae7ba5d020948baf97c08526f7d19ef990c3e3fc61c35ac794b12a",
+    },
+  },
+});
+
+test("runtime verifier caches an exact reviewed V2 identity and capability match", async () => {
   resetContractRuntimeStatusCacheForTest();
   let calls = 0;
   const verify = async () => {
     calls += 1;
-    return observed();
+    return reviewedV2Observation();
   };
   const [first, second] = await Promise.all([
     contractRuntimeStatus(configuration(), { verify }),
     contractRuntimeStatus(configuration(), { verify }),
   ]);
-  assert.equal(first.status, "unverified");
+  assert.equal(first.status, "verified");
   assert.deepEqual(first, second);
   assert.equal(calls, 1);
   assert.deepEqual(first.requiredCapabilities, [
@@ -62,13 +78,28 @@ test("runtime verifier caches a capability-compatible candidate but does not inv
   ]);
 });
 
-test("known V1 missing queue selectors is mismatched rather than verified", async () => {
+test("historical V1 identity is mismatched even when a fixture claims every V2 capability", async () => {
+  resetContractRuntimeStatusCacheForTest();
+  const result = await contractRuntimeStatus(
+    configuration({
+      worldchainRelease: {
+        implementationAddress: "0x7330C22d7b61CCcDB7794435535aaB349D9aFF79",
+        implementationCodeHash:
+          "0x0a2ceb5853ae7ba5d020948baf97c08526f7d19ef990c3e3fc61c35ac794b12a",
+      },
+    }),
+    { verify: async () => historicalV1Observation() },
+  );
+  assert.equal(result.status, "mismatched");
+});
+
+test("missing live V2 capabilities is mismatched rather than verified", async () => {
   resetContractRuntimeStatusCacheForTest();
   const result = await contractRuntimeStatus(configuration(), {
     verify: async () => ({
-      ...observed(),
+      ...reviewedV2Observation(),
       probes: {
-        ...observed().probes,
+        ...reviewedV2Observation().probes,
         constructionCapacity: { status: "unsupported_or_reverted" },
         constructionJob: { status: "unsupported_or_reverted" },
         completeUpgradeSlot: { status: "unsupported_or_reverted" },
@@ -84,7 +115,7 @@ test("runtime mismatch and verifier failures fail closed without RPC/provider le
     configuration({ worldchainRpcUrl: "https://mismatch-rpc.example.invalid" }),
     {
       verify: async () => ({
-        ...observed(),
+        ...reviewedV2Observation(),
         admin: {
           address: baseline.proxy,
           code: {

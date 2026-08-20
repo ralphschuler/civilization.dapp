@@ -106,6 +106,33 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Build candidate production image
+        if: github.ref_name == 'master'
+        run: docker build -t civilization-dapp-release-gate:ci .
+      - name: Gate master delivery against live World Chain V2 runtime
+        if: github.ref_name == 'master'
+        env:
+          CIVILIZATION_ENV: production
+          WALLET_AUTH_URL: https://civilization.nyphon.de
+          WALLET_AUTH_RATE_LIMIT_SECRET: ${{ secrets.CIVILIZATION_RELEASE_GATE_RATE_LIMIT_SECRET }}
+          WALLET_AUTH_TRUSTED_PROXY_HOPS: "1"
+          WORLD_APP_ID: ${{ vars.CIVILIZATION_WORLD_APP_ID }}
+          CIVILIZATION_CONTRACT_ADDRESS: "0x0E6689d0649Ad9037465d178231b10F18518D2b0"
+          CIVILIZATION_CHAIN_ID: "480"
+          CIVILIZATION_WORLD_TOKEN_ADDRESS: "0x2cFc85d8E48F8EAB294be644d9E25C3030863003"
+          CIVILIZATION_WORLDCHAIN_RPC_URL: ${{ secrets.CIVILIZATION_WORLDCHAIN_RPC_URL }}
+          CIVILIZATION_WORLDCHAIN_V2_IMPLEMENTATION_ADDRESS: ${{ vars.CIVILIZATION_WORLDCHAIN_V2_IMPLEMENTATION_ADDRESS }}
+          CIVILIZATION_WORLDCHAIN_V2_IMPLEMENTATION_CODEHASH: ${{ vars.CIVILIZATION_WORLDCHAIN_V2_IMPLEMENTATION_CODEHASH }}
+        run: >-
+          docker run --rm
+          -e CIVILIZATION_ENV -e WALLET_AUTH_URL -e WALLET_AUTH_RATE_LIMIT_SECRET
+          -e WALLET_AUTH_TRUSTED_PROXY_HOPS -e WORLD_APP_ID
+          -e CIVILIZATION_CONTRACT_ADDRESS -e CIVILIZATION_CHAIN_ID
+          -e CIVILIZATION_WORLD_TOKEN_ADDRESS -e CIVILIZATION_WORLDCHAIN_RPC_URL
+          -e CIVILIZATION_WORLDCHAIN_V2_IMPLEMENTATION_ADDRESS
+          -e CIVILIZATION_WORLDCHAIN_V2_IMPLEMENTATION_CODEHASH
+          --entrypoint node civilization-dapp-release-gate:ci
+          --experimental-strip-types scripts/release-worldchain-gate.mjs
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io

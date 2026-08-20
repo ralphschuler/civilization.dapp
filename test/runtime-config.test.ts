@@ -14,6 +14,10 @@ const productionEnvironment = () => ({
   CIVILIZATION_CHAIN_ID: "480",
   CIVILIZATION_WORLD_TOKEN_ADDRESS: LIVE_WORLD_TOKEN,
   CIVILIZATION_WORLDCHAIN_RPC_URL: "https://worldchain-rpc.example.invalid",
+  CIVILIZATION_WORLDCHAIN_V2_IMPLEMENTATION_ADDRESS:
+    "0x0000000000000000000000000000000000000001",
+  CIVILIZATION_WORLDCHAIN_V2_IMPLEMENTATION_CODEHASH:
+    "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   WALLET_AUTH_RATE_LIMIT_SECRET: "a".repeat(32),
   WALLET_AUTH_TRUSTED_PROXY_HOPS: "1",
 });
@@ -80,6 +84,34 @@ test("World Chain RPC is server-only, HTTPS, and required for readiness", () => 
       CIVILIZATION_WORLDCHAIN_RPC_URL: "http://rpc.invalid",
     }).missing,
     ["CIVILIZATION_WORLDCHAIN_RPC_URL"],
+  );
+});
+
+test("production requires an exact reviewed V2 implementation identity", () => {
+  const addressMissing = productionEnvironment();
+  delete addressMissing.CIVILIZATION_WORLDCHAIN_V2_IMPLEMENTATION_ADDRESS;
+  assert.deepEqual(runtimeConfiguration(addressMissing).missing, [
+    "CIVILIZATION_WORLDCHAIN_V2_IMPLEMENTATION_ADDRESS",
+  ]);
+  assert.deepEqual(
+    runtimeConfiguration({
+      ...productionEnvironment(),
+      CIVILIZATION_WORLDCHAIN_V2_IMPLEMENTATION_CODEHASH: "0xnot-a-hash",
+    }).missing,
+    ["CIVILIZATION_WORLDCHAIN_V2_IMPLEMENTATION_CODEHASH"],
+  );
+  assert.deepEqual(
+    runtimeConfiguration({
+      ...productionEnvironment(),
+      CIVILIZATION_WORLDCHAIN_V2_IMPLEMENTATION_ADDRESS:
+        "0x7330C22d7b61CCcDB7794435535aaB349D9aFF79",
+      CIVILIZATION_WORLDCHAIN_V2_IMPLEMENTATION_CODEHASH:
+        "0x0a2ceb5853ae7ba5d020948baf97c08526f7d19ef990c3e3fc61c35ac794b12a",
+    }).missing,
+    [
+      "CIVILIZATION_WORLDCHAIN_V2_IMPLEMENTATION_ADDRESS",
+      "CIVILIZATION_WORLDCHAIN_V2_IMPLEMENTATION_CODEHASH",
+    ],
   );
 });
 
