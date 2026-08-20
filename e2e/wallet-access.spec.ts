@@ -91,23 +91,22 @@ test("game area navigation announces its current area, keeps keyboard focus, and
   const mobileNavigation = page.getByRole("navigation", {
     name: "Schnellzugriff",
   });
-  const navigation = (await desktopNavigation.isVisible())
+  const useDesktopNavigation = await desktopNavigation.isVisible();
+  const navigation = useDesktopNavigation
     ? desktopNavigation
     : mobileNavigation;
+  const buildActionName = useDesktopNavigation ? "Bauen" : "Bauplan";
 
-  await expect(navigation.getByRole("button", { name: "Bauplan" })).toHaveAttribute(
-    "aria-current",
-    "page",
-  );
+  await expect(
+    navigation.getByRole("button", { name: buildActionName }),
+  ).toHaveAttribute("aria-current", "page");
   await navigation.getByRole("button", { name: "Markt" }).press("Enter");
-  await expect(navigation.getByRole("button", { name: "Markt" })).toHaveAttribute(
-    "aria-current",
-    "page",
-  );
-  await expect(navigation.getByRole("button", { name: "Bauplan" })).not.toHaveAttribute(
-    "aria-current",
-    "page",
-  );
+  await expect(
+    navigation.getByRole("button", { name: "Markt" }),
+  ).toHaveAttribute("aria-current", "page");
+  await expect(
+    navigation.getByRole("button", { name: buildActionName }),
+  ).not.toHaveAttribute("aria-current", "page");
   await expect(navigation.getByRole("button", { name: "Markt" })).toBeFocused();
   await expect(navigation.getByRole("button", { name: "Markt" })).toHaveCSS(
     "outline-style",
