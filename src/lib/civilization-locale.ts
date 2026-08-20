@@ -27,6 +27,8 @@ const copy = {
       "Die Aktion wurde an die Wallet/Chain übergeben. Finalität wird geprüft.",
     reviewInvalidated:
       "Markteingaben haben sich geändert. Lade eine neue Quote und prüfe erneut.",
+    reviewWorldStateInvalidated:
+      "Der On-chain-Spielstand hat sich geändert. Prüfe den nächsten Bauschritt erneut.",
     reviewConfirm: "In Wallet bestätigen",
     reviewCancel: "Abbrechen",
     addressCopied: "Wallet-Adresse kopiert.",
@@ -178,6 +180,23 @@ const copy = {
       "Contract-Regel: Rathausstufen geben jeweils +20; Truppenwerte und Abrundung bleiben unverändert.",
     upgradeImpactContractGated:
       "Read-only Contract-Projektion. Voraussetzungen, Kontostand und Transaktions-Preflight bleiben maßgeblich.",
+    dependencyPlanTitle: "AUSBAUPLAN",
+    dependencyPlanTarget: (building: string, level: number) =>
+      `Pfad zu ${building}, Stufe ${level}.`,
+    dependencyPlanRunning: "LÄUFT",
+    dependencyPlanNext: "NÄCHSTER SCHRITT",
+    dependencyPlanLater: "DANACH",
+    dependencyPlanSlot: (slot: number, duration: string) =>
+      `Bauplatz ${slot} · ${duration}`,
+    dependencyPlanCompletes: (time: string) => `Fertig in ${time}`,
+    dependencyPlanDeficit: (cost: string) => `Fehlend: ${cost}.`,
+    dependencyPlanMarket: "Markt öffnen",
+    dependencyPlanStart: (building: string, level: number) =>
+      `${building} auf Stufe ${level} starten`,
+    dependencyPlanBlocked: (reason: string) =>
+      reason === "duration_unavailable"
+        ? "Plan wartet auf eine verlässliche On-chain-Bauzeit."
+        : "Plan blockiert: Voraussetzungen, Bauplätze oder Projektionen sind nicht verlässlich lesbar.",
     perDay: "Tag",
     perSecond: "s",
     barracksTitle: "KASERNE",
@@ -399,6 +418,8 @@ const copy = {
       "The action was handed to the wallet/chain. Finality is being checked.",
     reviewInvalidated:
       "Market inputs changed. Load a new quote and review again.",
+    reviewWorldStateInvalidated:
+      "The on-chain game state changed. Review the next construction step again.",
     reviewConfirm: "Confirm in wallet",
     reviewCancel: "Cancel",
     addressCopied: "Wallet address copied.",
@@ -545,6 +566,23 @@ const copy = {
       "Contract rule: each town hall level adds +20; troop values and rounding are unchanged.",
     upgradeImpactContractGated:
       "Read-only contract projection. Requirements, balances, and transaction preflight still apply.",
+    dependencyPlanTitle: "BUILD PLAN",
+    dependencyPlanTarget: (building: string, level: number) =>
+      `Path to ${building}, level ${level}.`,
+    dependencyPlanRunning: "RUNNING",
+    dependencyPlanNext: "NEXT STEP",
+    dependencyPlanLater: "THEN",
+    dependencyPlanSlot: (slot: number, duration: string) =>
+      `Slot ${slot} · ${duration}`,
+    dependencyPlanCompletes: (time: string) => `Completes in ${time}`,
+    dependencyPlanDeficit: (cost: string) => `Missing: ${cost}.`,
+    dependencyPlanMarket: "Open market",
+    dependencyPlanStart: (building: string, level: number) =>
+      `Start ${building} to level ${level}`,
+    dependencyPlanBlocked: (reason: string) =>
+      reason === "duration_unavailable"
+        ? "Plan is waiting for a reliable on-chain construction time."
+        : "Plan blocked: requirements, slots, or projections are not reliably available.",
     perDay: "day",
     perSecond: "s",
     barracksTitle: "BARRACKS",

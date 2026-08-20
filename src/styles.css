@@ -638,6 +638,7 @@ button {
 }
 .upgrade-cost,
 .upgrade-impact,
+.dependency-plan,
 .requirement-box,
 .gold-boundary,
 .raid-result {
@@ -699,6 +700,57 @@ button {
   color: #aebda1;
   font-size: 0.6rem;
   line-height: 1.4;
+}
+.dependency-plan {
+  grid-column: 1/-1;
+  display: grid;
+  gap: 0.42rem;
+  border-color: #738a5c;
+  background: #142015;
+}
+.dependency-plan h3,
+.dependency-plan p {
+  margin: 0;
+}
+.dependency-plan h3 {
+  color: #e8ebc4;
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+}
+.dependency-plan p,
+.dependency-plan small {
+  color: #aebda1;
+  font-size: 0.62rem;
+  line-height: 1.35;
+}
+.dependency-plan ol {
+  display: grid;
+  gap: 0.28rem;
+  margin: 0;
+  padding-left: 1.2rem;
+}
+.dependency-plan li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.12rem 0.4rem;
+  color: #c1ccb3;
+  font-size: 0.64rem;
+}
+.dependency-plan li > b {
+  color: #fff9df;
+  font-size: 0.59rem;
+}
+.dependency-plan li > small {
+  grid-column: 1/-1;
+}
+.text-action {
+  padding: 0;
+  border: 0;
+  color: #e1c865;
+  background: transparent;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
 }
 .cost {
   font-size: 0.65rem;

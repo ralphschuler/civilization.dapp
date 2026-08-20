@@ -980,6 +980,31 @@ test("a stale World read cannot overwrite a post-receipt state", async () => {
   assert.equal(runtime.worldStateEpoch, 1);
 });
 
+test("a fresh World snapshot invalidates a reviewed upgrade before dispatch", async () => {
+  const runtime = {
+    token: Symbol("planner-state"),
+    mode: "world",
+    ready: true,
+    busy: false,
+    refreshing: false,
+    loading: false,
+    worldStateEpoch: 0,
+    adapter: { readState: async () => ({ version: "changed" }) },
+  };
+  const world = createWorldRuntime({
+    runtime,
+    isCurrent: () => true,
+    render: () => {},
+    errorText: String,
+    hasAccess: () => true,
+    copy: () => civilizationMessages("en-US"),
+  });
+  world.requestAction("upgrade", { building: "timber" }, "started");
+  await world.refresh({ quiet: true });
+  assert.equal(runtime.review.state().status, "invalidated");
+  assert.equal(runtime.review.state().reason, "world_state_changed");
+});
+
 test("old mount callbacks cannot update the replacement runtime", async () => {
   let resolveDuration;
   const runtime = {

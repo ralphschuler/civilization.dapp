@@ -11,9 +11,11 @@ import {
   claimEligibility,
   getContractBuildingCost,
   getContractCapacity,
+  getContractConstructionCapacity,
   projectContractUpgradeImpact,
   getContractProduction,
   getContractRequirements,
+  getContractRequirementsForLevel,
   getContractTroopRequirements,
   projectCivilizationState,
 } from "./projections.js";
@@ -248,8 +250,10 @@ export function createWorldGameAdapter({
   const adapter = {
     getBuildingCost: getContractBuildingCost,
     getRequirements: getContractRequirements,
+    getRequirementsForLevel: getContractRequirementsForLevel,
     getTroopRequirements: getContractTroopRequirements,
     getCapacity: getContractCapacity,
+    getConstructionCapacity: getContractConstructionCapacity,
     getProduction: getContractProduction,
     projectUpgradeImpact: projectContractUpgradeImpact,
     projectState: projectCivilizationState,
