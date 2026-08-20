@@ -22,7 +22,7 @@ import {
   MAP_BUILDING_ANCHORS,
   mapBuildingAnchorStyle,
 } from "../src/game-ui/map-coordinates.js";
-import { gameShell, runtimeGateView } from "../src/game-ui/views/shell.js";
+import { gameShell } from "../src/game-ui/views/shell.js";
 import { buildPanel } from "../src/game-ui/views/build.js";
 import { marketPanel } from "../src/game-ui/views/market.js";
 import { armyPanel } from "../src/game-ui/views/army.js";
@@ -258,17 +258,6 @@ test("game feedback escapes dynamic contact, provider, and contract messages onc
     /<p class="map-feedback" aria-live="polite">&lt;img src=x onerror=&quot;globalThis\.pwned=1&quot;&gt; &quot;quoted&quot; &amp; Käse 🏰<\/p>/,
   );
   assert.doesNotMatch(html, /<img src=x onerror=/);
-
-  const gateHtml = runtimeGateView({
-    loading: false,
-    feedback,
-    copy: civilizationMessages("en-US"),
-  });
-  assert.match(
-    gateHtml,
-    /&lt;img src=x onerror=&quot;globalThis\.pwned=1&quot;&gt;/,
-  );
-  assert.doesNotMatch(gateHtml, /<img src=x onerror=/);
 });
 
 test("game navigation exposes one current area per navigation and retains a visible focus treatment", async () => {

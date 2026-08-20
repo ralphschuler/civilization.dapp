@@ -11,42 +11,8 @@ import {
   productionRateText,
 } from "../helpers.js";
 import { civilizationMessages } from "../../lib/civilization-locale.ts";
-
-export function accessGateView(copy = civilizationMessages()) {
-  return `
-    <section class="game-access-gate" aria-labelledby="game-access-gate-title">
-      <div class="game-access-card">
-        <span class="game-access-mark">CD</span>
-        <p>WORLD MINI APP</p>
-        <h1 id="game-access-gate-title">${copy.accessRequired}</h1>
-        <span>${copy.accessDetail}</span>
-      </div>
-    </section>`;
-}
-
-export function runtimeGateView({
-  loading,
-  feedback,
-  copy = civilizationMessages(),
-}) {
-  const title = loading ? copy.loadingWorld : copy.worldUnavailable;
-  const retry = loading
-    ? ""
-    : `<button class="game-access-action" id="retry-world-state">${copy.retry}</button>`;
-  return `
-    <section class="game-access-gate" aria-labelledby="world-runtime-title">
-      <div class="game-access-card">
-        <span class="game-access-mark">CD</span>
-        <p>WORLD CHAIN</p>
-        <h1 id="world-runtime-title">${title}</h1>
-        <span>${feedbackText(feedback)}</span>
-        ${retry}
-      </div>
-    </section>`;
-}
-
-// All runtime feedback can include provider, contract, or contact supplied text.
-// Keep this as the sole markup boundary for feedback rendered by this view.
+// Game feedback can include provider, contract, or contact supplied text.
+// Keep this as the sole markup boundary for the imperative game shell.
 function feedbackText(feedback) {
   return escapeHtml(feedback);
 }

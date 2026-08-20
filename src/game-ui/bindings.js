@@ -15,7 +15,6 @@ export function bindGameActions(root, actions) {
       .querySelectorAll(selector)
       .forEach((item) => item.addEventListener("click", callback));
 
-  on("#retry-world-state", actions.retry);
   on("#gather", actions.gather);
   on("#complete-upgrade", actions.completeUpgrade);
   on("#boost-construction", actions.boost);

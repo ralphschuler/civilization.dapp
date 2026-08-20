@@ -20,12 +20,12 @@ import { buildPanel } from "./game-ui/views/build.js";
 import { armyPanel } from "./game-ui/views/army.js";
 import { marketPanel } from "./game-ui/views/market.js";
 import { raidPanel } from "./game-ui/views/raid.js";
-import {
-  accessGateView,
-  gameShell,
-  runtimeGateView,
-} from "./game-ui/views/shell.js";
+import { gameShell } from "./game-ui/views/shell.js";
 import { bindGameActions } from "./game-ui/bindings.js";
+import {
+  createGateRetryHandle,
+  deriveGateState,
+} from "./game-ui/gate-state.js";
 import { createGameActions } from "./game-actions.js";
 import { createWorldRuntime } from "./game-world-runtime.js";
 import { createWalletReview } from "./world-game/review.js";
@@ -69,6 +69,8 @@ function createRuntime(options) {
     locale: options.locale || "de-DE",
     onLocaleChange: options.onLocaleChange,
     onLogout: options.onLogout,
+    onGateStateChange: options.onGateStateChange,
+    retryGate: null,
     settingsOpen: false,
     reducedMotion:
       typeof window !== "undefined" &&
@@ -318,24 +320,21 @@ function createController(runtime) {
     if (!isCurrent(runtime.token)) {
       return;
     }
-    if (!hasAccess(runtime)) {
-      runtime.root.innerHTML = accessGateView(
-        civilizationMessages(runtime.locale),
-      );
+    const gate = deriveGateState({
+      access: hasAccess(runtime),
+      mode: runtime.mode,
+      ready: runtime.ready,
+      state: runtime.state,
+      loading: runtime.loading,
+      feedback: runtime.feedback,
+      copy: civilizationMessages(runtime.locale),
+    });
+    if (gate) {
+      runtime.root.replaceChildren();
+      runtime.onGateStateChange?.(gate, runtime.retryGate);
       return;
     }
-    if (runtime.mode === "world" && (!runtime.ready || !runtime.state)) {
-      runtime.root.innerHTML = runtimeGateView({
-        loading: runtime.loading,
-        feedback: runtime.feedback,
-        copy: civilizationMessages(runtime.locale),
-      });
-      bindGameActions(runtime.root, {
-        retry: () => world.refresh(),
-        troopIds: Object.keys(TROOPS),
-      });
-      return;
-    }
+    runtime.onGateStateChange?.(null, null);
     if (runtime.mode === "demo") {
       settle(runtime.state);
     }
@@ -392,13 +391,13 @@ function createController(runtime) {
     copy: () => civilizationMessages(runtime.locale),
     hasAccess: () => hasAccess(runtime),
   });
+  runtime.retryGate = createGateRetryHandle(world.refresh);
   const actions = createGameActions(runtime, {
     render,
     requireAccess,
     requestWorldAction: world.requestAction,
     confirmWorldReview: world.confirmReview,
     cancelWorldReview: world.cancelReview,
-    refreshWorld: world.refresh,
     errorText: (error) => errorText(error, runtime.locale),
     copy: () => civilizationMessages(runtime.locale),
     isCurrent,
@@ -479,7 +478,8 @@ function createController(runtime) {
  * @param {{ root: HTMLElement | null, runtimeMode?: "demo" | "world", worldAppInstalled?: boolean,
  *   worldAccessConfirmed?: boolean, worldWalletAddress?: string | null, worldAdapter?: object | null,
  *   locale?: "de-DE" | "en-US", onLocaleChange?: (locale: "de-DE" | "en-US") => void,
- *   onLogout?: () => Promise<void> }} options
+ *   onLogout?: () => Promise<void>,
+ *   onGateStateChange?: (gate: ({ kind: "access", detail: string, title: string } | { kind: "runtime", feedback: string, loading: boolean, retryLabel: string, title: string }) | null, retry: (() => void) | null) => void }} options
  */
 export function startCivilizationApp(options) {
   if (!options.root || activeRuntime) {
