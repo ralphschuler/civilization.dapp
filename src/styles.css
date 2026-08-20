@@ -160,10 +160,15 @@ button {
   background: #182318;
 }
 .resource-settings {
+  order: 1;
   flex: 0 0 auto;
-  padding: 0.38rem 0.55rem;
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  padding: 0;
   cursor: pointer;
-  white-space: nowrap;
 }
 .resource-settings:hover,
 .resource-settings:focus-visible,
@@ -965,11 +970,11 @@ button {
     width: 2rem;
   }
   .resource-settings {
+    order: 0;
     margin-left: auto;
-    padding: 0.32rem 0.45rem;
-    font-size: 0.68rem;
   }
   .resource-hud {
+    order: 1;
     flex-basis: 100%;
     display: grid;
     width: 100%;

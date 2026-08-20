@@ -108,7 +108,23 @@ test("settings dialog traps focus, closes by Escape, and keeps motion preference
 test("settings stay within a narrow mobile viewport", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await enterGame(page, "registered");
-  await page.getByRole("button", { name: "Einstellungen" }).click();
+  const settings = page.getByRole("button", { name: "Einstellungen" });
+  await expect(settings).toHaveAttribute("title", "Einstellungen");
+  await expect(settings).toHaveText("⚙");
+  expect(
+    await settings.evaluate((button) => {
+      const resources = document.querySelector(".resource-hud");
+      if (!resources) return false;
+      const buttonRect = button.getBoundingClientRect();
+      const resourcesRect = resources.getBoundingClientRect();
+      return (
+        buttonRect.width >= 44 &&
+        buttonRect.height >= 44 &&
+        buttonRect.bottom <= resourcesRect.top
+      );
+    }),
+  ).toBe(true);
+  await settings.click();
   await expectReachable(
     page,
     page.getByRole("dialog", { name: "Einstellungen" }),

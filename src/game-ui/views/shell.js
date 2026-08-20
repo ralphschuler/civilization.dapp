@@ -297,8 +297,8 @@ export function gameShell(ctx) {
 <small>DAPP · ${copy.villageOf}</small>
 </div>
 </div>
+        <button type="button" class="resource-settings" data-open-settings aria-haspopup="dialog" aria-label="${copy.settings}" title="${copy.settings}"><span aria-hidden="true">⚙</span></button>
         <div class="resource-hud">${hud}</div>
-        <button type="button" class="resource-settings" data-open-settings aria-haspopup="dialog" aria-label="${copy.settings}">⚙ <span>${copy.settings}</span></button>
         <span class="demo-badge ${worldApp.installed ? "is-world" : ""}">${worldBadge}</span>
       </header>
       <main class="command-layout">
