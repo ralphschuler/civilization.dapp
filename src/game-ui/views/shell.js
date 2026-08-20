@@ -5,7 +5,11 @@ import {
   RESOURCE_ASSETS,
 } from "../constants.js";
 import { mapBuildingAnchorStyle } from "../map-coordinates.js";
-import { compactResourceValue, productionRateText } from "../helpers.js";
+import {
+  compactResourceValue,
+  escapeHtml,
+  productionRateText,
+} from "../helpers.js";
 import { civilizationMessages } from "../../lib/civilization-locale.ts";
 
 export function accessGateView(copy = civilizationMessages()) {
@@ -23,7 +27,6 @@ export function accessGateView(copy = civilizationMessages()) {
 export function runtimeGateView({
   loading,
   feedback,
-  escapeHtml,
   copy = civilizationMessages(),
 }) {
   const title = loading ? copy.loadingWorld : copy.worldUnavailable;
@@ -36,10 +39,16 @@ export function runtimeGateView({
         <span class="game-access-mark">CD</span>
         <p>WORLD CHAIN</p>
         <h1 id="world-runtime-title">${title}</h1>
-        <span>${escapeHtml(feedback)}</span>
+        <span>${feedbackText(feedback)}</span>
         ${retry}
       </div>
     </section>`;
+}
+
+// All runtime feedback can include provider, contract, or contact supplied text.
+// Keep this as the sole markup boundary for feedback rendered by this view.
+function feedbackText(feedback) {
+  return escapeHtml(feedback);
 }
 
 function assetFailed(assetResult, src) {
@@ -334,7 +343,7 @@ ${collectionStock}
 </span>
 </button>
           </div>
-          <p class="map-feedback" aria-live="polite">${feedback}</p>
+          <p class="map-feedback" aria-live="polite">${feedbackText(feedback)}</p>
         </section>
         <aside class="command-rail">
 <nav class="command-tabs" aria-label="${copy.villageActions}">${navigation}</nav>
