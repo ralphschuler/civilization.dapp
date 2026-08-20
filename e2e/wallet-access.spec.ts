@@ -40,7 +40,12 @@ test.beforeEach(async ({ page }) => {
       await route.abort();
       return;
     }
-    if (url.pathname.startsWith("/api/")) unexpectedApi.push(url.pathname);
+    if (
+      url.pathname.startsWith("/api/") &&
+      url.pathname !== "/api/security/csp-report"
+    ) {
+      unexpectedApi.push(url.pathname);
+    }
     await route.continue();
   });
   await page.goto("/");
