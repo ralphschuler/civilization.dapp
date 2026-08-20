@@ -135,7 +135,9 @@ export function createGameActions(runtime, services) {
       requireAccess() &&
       review(
         "complete_upgrade",
-        Number.isInteger(slot) ? { slot } : {},
+        // Keep slot zero on the original no-argument ABI. Parallel slots are
+        // addressed explicitly by the V2 overload.
+        Number.isInteger(slot) && slot > 0 ? { slot } : {},
         copy().feedback.worldUpgradeComplete,
         [
           Number.isInteger(slot)
@@ -147,7 +149,7 @@ export function createGameActions(runtime, services) {
       requireAccess() &&
       review(
         "boost",
-        Number.isInteger(slot) ? { hours: 1, slot } : { hours: 1 },
+        Number.isInteger(slot) && slot > 0 ? { hours: 1, slot } : { hours: 1 },
         copy().feedback.worldBoost,
         ["Spend 1 WLD to reduce construction by 1 hour"],
       ),

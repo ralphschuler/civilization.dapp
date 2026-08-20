@@ -721,6 +721,100 @@ test("construction jobs span the full build inspector width", async () => {
   );
 });
 
+test("parallel construction keeps job controls and the start composer visible", () => {
+  const context = ({
+    workshop,
+    constructions,
+    selectedBuilding = "timber",
+  }) => ({
+    state: {
+      resources: { wood: 999, clay: 999, stone: 999, gold: 999 },
+      buildings: { timber: 1, workshop },
+      constructions,
+      construction: constructions[0],
+      constructionOccupied: constructions.length,
+      constructionCapacity: workshop >= 21 ? 3 : 2,
+    },
+    selectedBuilding,
+    buildings: {
+      timber: { label: "Holzfäller", detail: "Erzeugt Holz.", produces: {} },
+      quarry: { label: "Steinbruch", detail: "Erzeugt Stein.", produces: {} },
+    },
+    requirements: () => [],
+    buildingCost: () => ({ wood: 1, clay: 1, stone: 1, gold: 0 }),
+    runtimeMode: "world",
+    resourceDefs: { wood: {}, clay: {}, stone: {}, gold: {} },
+    format: String,
+    buildDuration: () => 3_600,
+    nextBuildingProduction: () => ({}),
+    remainingTime: () => 3_600,
+    busy: false,
+  });
+  const workshop11 = buildPanel(
+    context({
+      workshop: 11,
+      constructions: [
+        { pending: true, buildingId: "quarry", completesAt: 1, slot: 0 },
+      ],
+    }),
+  );
+  assert.match(
+    workshop11,
+    /data-construction-job[^>]*data-construction-slot="0"/,
+  );
+  assert.match(workshop11, /data-building="timber"(?![^>]*disabled)/);
+  assert.doesNotMatch(workshop11, /Bauplätze belegt/);
+
+  const workshop21 = buildPanel(
+    context({
+      workshop: 21,
+      constructions: [
+        { pending: true, buildingId: "quarry", completesAt: 1, slot: 0 },
+        { pending: true, buildingId: "timber", completesAt: 1, slot: 1 },
+      ],
+    }),
+  );
+  assert.match(workshop21, /data-construction-slot="0"/);
+  assert.match(workshop21, /data-construction-slot="1"/);
+  assert.match(workshop21, /data-building="timber"(?![^>]*disabled)/);
+});
+
+test("full construction capacity disables only a new start and states the exact occupancy", () => {
+  const panel = buildPanel({
+    state: {
+      resources: { wood: 999, clay: 999, stone: 999, gold: 999 },
+      buildings: { timber: 1, workshop: 11 },
+      constructions: [
+        { pending: true, buildingId: "timber", completesAt: 1, slot: 0 },
+        { pending: true, buildingId: "timber", completesAt: 1, slot: 1 },
+      ],
+      constructionOccupied: 2,
+      constructionCapacity: 2,
+    },
+    selectedBuilding: "timber",
+    buildings: { timber: { label: "Holzfäller", detail: "", produces: {} } },
+    requirements: () => [],
+    buildingCost: () => ({ wood: 1, clay: 1, stone: 1, gold: 0 }),
+    runtimeMode: "world",
+    resourceDefs: { wood: {}, clay: {}, stone: {}, gold: {} },
+    format: String,
+    buildDuration: () => 3_600,
+    nextBuildingProduction: () => ({}),
+    remainingTime: () => 0,
+    busy: false,
+  });
+  assert.match(
+    panel,
+    /data-complete-upgrade[^>]*data-construction-slot="0"(?![^>]*disabled)/,
+  );
+  assert.match(
+    panel,
+    /data-boost-construction[^>]*data-construction-slot="1"(?![^>]*disabled)/,
+  );
+  assert.match(panel, /data-building="timber"[^>]*disabled/);
+  assert.match(panel, /Bauplätze belegt: 2\/2/);
+});
+
 test("app lifecycle owns timer setup and teardown while bindings live outside markup", async () => {
   const [app, bindings] = await Promise.all([
     readFile(new URL("../src/app.js", import.meta.url), "utf8"),
@@ -790,6 +884,34 @@ test("game action feedback follows the active locale and formats dynamic values"
   } finally {
     globalThis.localStorage = originalStorage;
   }
+});
+
+test("construction wallet intents retain the selected parallel slot while slot zero uses the legacy ABI", () => {
+  const intents = [];
+  const runtime = { mode: "world", state: {}, selectedBuilding: "timber" };
+  const actions = createGameActions(runtime, {
+    render: () => {},
+    requireAccess: () => true,
+    requestWorldAction: (type, payload) => intents.push({ type, payload }),
+    confirmWorldReview: () => {},
+    cancelWorldReview: () => {},
+    errorText: String,
+    isCurrent: () => true,
+    copy: () => civilizationMessages("en-US"),
+    buildingLabel: String,
+    resourceDefs: () => ({}),
+    numberFormat: String,
+  });
+  actions.completeUpgrade(0);
+  actions.boost(0);
+  actions.completeUpgrade(1);
+  actions.boost(2);
+  assert.deepEqual(intents, [
+    { type: "complete_upgrade", payload: {} },
+    { type: "boost", payload: { hours: 1 } },
+    { type: "complete_upgrade", payload: { slot: 1 } },
+    { type: "boost", payload: { hours: 1, slot: 2 } },
+  ]);
 });
 
 test("World runtime feedback uses localized pending and completion messages", async () => {
