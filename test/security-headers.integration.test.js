@@ -63,8 +63,13 @@ test(
     assert.ok(page.ok, "built application did not serve its HTML route");
     assertDefaultSecurityHeaders(page);
     const pageHtml = await page.text();
-    const staticAsset = pageHtml.match(/src="([^"?]*\/_next\/static\/[^"?]+)"/)?.[1];
-    assert.ok(staticAsset, "HTML response did not reference a static Next asset");
+    const staticAsset = pageHtml.match(
+      /src="([^"?]*\/_next\/static\/[^"?]+)"/,
+    )?.[1];
+    assert.ok(
+      staticAsset,
+      "HTML response did not reference a static Next asset",
+    );
 
     const asset = await fetch(new URL(staticAsset, baseUrl));
     assert.ok(asset.ok, "referenced static Next asset was not served");
