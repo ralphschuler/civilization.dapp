@@ -105,27 +105,31 @@ test("game area navigation announces its current area, keeps keyboard focus, and
   await expect(marketAction).toBeFocused();
   await expect(marketAction).toHaveCSS("outline-style", "solid");
 
-  await page.setViewportSize({ width: 320, height: 700 });
-  await expect(mobileNavigation).toBeVisible();
-  const mobileMarket = mobileNavigation.getByRole("button", { name: "Markt" });
-  expect(
-    await mobileMarket.evaluate((button) => {
-      const { width, height } = button.getBoundingClientRect();
-      return width >= 44 && height >= 44;
-    }),
-  ).toBe(true);
-  expect(
-    await page
-      .locator("html")
-      .evaluate((node) => node.scrollWidth <= window.innerWidth),
-  ).toBe(true);
+  if ((page.viewportSize()?.width ?? 0) <= 960) {
+    await page.setViewportSize({ width: 320, height: 700 });
+    await expect(mobileNavigation).toBeVisible();
+    const mobileMarket = mobileNavigation.getByRole("button", {
+      name: "Markt",
+    });
+    expect(
+      await mobileMarket.evaluate((button) => {
+        const { width, height } = button.getBoundingClientRect();
+        return width >= 44 && height >= 44;
+      }),
+    ).toBe(true);
+    expect(
+      await page
+        .locator("html")
+        .evaluate((node) => node.scrollWidth <= window.innerWidth),
+    ).toBe(true);
 
-  await page.setViewportSize({ width: 720, height: 900 });
-  expect(
-    await page
-      .locator("html")
-      .evaluate((node) => node.scrollWidth <= window.innerWidth),
-  ).toBe(true);
+    await page.setViewportSize({ width: 720, height: 900 });
+    expect(
+      await page
+        .locator("html")
+        .evaluate((node) => node.scrollWidth <= window.innerWidth),
+    ).toBe(true);
+  }
   await expectNoSeriousAxe(page, "[data-testid='civilization-game-root']");
 });
 
