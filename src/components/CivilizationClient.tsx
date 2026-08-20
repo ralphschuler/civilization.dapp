@@ -1,7 +1,11 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { startCivilizationApp, stopCivilizationApp } from "@/app";
+import {
+  CivilizationRuntimeGate,
+  type CivilizationGateState,
+} from "@/components/CivilizationClient/CivilizationRuntimeGate";
 import { WalletVillageRegistrationGate } from "@/components/CivilizationClient/WalletVillageRegistrationGate";
 import { useWalletVillageRegistration } from "@/components/CivilizationClient/useWalletVillageRegistration";
 import type { CivilizationLocale } from "@/lib/civilization-locale";
@@ -61,6 +65,15 @@ function ProductionCivilizationClient({
   const localeRef = useRef(locale);
   const onLocaleChangeRef = useRef(onLocaleChange);
   const onLogoutRef = useRef(onLogout);
+  const [gate, setGate] = useState<CivilizationGateState | null>(null);
+  const [retryGate, setRetryGate] = useState<(() => void) | null>(null);
+  const onGateStateChange = useCallback(
+    (nextGate: CivilizationGateState | null, retry: (() => void) | null) => {
+      setRetryGate(() => retry);
+      setGate(nextGate);
+    },
+    [],
+  );
   useEffect(() => {
     localeRef.current = locale;
     onLocaleChangeRef.current = onLocaleChange;
@@ -96,14 +109,20 @@ function ProductionCivilizationClient({
       locale: localeRef.current,
       onLocaleChange: (nextLocale) => onLocaleChangeRef.current(nextLocale),
       onLogout: () => onLogoutRef.current(),
+      onGateStateChange,
     });
     return () => {
       stopCivilizationApp();
     };
-  }, [registered, walletAddress, worldAdapter]);
+  }, [registered, walletAddress, worldAdapter, onGateStateChange]);
 
   if (registered) {
-    return <div ref={root} />;
+    return (
+      <>
+        <div ref={root} />
+        <CivilizationRuntimeGate gate={gate} onRetry={retryGate} />
+      </>
+    );
   }
   return (
     <WalletVillageRegistrationGate

@@ -68,7 +68,6 @@ export function createGameActions(runtime, services) {
         runtime.feedback = copy().feedback.reviewInvalidated;
       render();
     },
-    retry: () => services.refreshWorld(),
     changeLocale: (locale) => services.changeLocale?.(locale),
     openSettings: () => services.openSettings?.(),
     closeSettings: () => services.closeSettings?.(),
