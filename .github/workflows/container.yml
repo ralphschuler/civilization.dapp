@@ -92,6 +92,7 @@ jobs:
           path: test-results/
           if-no-files-found: ignore
           retention-days: 7
+      - run: pnpm test:integration:headers
       - run: docker build -t civilization-dapp-test:ci .
       - name: Migration CLI fails safely without database configuration
         run: |

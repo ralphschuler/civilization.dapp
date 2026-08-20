@@ -12,6 +12,15 @@ COPY scripts/lib/migrations.mjs ./scripts/lib/migrations.mjs
 COPY migrations ./migrations
 COPY src ./src
 COPY next.config.ts tsconfig.json postcss.config.mjs ./
+# Next evaluates header configuration while producing the standalone build.
+# These are intentionally unset by default: report-only CSP is safe by default,
+# while HSTS and enforcement require explicit deployment build arguments.
+ARG CIVILIZATION_ENV
+ARG CIVILIZATION_CSP_MODE
+ARG CIVILIZATION_HSTS_ENABLED
+ENV CIVILIZATION_ENV=$CIVILIZATION_ENV
+ENV CIVILIZATION_CSP_MODE=$CIVILIZATION_CSP_MODE
+ENV CIVILIZATION_HSTS_ENABLED=$CIVILIZATION_HSTS_ENABLED
 RUN pnpm build
 
 FROM node:22-alpine AS runtime

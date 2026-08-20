@@ -2,6 +2,10 @@ services:
   civilization-migrate:
     build:
       context: .
+      args:
+        CIVILIZATION_ENV: ${CIVILIZATION_ENV:-}
+        CIVILIZATION_CSP_MODE: ${CIVILIZATION_CSP_MODE:-report-only}
+        CIVILIZATION_HSTS_ENABLED: ${CIVILIZATION_HSTS_ENABLED:-false}
     command: ["node", "scripts/db-migrate.mjs"]
     environment:
       PGHOST: postgres
@@ -17,9 +21,15 @@ services:
   civilization-dapp:
     build:
       context: .
+      args:
+        CIVILIZATION_ENV: ${CIVILIZATION_ENV:-}
+        CIVILIZATION_CSP_MODE: ${CIVILIZATION_CSP_MODE:-report-only}
+        CIVILIZATION_HSTS_ENABLED: ${CIVILIZATION_HSTS_ENABLED:-false}
     environment:
       NODE_ENV: production
       CIVILIZATION_ENV: production
+      CIVILIZATION_CSP_MODE: ${CIVILIZATION_CSP_MODE:-report-only}
+      CIVILIZATION_HSTS_ENABLED: ${CIVILIZATION_HSTS_ENABLED:-false}
       WALLET_AUTH_URL: ${WALLET_AUTH_URL:-https://civilization.nyphon.de}
       WALLET_AUTH_RATE_LIMIT_SECRET: ${WALLET_AUTH_RATE_LIMIT_SECRET:?set WALLET_AUTH_RATE_LIMIT_SECRET}
       WALLET_AUTH_TRUSTED_PROXY_HOPS: ${WALLET_AUTH_TRUSTED_PROXY_HOPS:-1}
