@@ -19,6 +19,13 @@ interface ICivilizationRevenueSplitter {
     function processMonthlyPayout() external;
 }
 
+interface ICivilizationBuybackVault {
+    function token() external view returns (IERC20);
+    function game() external view returns (address);
+    function timelock() external view returns (address);
+    function recordFunding(uint256 amount) external;
+}
+
 /// @dev Official legacy World ID 3 router interface.
 interface IWorldIDLegacyRouter {
     function verifyProof(
@@ -204,6 +211,12 @@ contract CivilizationGame is Initializable {
     struct ConstructionQueueStorage {
         mapping(address => ConstructionQueue) queues;
     }
+    /// @custom:storage-location erc7201:civilization.game.buyback.v3
+    /// @dev Append-only upgrade state.  It intentionally does not alter the
+    /// V1 game namespace or the V2 market/queue namespaces.
+    struct BuybackStorage {
+        address vault;
+    }
     bytes32 private constant GAME_STORAGE_LOCATION =
         0xb9c5fb29a19a4c3e9d391dc26eaefcdaaec2a4fc6362d4bd27f1470fa2592b00;
     bytes32 private constant MARKET_STORAGE_LOCATION =
@@ -211,6 +224,8 @@ contract CivilizationGame is Initializable {
     // Separate ERC-7201 namespace: never changes the V1 Player layout.
     bytes32 private constant CONSTRUCTION_QUEUE_STORAGE_LOCATION =
         0x7df7cd2d39e6dc4e56d89fd1cb294d3b98e8c7d6075a0f280dc7ec5a2900b300;
+    bytes32 private constant BUYBACK_STORAGE_LOCATION =
+        0xfdd9e7909f28eaa99c7fa6a26160762ec83bb9ab007220360340e71990752700;
     function _game() internal pure returns (GameStorage storage $) {
         assembly {
             $.slot := GAME_STORAGE_LOCATION
@@ -228,6 +243,11 @@ contract CivilizationGame is Initializable {
     {
         assembly {
             $.slot := CONSTRUCTION_QUEUE_STORAGE_LOCATION
+        }
+    }
+    function _buyback() internal pure returns (BuybackStorage storage $) {
+        assembly {
+            $.slot := BUYBACK_STORAGE_LOCATION
         }
     }
 
@@ -298,6 +318,10 @@ contract CivilizationGame is Initializable {
         address indexed oldSplitter,
         address indexed newSplitter
     );
+    event BuybackVaultUpdated(
+        address indexed oldVault,
+        address indexed newVault
+    );
     event MonthlyPayoutDeferred(
         address indexed splitter,
         bytes32 indexed reasonHash
@@ -356,6 +380,8 @@ contract CivilizationGame is Initializable {
     error WorldTokenAmountMismatch();
     error InvalidBuildingLevel();
     error InvalidRevenueSplitter(address splitter);
+    error InvalidBuybackVault(address vault);
+    error BuybackVaultNotConfigured();
     error InvalidMarketResource();
     error InvalidMarketPrice();
     error MarketAmountTooLarge();
@@ -451,6 +477,9 @@ contract CivilizationGame is Initializable {
     function revenueSplitter() external view returns (address) {
         return _game().revenueSplitter;
     }
+    function buybackVault() external view returns (address) {
+        return _buyback().vault;
+    }
     function timelock() external view returns (address) {
         return _game().timelock;
     }
@@ -464,6 +493,16 @@ contract CivilizationGame is Initializable {
         address oldSplitter = $.revenueSplitter;
         $.revenueSplitter = splitter;
         emit RevenueSplitterUpdated(oldSplitter, splitter);
+    }
+
+    /// @notice Sets the isolated WLD buyback accounting vault through the timelock.
+    function setBuybackVault(address vault) external {
+        GameStorage storage $ = _game();
+        if (msg.sender != $.timelock) revert UnauthorizedGovernance();
+        _validateBuybackVault(vault, $.worldToken, $.timelock);
+        address oldVault = _buyback().vault;
+        _buyback().vault = vault;
+        emit BuybackVaultUpdated(oldVault, vault);
     }
 
     /// @notice Enables a bounded off-chain reward campaign. Only the configured
@@ -836,7 +875,8 @@ contract CivilizationGame is Initializable {
     }
 
     /// @notice Pays exactly one WLD per requested full hour to reduce pending construction time.
-    /// @dev WLD is sent directly to the configured revenue splitter; this contract never holds it.
+    /// @dev Half is credited to the isolated buyback vault; the odd-wei remainder
+    /// goes to the developer splitter. The game never holds WLD.
     function boostConstruction(uint256 hoursToBoost) external onlyRegistered {
         if (hoursToBoost == 0) revert InvalidAmount();
         Player storage player = _game().players[msg.sender];
@@ -861,6 +901,10 @@ contract CivilizationGame is Initializable {
             );
     }
 
+    // Construction completion is committed before the only new vault interaction.
+    // Both the revenue-splitter recipient and vault are timelock-validated
+    // contracts; any transfer or credit failure reverts atomically.
+    // slither-disable-start reentrancy-no-eth
     function _boostConstruction(
         Construction storage construction,
         uint256 hoursToBoost
@@ -872,22 +916,34 @@ contract CivilizationGame is Initializable {
         if (duration > uint256(construction.completesAt) - block.timestamp)
             revert BoostExceedsRemainingTime();
         uint256 wldPaid = hoursToBoost * WORLD_TOKEN_UNIT;
+        GameStorage storage $ = _game();
+        address vault = _buyback().vault;
+        if (vault == address(0)) revert BuybackVaultNotConfigured();
+        uint256 buybackAmount = wldPaid / 2;
+        uint256 splitterAmount = wldPaid - buybackAmount;
+        // Commit before interactions. A failed token transfer or vault credit
+        // reverts this assignment with the rest of this transaction.
         construction.completesAt = uint64(
             uint256(construction.completesAt) - duration
         );
-        GameStorage storage $ = _game();
+        uint256 vaultBefore = IERC20($.worldToken).balanceOf(vault);
         uint256 beforeBalance = IERC20($.worldToken).balanceOf(
             $.revenueSplitter
         );
+        IERC20($.worldToken).safeTransferFrom(msg.sender, vault, buybackAmount);
+        if (
+            IERC20($.worldToken).balanceOf(vault) - vaultBefore != buybackAmount
+        ) revert WorldTokenAmountMismatch();
         IERC20($.worldToken).safeTransferFrom(
             msg.sender,
             $.revenueSplitter,
-            wldPaid
+            splitterAmount
         );
         if (
             IERC20($.worldToken).balanceOf($.revenueSplitter) - beforeBalance !=
-            wldPaid
+            splitterAmount
         ) revert WorldTokenAmountMismatch();
+        ICivilizationBuybackVault(vault).recordFunding(buybackAmount);
         emit ConstructionBoosted(
             msg.sender,
             hoursToBoost,
@@ -896,6 +952,7 @@ contract CivilizationGame is Initializable {
         );
         _tryMonthlyPayout();
     }
+    // slither-disable-end reentrancy-no-eth
 
     function train(Troop troop, uint256 amount) external onlyRegistered {
         if (amount == 0) revert InvalidAmount();
@@ -1211,6 +1268,14 @@ contract CivilizationGame is Initializable {
         return true;
     }
 
+    /// @notice Permanently destroys the caller's own CGOLD.
+    /// @dev There is deliberately no public mint counterpart.  Buyback vaults
+    /// receive CGOLD from their constrained route and use this holder-authorized
+    /// path, which preserves ordinary ERC-20 supply accounting.
+    function burn(uint256 value) external {
+        _burnGold(msg.sender, value);
+    }
+
     function transferFrom(
         address from,
         address to,
@@ -1491,6 +1556,32 @@ contract CivilizationGame is Initializable {
                 revert InvalidRevenueSplitter(splitter);
         } catch {
             revert InvalidRevenueSplitter(splitter);
+        }
+    }
+    function _validateBuybackVault(
+        address vault,
+        address expectedToken,
+        address expectedTimelock
+    ) private view {
+        if (vault.code.length == 0) revert InvalidBuybackVault(vault);
+        try ICivilizationBuybackVault(vault).token() returns (IERC20 token_) {
+            if (address(token_) != expectedToken)
+                revert InvalidBuybackVault(vault);
+        } catch {
+            revert InvalidBuybackVault(vault);
+        }
+        try ICivilizationBuybackVault(vault).timelock() returns (
+            address timelock_
+        ) {
+            if (timelock_ != expectedTimelock)
+                revert InvalidBuybackVault(vault);
+        } catch {
+            revert InvalidBuybackVault(vault);
+        }
+        try ICivilizationBuybackVault(vault).game() returns (address game_) {
+            if (game_ != address(this)) revert InvalidBuybackVault(vault);
+        } catch {
+            revert InvalidBuybackVault(vault);
         }
     }
     /// @dev Revenue distribution can never block a registered player action.

@@ -5,6 +5,7 @@ export const CONTRACT_STATUS = Object.freeze({
   deployment: "worldchain_mainnet_wallet_registration_deployed",
   independentlyAudited: false,
   settlementEnabled: false,
+  buybackEnabled: false,
   deployedContracts: Object.freeze([
     Object.freeze({
       name: "CivilizationGame",
@@ -25,6 +26,10 @@ export const CONTRACT_STATUS = Object.freeze({
     Object.freeze({
       source: "contracts/src/GoldSettlementRegistry.sol",
       status: "draft_not_deployed_allowlist_only",
+    }),
+    Object.freeze({
+      source: "contracts/src/CivilizationBuybackVault.sol",
+      status: "source_only_not_deployed_timelock_configuration_required",
     }),
   ]),
   requiredBeforeSettlement: Object.freeze([

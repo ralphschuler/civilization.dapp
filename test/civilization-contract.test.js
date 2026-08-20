@@ -69,7 +69,12 @@ async function compile() {
       ]),
     ),
   );
-  for (const f of ["MockWorldToken.sol", "MockWorldIdVerifier.sol"])
+  for (const f of [
+    "MockWorldToken.sol",
+    "MockWorldIdVerifier.sol",
+    "MockBuybackV3Pool.sol",
+    "MockBuybackV3Router.sol",
+  ])
     sources[`test/fixtures/${f}`] = {
       content: await readFile(
         new URL(`./fixtures/${f}`, import.meta.url),
@@ -308,6 +313,19 @@ async function fixture(
     at,
   );
   const game = { vm, address: proxy.address, abi: v1.abi };
+  const buybackVault = await deploy(
+    vm,
+    artifact(
+      "contracts/src/CivilizationBuybackVault.sol",
+      "CivilizationBuybackVault",
+    ),
+    [
+      token.address.toString(),
+      proxy.address.toString(),
+      timelock.address.toString(),
+    ],
+    at,
+  );
   // OZ v5 stores the generated ProxyAdmin in the standard EIP-1967 slot.
   const raw = await vm.stateManager.getStorage(
     proxy.address,
@@ -323,6 +341,15 @@ async function fixture(
       "ProxyAdmin",
     ).abi,
   };
+  await timelockCall(
+    { vm, timelock, game },
+    encodeFunctionData({
+      abi: game.abi,
+      functionName: "setBuybackVault",
+      args: [buybackVault.address.toString()],
+    }),
+    at,
+  );
   return {
     vm,
     v1,
@@ -331,6 +358,7 @@ async function fixture(
     timelock,
     registry,
     splitter,
+    buybackVault,
     proxy,
     game,
     admin,
@@ -446,6 +474,63 @@ async function setGoldTotalSupplyForMarketTest(f, value) {
     f.game.address,
     hexToBytes(toHex(base, { size: 32 })),
     hexToBytes(toHex(value, { size: 32 })),
+  );
+}
+
+async function deployBuybackRoute(f, at, tick = 0n) {
+  const pool = await deploy(
+    f.vm,
+    artifact("test/fixtures/MockBuybackV3Pool.sol", "MockBuybackV3Pool"),
+    [f.token.address.toString(), f.game.address.toString()],
+    at,
+  );
+  const router = await deploy(
+    f.vm,
+    artifact("test/fixtures/MockBuybackV3Router.sol", "MockBuybackV3Router"),
+    [f.token.address.toString(), f.game.address.toString()],
+    at,
+  );
+  ok(await call(pool, deployer, "setObservation", [0n, tick * 60n], at));
+  await timelockCall(
+    f,
+    encodeFunctionData({
+      abi: f.buybackVault.abi,
+      functionName: "configureRoute",
+      args: [
+        router.address.toString(),
+        pool.address.toString(),
+        3_000,
+        1n,
+        100n,
+        60,
+        0,
+      ],
+    }),
+    at,
+    `0x${"b".repeat(62)}${(at % 256n).toString(16).padStart(2, "0")}`,
+    f.buybackVault.address.toString(),
+  );
+  return { pool, router };
+}
+
+async function creditBuybackVault(f, value, at) {
+  ok(
+    await call(
+      f.token,
+      deployer,
+      "mint",
+      [f.buybackVault.address.toString(), value],
+      at,
+    ),
+  );
+  ok(
+    await call(
+      f.buybackVault,
+      f.game.address.toString(),
+      "recordFunding",
+      [value],
+      at,
+    ),
   );
 }
 
@@ -1827,8 +1912,13 @@ test("RevenueSplitter allocates real token balances, rotates safely, and boost r
       [normal.splitter.address.toString()],
       normalUpgrade.at,
     ),
-    normalBefore + 10n ** 18n,
-    "normal WLD reaches the splitter exactly",
+    normalBefore + 5n * 10n ** 17n,
+    "exactly half of normal WLD reaches the splitter",
+  );
+  assert.equal(
+    await read(normal.buybackVault, "pendingWld"),
+    5n * 10n ** 17n,
+    "the other half is non-claimable vault funding",
   );
   const fee = await fixture();
   const feeUpgrade = await startLongUpgrade(fee, 1_000n);
@@ -1860,6 +1950,12 @@ test("RevenueSplitter allocates real token balances, rotates safely, and boost r
     bytesToHex(feeBoost.execResult.returnValue).slice(0, 10),
     keccak256(stringToHex("WorldTokenAmountMismatch()")).slice(0, 10),
     "the reached revert is WorldTokenAmountMismatch",
+  );
+  assert.equal(
+    (await read(fee.game, "playerState", [alice], feeUpgrade.at))[8]
+      .completesAt,
+    feeUpgrade.completesAt,
+    "a failed post-commit transfer rolls back the construction-time update",
   );
 });
 
@@ -2002,5 +2098,316 @@ test("GAME payout call funds all ten permitted recipients and remains best-effor
     await read(failing.token, "balanceOf", [carol]),
     50n,
     "permissionless manual fallback transfers deferred WLD",
+  );
+});
+
+test("buyback route and pause are timelock-only and reject invalid router and pair configurations", async () => {
+  const f = await fixture();
+  const { pool, router } = await deployBuybackRoute(f, 2_000n);
+  const routeArgs = [
+    router.address.toString(),
+    pool.address.toString(),
+    3_000,
+    1n,
+    100n,
+    60,
+    0,
+  ];
+  for (const [name, args] of [
+    ["setPaused", [true]],
+    ["configureRoute", routeArgs],
+  ]) {
+    const unauthorized = await call(f.buybackVault, alice, name, args, 2_061n);
+    assert.ok(
+      unauthorized.execResult.exceptionError,
+      `${name} is timelock-only`,
+    );
+  }
+  const invalidRouter = await call(
+    f.buybackVault,
+    f.timelock.address.toString(),
+    "configureRoute",
+    [alice, pool.address.toString(), 3_000, 1n, 100n, 60, 0],
+    2_061n,
+  );
+  assert.ok(invalidRouter.execResult.exceptionError, "EOA router is rejected");
+  const wrongPair = await deploy(
+    f.vm,
+    artifact("test/fixtures/MockBuybackV3Pool.sol", "MockBuybackV3Pool"),
+    [f.token.address.toString(), f.token.address.toString()],
+    2_061n,
+  );
+  const invalidPair = await call(
+    f.buybackVault,
+    f.timelock.address.toString(),
+    "configureRoute",
+    [
+      router.address.toString(),
+      wrongPair.address.toString(),
+      3_000,
+      1n,
+      100n,
+      60,
+      0,
+    ],
+    2_061n,
+  );
+  assert.ok(
+    invalidPair.execResult.exceptionError,
+    "non-WLD/CGOLD pool is rejected",
+  );
+  await timelockCall(
+    f,
+    encodeFunctionData({
+      abi: f.buybackVault.abi,
+      functionName: "setPaused",
+      args: [true],
+    }),
+    2_100n,
+    `0x${"c".repeat(64)}`,
+    f.buybackVault.address.toString(),
+  );
+  assert.equal(await read(f.buybackVault, "paused"), true);
+});
+
+test("buyback only spends credited WLD, quotes positive and negative TWAP ticks, and burns received CGOLD", async () => {
+  const f = await fixture();
+  const { pool, router } = await deployBuybackRoute(f, 3_000n, 100n);
+  const executeAt = 3_061n;
+  ok(await call(f.token, deployer, "mint", [alice, 50n], executeAt));
+  ok(
+    await call(
+      f.token,
+      alice,
+      "transfer",
+      [f.buybackVault.address.toString(), 50n],
+      executeAt,
+    ),
+  );
+  const directFunding = await call(
+    f.buybackVault,
+    alice,
+    "recordFunding",
+    [50n],
+    executeAt,
+  );
+  assert.ok(
+    directFunding.execResult.exceptionError,
+    "direct WLD is never creditable",
+  );
+  await creditBuybackVault(f, 100n, executeAt);
+  await seedGoldForMarketTest(f, router.address.toString(), 250n);
+  await setGoldTotalSupplyForMarketTest(f, 250n);
+  ok(await call(router, deployer, "setAmountOut", [150n], executeAt));
+  const first = await call(
+    f.buybackVault,
+    carol,
+    "execute",
+    [0n, 4_000n],
+    executeAt,
+  );
+  ok(first);
+  assert.deepEqual(
+    decodeFunctionResult({
+      abi: f.buybackVault.abi,
+      functionName: "execute",
+      data: bytesToHex(first.execResult.returnValue),
+    }),
+    [true, 150n],
+  );
+  assert.equal(await read(f.buybackVault, "pendingWld"), 0n);
+  assert.equal(
+    await read(f.token, "balanceOf", [f.buybackVault.address.toString()]),
+    50n,
+  );
+  assert.equal(
+    await read(f.token, "balanceOf", [router.address.toString()]),
+    100n,
+  );
+  assert.equal(await read(f.buybackVault, "cumulativeSpent"), 100n);
+  assert.equal(await read(f.buybackVault, "cumulativeCgoldBurned"), 150n);
+  assert.equal(
+    await read(f.game, "balanceOf", [f.buybackVault.address.toString()]),
+    0n,
+  );
+  assert.equal(await read(f.game, "totalSupply"), 100n);
+
+  await creditBuybackVault(f, 100n, 3_062n);
+  ok(await call(pool, deployer, "setObservation", [0n, -6_000n], 3_062n));
+  ok(await call(router, deployer, "setAmountOut", [100n], 3_062n));
+  const second = await call(
+    f.buybackVault,
+    carol,
+    "execute",
+    [100n, 4_000n],
+    3_062n,
+  );
+  ok(second);
+  assert.deepEqual(
+    decodeFunctionResult({
+      abi: f.buybackVault.abi,
+      functionName: "execute",
+      data: bytesToHex(second.execResult.returnValue),
+    }),
+    [true, 100n],
+    "negative TWAP tick remains a valid constrained route",
+  );
+  assert.equal(await read(f.buybackVault, "cumulativeSpent"), 200n);
+  assert.equal(await read(f.buybackVault, "cumulativeCgoldBurned"), 250n);
+  assert.equal(
+    await read(f.game, "totalSupply"),
+    0n,
+    "all router-delivered CGOLD burned immediately",
+  );
+});
+
+test("buyback observation and router failures defer without losing pending credits", async () => {
+  const f = await fixture();
+  const { pool, router } = await deployBuybackRoute(f, 5_000n);
+  await creditBuybackVault(f, 100n, 5_061n);
+  ok(await call(pool, deployer, "setObservationLengths", [2n, 1n], 5_061n));
+  const malformedObservation = await call(
+    f.buybackVault,
+    alice,
+    "execute",
+    [0n, 6_000n],
+    5_061n,
+  );
+  ok(malformedObservation);
+  assert.deepEqual(
+    decodeFunctionResult({
+      abi: f.buybackVault.abi,
+      functionName: "execute",
+      data: bytesToHex(malformedObservation.execResult.returnValue),
+    }),
+    [false, 0n],
+    "a malformed secondary observation array defers the buyback",
+  );
+  assert.equal(await read(f.buybackVault, "pendingWld"), 100n);
+  ok(await call(pool, deployer, "setObservationLengths", [2n, 2n], 5_061n));
+  ok(await call(pool, deployer, "setObservationFails", [true], 5_061n));
+  const observationFailure = await call(
+    f.buybackVault,
+    alice,
+    "execute",
+    [0n, 6_000n],
+    5_061n,
+  );
+  ok(observationFailure);
+  assert.deepEqual(
+    decodeFunctionResult({
+      abi: f.buybackVault.abi,
+      functionName: "execute",
+      data: bytesToHex(observationFailure.execResult.returnValue),
+    }),
+    [false, 0n],
+  );
+  assert.equal(await read(f.buybackVault, "pendingWld"), 100n);
+  assert.equal(await read(f.buybackVault, "cumulativeSpent"), 0n);
+
+  ok(await call(pool, deployer, "setObservationFails", [false], 5_062n));
+  ok(await call(router, deployer, "setRouterFails", [true], 5_062n));
+  const routerFailure = await call(
+    f.buybackVault,
+    alice,
+    "execute",
+    [0n, 6_000n],
+    5_062n,
+  );
+  ok(routerFailure);
+  assert.deepEqual(
+    decodeFunctionResult({
+      abi: f.buybackVault.abi,
+      functionName: "execute",
+      data: bytesToHex(routerFailure.execResult.returnValue),
+    }),
+    [false, 0n],
+  );
+  assert.equal(await read(f.buybackVault, "pendingWld"), 100n);
+  assert.equal(await read(f.buybackVault, "cumulativeSpent"), 0n);
+  assert.equal(
+    await read(f.token, "balanceOf", [f.buybackVault.address.toString()]),
+    100n,
+  );
+  assert.equal(
+    await read(f.token, "allowance", [
+      f.buybackVault.address.toString(),
+      router.address.toString(),
+    ]),
+    0n,
+    "a caught router failure cannot retain a WLD allowance",
+  );
+});
+
+test("buyback rejects a router return that disagrees with received CGOLD", async () => {
+  const f = await fixture();
+  const { router } = await deployBuybackRoute(f, 6_500n);
+  await creditBuybackVault(f, 100n, 6_561n);
+  await seedGoldForMarketTest(f, router.address.toString(), 100n);
+  await setGoldTotalSupplyForMarketTest(f, 100n);
+  ok(await call(router, deployer, "setAmountOut", [100n], 6_561n));
+  ok(await call(router, deployer, "setReportedAmountOut", [99n], 6_561n));
+
+  const mismatch = await call(
+    f.buybackVault,
+    alice,
+    "execute",
+    [0n, 7_000n],
+    6_561n,
+  );
+  assert.ok(
+    mismatch.execResult.exceptionError,
+    "a reported output must equal the CGOLD balance delta",
+  );
+  assert.equal(await read(f.buybackVault, "pendingWld"), 100n);
+  assert.equal(
+    await read(f.token, "balanceOf", [f.buybackVault.address.toString()]),
+    100n,
+    "a mismatched return rolls back the router WLD transfer",
+  );
+  assert.equal(await read(f.buybackVault, "cumulativeSpent"), 0n);
+  assert.equal(await read(f.buybackVault, "cumulativeCgoldBurned"), 0n);
+});
+
+test("buyback defers a zero TWAP quote before approving or calling the router", async () => {
+  const f = await fixture();
+  const { router } = await deployBuybackRoute(f, 7_000n, -100n);
+  await creditBuybackVault(f, 1n, 7_061n);
+
+  const deferred = await call(
+    f.buybackVault,
+    alice,
+    "execute",
+    [0n, 8_000n],
+    7_061n,
+  );
+  ok(deferred);
+  assert.deepEqual(
+    decodeFunctionResult({
+      abi: f.buybackVault.abi,
+      functionName: "execute",
+      data: bytesToHex(deferred.execResult.returnValue),
+    }),
+    [false, 0n],
+  );
+  assert.equal(
+    await read(router, "exactInputSingleCalls"),
+    0n,
+    "zero output cannot call the router",
+  );
+  assert.equal(
+    await read(f.token, "allowance", [
+      f.buybackVault.address.toString(),
+      router.address.toString(),
+    ]),
+    0n,
+    "zero output cannot approve the router",
+  );
+  assert.equal(await read(f.buybackVault, "pendingWld"), 1n);
+  assert.equal(await read(f.buybackVault, "cumulativeSpent"), 0n);
+  assert.equal(
+    await read(f.token, "balanceOf", [f.buybackVault.address.toString()]),
+    1n,
+    "zero output cannot spend credited WLD",
   );
 });
