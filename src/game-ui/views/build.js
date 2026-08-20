@@ -251,6 +251,46 @@ function upgradeImpact(context) {
   </section>`;
 }
 
+function dependencyPlan(context) {
+  if (context.runtimeMode !== "world" || !context.buildingPlan) return "";
+  const plan = context.buildingPlan();
+  context.requestPlanDurations?.(plan);
+  if (!plan.ok) {
+    return `<section class="dependency-plan requirement-box" aria-labelledby="dependency-plan-title" role="status"><h3 id="dependency-plan-title">${context.copy.dependencyPlanTitle}</h3><p>${context.copy.dependencyPlanBlocked(plan.reason)}</p></section>`;
+  }
+  const rows = plan.steps
+    .map((step, index) => {
+      const building = context.buildings[step.id];
+      const status = step.active
+        ? context.copy.dependencyPlanRunning
+        : step === plan.next
+          ? context.copy.dependencyPlanNext
+          : context.copy.dependencyPlanLater;
+      const time = step.active
+        ? context.copy.dependencyPlanCompletes(
+            clock(
+              Math.max(
+                0,
+                Math.ceil(
+                  (step.completesAt - context.state.chainTimestamp) / 1000,
+                ),
+              ),
+            ),
+          )
+        : context.copy.dependencyPlanSlot(step.slot + 1, clock(step.duration));
+      const deficit =
+        step.deficits && Object.keys(step.deficits).length
+          ? `<small>${context.copy.dependencyPlanDeficit(costLine(step.deficits, context.resourceDefs, context.format))} <button type="button" class="text-action" data-open-market>${context.copy.dependencyPlanMarket}</button></small>`
+          : "";
+      return `<li data-plan-step="${escapeHtml(step.key)}"><span>${index + 1}. ${escapeHtml(building?.label || step.id)} ${step.level}</span><b>${status}</b><small>${time}</small>${deficit}</li>`;
+    })
+    .join("");
+  const next = plan.next
+    ? `<button class="primary-action" data-plan-upgrade="${plan.next.id}" ${context.busy ? "disabled" : ""}>${context.copy.dependencyPlanStart(context.buildings[plan.next.id].label, plan.next.level)}</button>`
+    : "";
+  return `<section class="dependency-plan" aria-labelledby="dependency-plan-title" aria-live="polite"><h3 id="dependency-plan-title">${context.copy.dependencyPlanTitle}</h3><p>${context.copy.dependencyPlanTarget(context.buildings[context.selectedBuilding].label, context.state.buildings[context.selectedBuilding] + 1)}</p><ol>${rows}</ol>${next}</section>`;
+}
+
 export function buildPanel(context) {
   context = { copy: civilizationMessages("de-DE"), ...context };
   const {
@@ -287,6 +327,7 @@ export function buildPanel(context) {
     : composer;
   const productionLine = nextProductionLine(context, building);
   const impact = upgradeImpact(context);
+  const plan = dependencyPlan(context);
 
   return `<div class="inspector build-inspector">
     <div class="inspector-art ${assetResult?.failed.includes(BUILDING_ASSETS[selectedBuilding]) ? "has-asset-error" : ""}" data-asset-container>
@@ -301,6 +342,7 @@ export function buildPanel(context) {
     <p class="inspector-copy">${building.detail}${productionLine}</p>
     <div class="inspector-divider"></div>
     ${impact}
+    ${plan}
     ${action}
   </div>`;
 }

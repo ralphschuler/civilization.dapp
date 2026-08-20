@@ -19,10 +19,12 @@ export {
   getContractDefense,
   getContractProduction,
   getContractRequirements,
+  getContractRequirementsForLevel,
   getContractTroopRequirements,
   projectCivilizationState,
   projectContractUpgradeImpact,
 } from "./world-game/projections.js";
+export { planBuildingDependencies } from "./world-game/build-planner.js";
 export {
   encodeWalletRegistration,
   encodeWorldGameAction,

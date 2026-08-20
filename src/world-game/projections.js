@@ -50,15 +50,9 @@ export function getContractBuildingCost(state, id) {
   );
 }
 
-export function getContractRequirements(state, id) {
-  const buildings = state.buildings;
-  const next = (buildings[id] || 0) + 1;
+export function getContractRequirementsForLevel(id, next) {
   const required = [];
-  const add = (building, level) => {
-    if ((buildings[building] || 0) < level) {
-      required.push({ id: building, level });
-    }
-  };
+  const add = (building, level) => required.push({ id: building, level });
   if (id === "townhall") {
     add("timber", next);
     add("claypit", next);
@@ -84,6 +78,14 @@ export function getContractRequirements(state, id) {
     add("workshop", 1);
   }
   return required;
+}
+
+export function getContractRequirements(state, id) {
+  const buildings = state.buildings;
+  const next = (buildings[id] || 0) + 1;
+  return getContractRequirementsForLevel(id, next).filter(
+    ({ id: required, level }) => (buildings[required] || 0) < level,
+  );
 }
 
 export function getContractTroopRequirements(state, id) {

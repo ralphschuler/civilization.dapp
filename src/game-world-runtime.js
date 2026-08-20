@@ -109,6 +109,11 @@ export function createWorldRuntime({
       if (!isCurrent(token) || requestEpoch !== runtime.worldStateEpoch) return;
 
       runtime.state = nextState;
+      const review = runtime.review.state();
+      if (review.status === "reviewing" && review.intent?.type === "upgrade") {
+        runtime.review.invalidate("world_state_changed");
+        runtime.feedback = copy().feedback.reviewWorldStateInvalidated;
+      }
       runtime.ready = true;
       runtime.loading = false;
       if (!quiet) {

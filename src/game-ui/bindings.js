@@ -123,6 +123,10 @@ export function bindGameActions(root, actions) {
   all("[data-building]", (event) =>
     actions.upgrade(event.currentTarget.dataset.building),
   );
+  all("[data-plan-upgrade]", (event) =>
+    actions.upgrade(event.currentTarget.dataset.planUpgrade),
+  );
+  all("[data-open-market]", () => actions.selectPanel("market"));
   all("[data-train]", (event) =>
     actions.train(event.currentTarget.dataset.train),
   );

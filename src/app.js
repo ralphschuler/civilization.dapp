@@ -29,6 +29,7 @@ import { bindGameActions } from "./game-ui/bindings.js";
 import { createGameActions } from "./game-actions.js";
 import { createWorldRuntime } from "./game-world-runtime.js";
 import { createWalletReview } from "./world-game/review.js";
+import { planBuildingDependencies } from "./world-game/build-planner.js";
 import { refreshGameTick } from "./game-tick.js";
 import {
   civilizationMessages,
@@ -245,6 +246,29 @@ function createController(runtime) {
       format: resourceFormat,
       remainingTime: remaining,
       buildDuration: (id, level) => runtime.durations.get(`${id}:${level}`),
+      buildingPlan:
+        runtime.mode === "world"
+          ? () =>
+              planBuildingDependencies({
+                state: runtime.state,
+                target: {
+                  id: runtime.selectedBuilding,
+                  level: runtime.state.buildings[runtime.selectedBuilding] + 1,
+                },
+                requirementsForLevel: runtime.adapter.getRequirementsForLevel,
+                buildingCost: runtime.adapter.getBuildingCost,
+                buildDuration: (id, level) =>
+                  runtime.durations.get(`${id}:${level}`),
+                constructionCapacity: runtime.adapter.getConstructionCapacity,
+              })
+          : null,
+      requestPlanDurations: (plan) => {
+        if (runtime.mode !== "world") return;
+        plan.durationKeys?.forEach((key) => {
+          const [id, level] = key.split(":");
+          world.requestBuildDuration(id, Number(level), MAX_BUILDING_LEVEL);
+        });
+      },
       requirements: (id) =>
         runtime.mode === "world"
           ? runtime.adapter.getRequirements(runtime.state, id)
@@ -354,13 +378,11 @@ function createController(runtime) {
       reducedMotion: runtime.reducedMotion,
     });
     bindGameActions(runtime.root, actions);
-    if (!runtime.state.construction?.pending) {
-      world.requestBuildDuration(
-        runtime.selectedBuilding,
-        runtime.state.buildings[runtime.selectedBuilding] + 1,
-        MAX_BUILDING_LEVEL,
-      );
-    }
+    world.requestBuildDuration(
+      runtime.selectedBuilding,
+      runtime.state.buildings[runtime.selectedBuilding] + 1,
+      MAX_BUILDING_LEVEL,
+    );
   };
   world = createWorldRuntime({
     runtime,
