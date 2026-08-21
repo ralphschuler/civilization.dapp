@@ -91,32 +91,6 @@ function tabs(activePanel, copy, variant = "desktop") {
     .join("");
 }
 
-function walletReviewDialog({ review, copy }) {
-  if (
-    !review ||
-    !["reviewing", "invalidated", "confirming", "pending"].includes(
-      review.status,
-    )
-  )
-    return "";
-  const unavailable = review.status === "invalidated";
-  const waiting = review.status === "confirming" || review.status === "pending";
-  const title = unavailable ? copy.reviewInvalidatedTitle : copy.reviewTitle;
-  const note = unavailable
-    ? copy.reviewInvalidated
-    : waiting
-      ? copy.reviewFinality
-      : copy.reviewNotice;
-  const actions = waiting
-    ? ""
-    : `<footer class="wallet-review-actions"><button type="button" data-cancel-wallet-review>${copy.reviewCancel}</button><button type="button" class="primary-action" data-confirm-wallet-review ${unavailable ? "disabled" : ""}>${copy.reviewConfirm}</button></footer>`;
-  return `<div class="settings-backdrop" aria-hidden="true"></div>
-    <section class="settings-dialog wallet-review-dialog" role="dialog" aria-modal="true" aria-labelledby="wallet-review-title">
-      <header class="settings-dialog__header"><h2 id="wallet-review-title">${title}</h2></header>
-      <div class="settings-dialog__body"><p>${note}</p><ul>${review.intent?.details.map((detail) => `<li>${escapeHtml(detail)}</li>`).join("") || ""}</ul>${actions}</div>
-    </section>`;
-}
-
 export function gameShell(ctx) {
   ctx = { copy: civilizationMessages(), ...ctx };
   const {
@@ -199,6 +173,6 @@ ${collectionStock}
 ${runtimeMode === "demo" ? `<button id="reset">${copy.demoReset}</button>` : ""}</footer>
       <nav class="mobile-hud" aria-label="${copy.quickAccess}">${mobileNavigation}</nav>
       <div data-game-settings-dialog></div>
-      ${walletReviewDialog({ review, copy })}
+      <div data-wallet-review-dialog></div>
     </section>`;
 }

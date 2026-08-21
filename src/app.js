@@ -7,6 +7,7 @@ import { ArmyPanel } from "./components/ArmyPanel";
 import { MarketPanel } from "./components/MarketPanel";
 import { RaidPanel } from "./components/RaidPanel";
 import { SettingsDialog } from "./components/SettingsDialog";
+import { WalletReviewDialog } from "./components/WalletReviewDialog";
 import { canRenderGameWorld } from "./world-gate.js";
 import {
   BUILDINGS,
@@ -259,6 +260,40 @@ function createController(runtime) {
       }),
     );
   };
+  const renderWalletReviewDialog = () => {
+    const walletReviewDialog = runtime.root?.querySelector(
+      "[data-wallet-review-dialog]",
+    );
+    if (!walletReviewDialog) return;
+    runtime.walletReviewDialogRoot ??= createRoot(walletReviewDialog);
+    const review = runtime.review.state();
+    if (
+      !["reviewing", "invalidated", "confirming", "pending"].includes(
+        review.status,
+      )
+    ) {
+      runtime.walletReviewDialogRoot.render(null);
+      return;
+    }
+    runtime.walletReviewDialogRoot.render(
+      createElement(WalletReviewDialog, {
+        copy: civilizationMessages(runtime.locale),
+        onCancel: cancelWalletReview,
+        onConfirm: actions.confirmReview,
+        review,
+      }),
+    );
+  };
+  const cancelWalletReview = () => {
+    actions.cancelReview();
+    // The imperative root is recreated when a review closes. Restore focus to
+    // the current panel's equivalent navigation control after that replacement.
+    requestAnimationFrame(() =>
+      runtime.root
+        ?.querySelector(`.command-tabs [data-panel="${runtime.activePanel}"]`)
+        ?.focus(),
+    );
+  };
   const panelContext = () => {
     const context = {
       state: runtime.state,
@@ -495,6 +530,8 @@ function createController(runtime) {
     runtime.raidPanelRoot = null;
     runtime.settingsDialogRoot?.unmount();
     runtime.settingsDialogRoot = null;
+    runtime.walletReviewDialogRoot?.unmount();
+    runtime.walletReviewDialogRoot = null;
     runtime.root.innerHTML = gameShell({
       state: runtime.state,
       runtimeMode: runtime.mode,
@@ -537,6 +574,9 @@ function createController(runtime) {
     // Settings is exclusively owned by React; imperative bindings do not
     // attach listeners inside this mount point.
     renderSettingsDialog();
+    // The wallet review keeps its frozen runtime intent and actions in a
+    // typed React modal; imperative bindings do not enter this mount point.
+    renderWalletReviewDialog();
     world.requestBuildDuration(
       runtime.selectedBuilding,
       runtime.state.buildings[runtime.selectedBuilding] + 1,
@@ -723,5 +763,6 @@ export function stopCivilizationApp() {
   // Calling unmount on its nested HUD root during that render races React.
   runtime.hudRoot = null;
   runtime.settingsDialogRoot = null;
+  runtime.walletReviewDialogRoot = null;
   runtime.state = null;
 }

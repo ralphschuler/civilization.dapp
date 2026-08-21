@@ -27,8 +27,6 @@ export function bindGameActions(root, actions) {
     actions.boost(value === undefined ? undefined : Number(value));
   });
   on("#prestige", actions.prestige);
-  on("[data-confirm-wallet-review]", actions.confirmReview);
-  on("[data-cancel-wallet-review]", actions.cancelReview);
   on("#reset", actions.reset);
   all("[data-map-building]", (event) =>
     actions.selectBuilding(event.currentTarget.dataset.mapBuilding),

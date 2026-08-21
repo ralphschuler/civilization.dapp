@@ -852,6 +852,41 @@ test("settings dialog is a typed React island with runtime-owned actions and key
   assert.match(hud, /<span aria-hidden="true">⚙<\/span>/);
 });
 
+test("wallet review dialog is a typed React island with frozen runtime actions and modal keyboard access", async () => {
+  const [app, shell, bindings, dialog] = await Promise.all([
+    readFile(new URL("../src/app.js", import.meta.url), "utf8"),
+    readFile(new URL("../src/game-ui/views/shell.js", import.meta.url), "utf8"),
+    readFile(new URL("../src/game-ui/bindings.js", import.meta.url), "utf8"),
+    readFile(
+      new URL("../src/components/WalletReviewDialog.tsx", import.meta.url),
+      "utf8",
+    ),
+  ]);
+
+  assert.match(shell, /<div data-wallet-review-dialog><\/div>/);
+  assert.doesNotMatch(shell, /function walletReviewDialog/);
+  assert.match(app, /import \{ WalletReviewDialog \}/);
+  assert.match(app, /walletReviewDialogRoot/);
+  assert.match(app, /createElement\(WalletReviewDialog/);
+  assert.match(app, /onCancel: cancelWalletReview/);
+  assert.match(app, /onConfirm: actions\.confirmReview/);
+  assert.match(app, /requestAnimationFrame\(\(\) =>/);
+  assert.match(app, /\.command-tabs \[data-panel=/);
+  assert.ok(
+    app.indexOf("bindGameActions(runtime.root, actions)") <
+      app.indexOf("renderWalletReviewDialog();"),
+  );
+  assert.doesNotMatch(bindings, /data-(?:confirm|cancel)-wallet-review/);
+  assert.match(dialog, /export type WalletReviewDialogProps/);
+  assert.match(dialog, /event\.key === "Escape"/);
+  assert.match(dialog, /event\.key !== "Tab"/);
+  assert.match(dialog, /data-confirm-wallet-review/);
+  assert.match(dialog, /data-cancel-wallet-review/);
+  assert.match(dialog, /aria-modal="true"/);
+  assert.match(dialog, /\.focus\(\)/);
+  assert.match(dialog, /disabled=\{unavailable\}/);
+});
+
 test("changing a quoted market draft invalidates stone x50 and cannot confirm it as wood x1", () => {
   const reviews = [];
   const invalidations = [];
