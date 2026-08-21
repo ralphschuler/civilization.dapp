@@ -28,25 +28,6 @@ function buildingSpot(id, ctx) {
     </button>`;
 }
 
-function tabs(activePanel, copy, variant = "desktop") {
-  return [
-    ["build", copy.build],
-    ["army", copy.army],
-    ["market", copy.market],
-    ["raid", copy.raid],
-  ]
-    .map(([id, label]) => {
-      const visibleLabel =
-        variant === "mobile" && id === "build"
-          ? copy.buildShort
-          : variant === "mobile" && id === "army"
-            ? copy.armyShort
-            : label;
-      return `<button type="button" data-panel="${id}" class="${activePanel === id ? "is-active" : ""}" aria-label="${label}" ${activePanel === id ? 'aria-current="page"' : ""}>${visibleLabel}</button>`;
-    })
-    .join("");
-}
-
 export function gameShell(ctx) {
   ctx = { copy: civilizationMessages(), ...ctx };
   const {
@@ -63,8 +44,6 @@ export function gameShell(ctx) {
     reducedMotion,
   } = ctx;
   const spots = BUILDING_IDS.map((id) => buildingSpot(id, ctx)).join("");
-  const navigation = tabs(activePanel, copy);
-  const mobileNavigation = tabs(activePanel, copy, "mobile");
   return `
     <section class="game-shell village-shell ${reducedMotion ? "motion-reduced" : ""}">
       <div data-game-shell-hud></div>
@@ -84,7 +63,7 @@ export function gameShell(ctx) {
           <div data-game-collection-status></div>
           <div class="map-buildings">
             ${spots}
-            <button class="map-building map-market ${activePanel === "market" ? "is-selected" : ""} ${assetFailed(assetResult, BUILDING_ASSETS.market) ? "has-asset-error" : ""}" data-panel="market" data-map-anchor="bottom-center" style="${mapBuildingAnchorStyle("market")}" aria-label="${copy.openMarket}" data-asset-container>
+            <button class="map-building map-market ${activePanel === "market" ? "is-selected" : ""} ${assetFailed(assetResult, BUILDING_ASSETS.market) ? "has-asset-error" : ""}" data-map-panel="market" data-map-anchor="bottom-center" style="${mapBuildingAnchorStyle("market")}" aria-label="${copy.openMarket}" data-asset-container>
 <img src="${BUILDING_ASSETS.market}" alt="" data-asset-fallback>
 <i class="asset-building-fallback" role="status">${copy.buildingAssetUnavailable(copy.buildingNames.market)}</i>
 <span>
@@ -96,7 +75,7 @@ export function gameShell(ctx) {
           <p class="map-feedback" aria-live="polite">${feedbackText(feedback)}</p>
         </section>
         <aside class="command-rail">
-<nav class="command-tabs" aria-label="${copy.villageActions}">${navigation}</nav>
+<div data-game-command-navigation-mount="desktop"></div>
 <section class="command-panel" id="game-command-panel">${panel}</section>
 </aside>
       </main>
@@ -106,7 +85,7 @@ export function gameShell(ctx) {
 </i> ${runtimeMode === "world" ? copy.gameAuthority : copy.demoStorage}</span>
 <span>${runtimeMode === "demo" ? copy.demoFooter(state.raids) : copy.worldFooter(state.prestigeCount)}</span>
 ${runtimeMode === "demo" ? `<button id="reset">${copy.demoReset}</button>` : ""}</footer>
-      <nav class="mobile-hud" aria-label="${copy.quickAccess}">${mobileNavigation}</nav>
+      <div data-game-command-navigation-mount="mobile"></div>
       <div data-game-settings-dialog></div>
       <div data-wallet-review-dialog></div>
     </section>`;

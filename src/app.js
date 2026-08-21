@@ -7,6 +7,7 @@ import { BuildPanel } from "./components/BuildPanel";
 import { ArmyPanel } from "./components/ArmyPanel";
 import { MarketPanel } from "./components/MarketPanel";
 import { RaidPanel } from "./components/RaidPanel";
+import { CommandNavigation } from "./components/CommandNavigation";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { WalletReviewDialog } from "./components/WalletReviewDialog";
 import { canRenderGameWorld } from "./world-gate.js";
@@ -112,6 +113,8 @@ function createRuntime(options) {
     assetState: "loading",
     assetResult: { failed: [] },
     hudRoot: null,
+    desktopNavigationRoot: null,
+    mobileNavigationRoot: null,
     collectionStatusRoot: null,
     buildPanelRoot: null,
     armyPanelRoot: null,
@@ -216,6 +219,36 @@ function createController(runtime) {
   };
 
   let world;
+  const renderNavigation = () => {
+    ["desktop", "mobile"].forEach((navigation) => {
+      const mount = runtime.root?.querySelector(
+        `[data-game-command-navigation-mount="${navigation}"]`,
+      );
+      if (!mount) return;
+      const rootKey =
+        navigation === "mobile"
+          ? "mobileNavigationRoot"
+          : "desktopNavigationRoot";
+      runtime[rootKey] ??= createRoot(mount);
+      runtime[rootKey].render(
+        createElement(CommandNavigation, {
+          activePanel: runtime.activePanel,
+          copy: civilizationMessages(runtime.locale),
+          mobile: navigation === "mobile",
+          onSelectPanel: (panel, selectedNavigation) => {
+            actions.selectPanel(panel);
+            requestAnimationFrame(() =>
+              runtime.root
+                ?.querySelector(
+                  `[data-game-command-navigation="${selectedNavigation}"] [data-command-panel="${panel}"]`,
+                )
+                ?.focus(),
+            );
+          },
+        }),
+      );
+    });
+  };
   const renderHud = () => {
     const hud = runtime.root?.querySelector("[data-game-shell-hud]");
     if (!hud) return;
@@ -313,7 +346,9 @@ function createController(runtime) {
     // the current panel's equivalent navigation control after that replacement.
     requestAnimationFrame(() =>
       runtime.root
-        ?.querySelector(`.command-tabs [data-panel="${runtime.activePanel}"]`)
+        ?.querySelector(
+          `[data-game-command-navigation="desktop"] [data-command-panel="${runtime.activePanel}"]`,
+        )
         ?.focus(),
     );
   };
@@ -535,6 +570,10 @@ function createController(runtime) {
     }
     runtime.hudRoot?.unmount();
     runtime.hudRoot = null;
+    runtime.desktopNavigationRoot?.unmount();
+    runtime.desktopNavigationRoot = null;
+    runtime.mobileNavigationRoot?.unmount();
+    runtime.mobileNavigationRoot = null;
     runtime.collectionStatusRoot?.unmount();
     runtime.collectionStatusRoot = null;
     runtime.buildPanelRoot?.unmount();
@@ -576,6 +615,7 @@ function createController(runtime) {
     });
     renderHud();
     bindGameActions(runtime.root, actions);
+    renderNavigation();
     // The collect button is React-owned and deliberately excluded from the
     // imperative binding pass.
     renderCollectionStatus();
@@ -763,6 +803,8 @@ export function stopCivilizationApp() {
   // The parent React tree is removing the imperative root at this point.
   // Calling unmount on its nested HUD root during that render races React.
   runtime.hudRoot = null;
+  runtime.desktopNavigationRoot = null;
+  runtime.mobileNavigationRoot = null;
   runtime.collectionStatusRoot = null;
   runtime.settingsDialogRoot = null;
   runtime.walletReviewDialogRoot = null;

@@ -30,6 +30,7 @@ not write into React-owned nodes.
 CivilizationClient
 ├─ imperative game root (map, panels, ticks, bindings)
 │  ├─ GameShellHud (typed React HUD island)
+│  ├─ CommandNavigation (typed React desktop and mobile navigation islands)
 │  ├─ BuildPanel (typed React build island)
 │  ├─ ArmyPanel (typed React army island)
 │  ├─ MarketPanel (typed React market island)
@@ -59,3 +60,12 @@ typed `CollectionStatus` island. Runtime state remains the source for the
 collection lock/countdown, busy state, field stock, and gather callback. Each
 live tick re-renders the island; the former imperative collection tick writer
 is removed.
+
+The tenth slice moves command tabs and mobile quick access into the typed
+`CommandNavigation` island. The imperative shell provides one stable mount for
+each responsive layout, while the runtime remains the only source for the
+active panel and action feedback. Both mounts call the same runtime
+`selectPanel` action; React owns the semantic labelled controls and the
+post-selection focus restoration, so the former navigation string rendering and
+imperative navigation listener are removed. Map market selection remains an
+imperative map action.
