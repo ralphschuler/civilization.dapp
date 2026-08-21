@@ -2,6 +2,7 @@ import "./styles.css";
 import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { GameShellHud } from "./components/GameShellHud";
+import { CollectionStatus } from "./components/CollectionStatus";
 import { BuildPanel } from "./components/BuildPanel";
 import { ArmyPanel } from "./components/ArmyPanel";
 import { MarketPanel } from "./components/MarketPanel";
@@ -39,7 +40,6 @@ import { createGameActions } from "./game-actions.js";
 import { createWorldRuntime } from "./game-world-runtime.js";
 import { createWalletReview } from "./world-game/review.js";
 import { planBuildingDependencies } from "./world-game/build-planner.js";
-import { refreshGameTick } from "./game-tick.js";
 import {
   civilizationMessages,
   formatCivilizationNumber,
@@ -112,6 +112,7 @@ function createRuntime(options) {
     assetState: "loading",
     assetResult: { failed: [] },
     hudRoot: null,
+    collectionStatusRoot: null,
     buildPanelRoot: null,
     armyPanelRoot: null,
     marketPanelRoot: null,
@@ -234,6 +235,28 @@ function createController(runtime) {
         tokens: TOKEN_REGISTRY,
         worldApp: runtime.worldApp,
         worldBadge: runtime.worldBadge,
+      }),
+    );
+  };
+  const renderCollectionStatus = () => {
+    const mount = runtime.root?.querySelector("[data-game-collection-status]");
+    if (!mount) return;
+    runtime.collectionStatusRoot ??= createRoot(mount);
+    const displayState =
+      runtime.mode === "world"
+        ? runtime.adapter.projectState(runtime.state, performance.now())
+        : runtime.state;
+    runtime.collectionStatusRoot.render(
+      createElement(CollectionStatus, {
+        assetResult: runtime.assetResult,
+        busy: runtime.busy,
+        collection: collection(),
+        copy: civilizationMessages(runtime.locale),
+        locale: runtime.locale,
+        onGather: actions.gather,
+        resourceDefs: RESOURCE_DEFS,
+        resourceFormat,
+        unclaimed: displayState.unclaimed,
       }),
     );
   };
@@ -510,16 +533,10 @@ function createController(runtime) {
     if (runtime.mode === "demo") {
       settle(runtime.state);
     }
-    const displayState =
-      runtime.mode === "world"
-        ? runtime.adapter.projectState(runtime.state, performance.now())
-        : runtime.state;
-    const readyToClaim = Object.values(displayState.unclaimed).reduce(
-      (total, value) => total + value,
-      0,
-    );
     runtime.hudRoot?.unmount();
     runtime.hudRoot = null;
+    runtime.collectionStatusRoot?.unmount();
+    runtime.collectionStatusRoot = null;
     runtime.buildPanelRoot?.unmount();
     runtime.buildPanelRoot = null;
     runtime.armyPanelRoot?.unmount();
@@ -543,9 +560,6 @@ function createController(runtime) {
       panel: panel(),
       production: production(),
       capacity: capacity(),
-      displayState,
-      collection: collection(),
-      readyToClaim,
       resourceDefs: RESOURCE_DEFS,
       tokens: TOKEN_REGISTRY,
       format,
@@ -562,6 +576,9 @@ function createController(runtime) {
     });
     renderHud();
     bindGameActions(runtime.root, actions);
+    // The collect button is React-owned and deliberately excluded from the
+    // imperative binding pass.
+    renderCollectionStatus();
     // Keep the BuildPanel outside the imperative binding pass: its controls
     // are owned exclusively by React.
     renderBuildPanel();
@@ -653,24 +670,8 @@ function createController(runtime) {
     if (!runtime.state || !isCurrent(runtime.token)) {
       return;
     }
-    const displayState =
-      runtime.mode === "world"
-        ? runtime.adapter.projectState(runtime.state, performance.now())
-        : runtime.state;
-    refreshGameTick({
-      root: runtime.root,
-      state: runtime.state,
-      busy: runtime.busy,
-      mode: runtime.mode,
-      production: production(),
-      displayState,
-      collection: collection(),
-      resourceFormat,
-      remainingTime: remaining,
-      copy: civilizationMessages(runtime.locale),
-      locale: runtime.locale,
-    });
     renderHud();
+    renderCollectionStatus();
     renderBuildPanel();
     renderArmyPanel();
     renderMarketPanel();
@@ -762,6 +763,7 @@ export function stopCivilizationApp() {
   // The parent React tree is removing the imperative root at this point.
   // Calling unmount on its nested HUD root during that render races React.
   runtime.hudRoot = null;
+  runtime.collectionStatusRoot = null;
   runtime.settingsDialogRoot = null;
   runtime.walletReviewDialogRoot = null;
   runtime.state = null;

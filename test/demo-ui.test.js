@@ -30,7 +30,6 @@ import { raidPanel } from "../src/game-ui/views/raid.js";
 import { createWorldRuntime } from "../src/game-world-runtime.js";
 import { createGameActions } from "../src/game-actions.js";
 import { createInitialState } from "../src/game.js";
-import { refreshGameTick } from "../src/game-tick.js";
 import { civilizationMessages } from "../src/lib/civilization-locale.ts";
 import { readFile } from "node:fs/promises";
 
@@ -212,7 +211,7 @@ test("shell rendering receives explicit state and no controller callbacks", () =
   assert.match(html, /id="game-command-panel"/);
   assert.match(html, /<p>panel<\/p>/);
   assert.match(html, /asset-loading/);
-  assert.match(html, /id="gather"/);
+  assert.match(html, /<div data-game-collection-status><\/div>/);
   assert.match(html, /<div data-game-shell-hud><\/div>/);
   assert.match(html, /<div data-game-settings-dialog><\/div>/);
   assert.doesNotMatch(html, /settings-wallet-address/);
@@ -309,11 +308,9 @@ test("failed resource and building sprites retain visible accessible fallbacks",
     },
   });
   assert.match(html, /map-townhall[^>]*has-asset-error/);
-  assert.match(html, /collection-resource has-asset-error/);
-  assert.match(html, /Holz-Symbol nicht verfügbar/);
   assert.match(html, /Rathaus-Symbol nicht verfügbar/);
   assert.match(html, /role="status"/);
-  assert.match(html, /id="gather"/);
+  assert.match(html, /<div data-game-collection-status><\/div>/);
 });
 
 test("imperative shell uses the selected locale for navigation and dynamic claim values", () => {
@@ -349,8 +346,8 @@ test("imperative shell uses the selected locale for navigation and dynamic claim
     copy: civilizationMessages("en-US"),
   });
   assert.match(html, /aria-label="Village actions"/);
-  assert.match(html, /1,234\.5 collect/);
   assert.match(html, /data-game-shell-hud/);
+  assert.match(html, /data-game-collection-status/);
 });
 
 test("market panel is a stable React mount point", () => {
@@ -504,7 +501,7 @@ test("map buildings use normalized bottom-centre anchors across renders and atla
   assert.doesNotMatch(css, /--ground-anchor/);
 });
 
-test("imperative shell omits the React HUD while collect status exposes field stock once", () => {
+test("imperative shell provides stable React mounts for HUD and collection status", () => {
   const state = {
     resources: { wood: 2_410_426_546, clay: 1, stone: 1, gold: 0 },
     unclaimed: { wood: 4, clay: 0, stone: 0, gold: 0 },
@@ -557,21 +554,12 @@ test("imperative shell omits the React HUD while collect status exposes field st
   });
 
   assert.match(demo, /<div data-game-shell-hud><\/div>/);
+  assert.match(demo, /<div data-game-collection-status><\/div>/);
   assert.doesNotMatch(demo, /data-resource="wood"/);
   assert.doesNotMatch(demo, /data-resource-field|Feldbestand/);
-  assert.match(
-    demo,
-    /class="collection-resources" aria-hidden="true">[\s\S]*data-collection-resource="wood"[\s\S]*<img [^>]*alt=""[^>]*>[\s\S]*data-collection-resource-value>4<\/b>/,
-  );
-  assert.match(
-    demo,
-    /Feldressourcen: Holz <span data-collection-resource-accessible="wood">4<\/span>; Gold <span data-collection-resource-accessible="gold">0<\/span>\./,
-  );
-  assert.match(
-    demo,
-    /data-ready-to-claim aria-hidden="true">4 sammeln<\/b>[\s\S]*data-ready-to-claim-accessible>4 sammeln<\/span>/,
-  );
+  assert.doesNotMatch(demo, /data-collection-resource|data-ready-to-claim/);
   assert.match(world, /<div data-game-shell-hud><\/div>/);
+  assert.match(world, /<div data-game-collection-status><\/div>/);
 });
 
 test("mobile HUD keeps all four resources in one bounded row", async () => {
@@ -722,12 +710,16 @@ test("full construction capacity disables only a new start and states the exact 
   assert.equal(panel, "<div data-game-build-panel></div>");
 });
 
-test("app lifecycle keeps React panel controls out of imperative bindings and rerenders them on ticks", async () => {
-  const [app, armyPanel, marketPanel, raidPanel, bindings, tick] =
+test("app lifecycle keeps React island controls out of imperative bindings and rerenders them on ticks", async () => {
+  const [app, armyPanel, collectionStatus, marketPanel, raidPanel, bindings] =
     await Promise.all([
       readFile(new URL("../src/app.js", import.meta.url), "utf8"),
       readFile(
         new URL("../src/components/ArmyPanel.tsx", import.meta.url),
+        "utf8",
+      ),
+      readFile(
+        new URL("../src/components/CollectionStatus.tsx", import.meta.url),
         "utf8",
       ),
       readFile(
@@ -739,7 +731,6 @@ test("app lifecycle keeps React panel controls out of imperative bindings and re
         "utf8",
       ),
       readFile(new URL("../src/game-ui/bindings.js", import.meta.url), "utf8"),
-      readFile(new URL("../src/game-tick.js", import.meta.url), "utf8"),
     ]);
   assert.match(app, /export function startCivilizationApp/);
   assert.match(app, /export function stopCivilizationApp/);
@@ -749,6 +740,10 @@ test("app lifecycle keeps React panel controls out of imperative bindings and re
   assert.match(app, /game-ui/);
   assert.doesNotMatch(app, /isConnected/);
   assert.match(bindings, /export function bindGameActions/);
+  assert.ok(
+    app.indexOf("bindGameActions(runtime.root, actions)") <
+      app.indexOf("renderCollectionStatus();"),
+  );
   assert.ok(
     app.indexOf("bindGameActions(runtime.root, actions)") <
       app.indexOf("renderBuildPanel();"),
@@ -765,32 +760,21 @@ test("app lifecycle keeps React panel controls out of imperative bindings and re
     app.indexOf("bindGameActions(runtime.root, actions)") <
       app.indexOf("renderRaidPanel();"),
   );
-  const tickRefresh = app.slice(app.indexOf("const refreshTickValues"));
-  assert.ok(
-    tickRefresh.indexOf("refreshGameTick({") <
-      tickRefresh.indexOf("renderBuildPanel();"),
-  );
-  assert.ok(
-    tickRefresh.indexOf("refreshGameTick({") <
-      tickRefresh.indexOf("renderArmyPanel();"),
-  );
-  assert.ok(
-    tickRefresh.indexOf("refreshGameTick({") <
-      tickRefresh.indexOf("renderMarketPanel();"),
-  );
-  assert.ok(
-    tickRefresh.indexOf("refreshGameTick({") <
-      tickRefresh.indexOf("renderRaidPanel();"),
-  );
   assert.doesNotMatch(bindings, /data-train/);
+  assert.doesNotMatch(bindings, /#gather/);
   assert.doesNotMatch(
     bindings,
     /market-(?:swap|quote|buy|sell|resource|amount)/,
   );
   assert.doesNotMatch(bindings, /(?:send|resolve)-raid|pick-raid-contact/);
-  assert.doesNotMatch(tick, /data-construction-countdown/);
-  assert.doesNotMatch(tick, /data-complete-upgrade/);
-  assert.doesNotMatch(tick, /data-boost-construction/);
+  assert.match(app, /collectionStatusRoot\?\.unmount\(\)/);
+  assert.match(app, /renderCollectionStatus\(\);/);
+  assert.match(collectionStatus, /export type CollectionStatusProps/);
+  assert.match(app, /onGather: actions\.gather/);
+  assert.match(collectionStatus, /disabled=\{disabled\}/);
+  assert.match(collectionStatus, /data-ready-to-claim-accessible/);
+  assert.match(collectionStatus, /data-collection-resource-accessible/);
+  assert.doesNotMatch(app, /refreshGameTick/);
   assert.match(armyPanel, /data-asset-container/);
   assert.match(armyPanel, /onError=/);
   assert.match(armyPanel, /classList\.add\("has-asset-error"\)/);
@@ -800,7 +784,6 @@ test("app lifecycle keeps React panel controls out of imperative bindings and re
   assert.match(raidPanel, /onPickOpponent/);
   assert.match(raidPanel, /targetAddress/);
   assert.match(raidPanel, /data-raid-countdown/);
-  assert.doesNotMatch(tick, /data-raid-countdown/);
 });
 
 test("settings dialog is a typed React island with runtime-owned actions and keyboard lifecycle", async () => {
@@ -1198,42 +1181,6 @@ test("old mount callbacks cannot update the replacement runtime", async () => {
   assert.equal(runtime.durations.get("townhall:2"), null);
 });
 
-test("second tick updates collect stock and claim controls", () => {
-  const nodes = new Map();
-  const add = (selector, node = {}) => {
-    nodes.set(selector, node);
-    return node;
-  };
-  const claimStatus = {};
-  const gather = add("#gather", { querySelector: () => claimStatus });
-  const collectionValue = add(
-    '[data-collection-resource="wood"] [data-collection-resource-value]',
-    {},
-  );
-  const accessibleCollectionValue = add(
-    '[data-collection-resource-accessible="wood"]',
-    {},
-  );
-  const claim = add("[data-ready-to-claim]", {});
-  const accessibleClaim = add("[data-ready-to-claim-accessible]", {});
-  const root = { querySelector: (selector) => nodes.get(selector) || null };
-  refreshGameTick({
-    root,
-    busy: false,
-    mode: "world",
-    production: { wood: 35_100 },
-    displayState: { unclaimed: { wood: 2_410_426_546 } },
-    collection: { locked: false, detail: "FELD" },
-    resourceFormat: String,
-  });
-  assert.equal(collectionValue.textContent, "2,4Mrd");
-  assert.equal(accessibleCollectionValue.textContent, "2410426546");
-  assert.equal(claim.textContent, "2410426546 sammeln");
-  assert.equal(accessibleClaim.textContent, "2410426546 sammeln");
-  assert.equal(claimStatus.textContent, "FELD");
-  assert.equal(gather.disabled, false);
-});
-
 test("boost UI is clickable at exactly one hour and explains guarded states", () => {
   const context = (remainingSeconds, busy = false) => ({
     state: {
@@ -1287,76 +1234,4 @@ test("boost UI is clickable at exactly one hour and explains guarded states", ()
     nextBuildingProduction: () => ({}),
   });
   assert.equal(pending, "<div data-game-build-panel></div>");
-});
-
-test("ticks update collect stock without writing React-owned production nodes", () => {
-  const nodes = new Map();
-  const add = (selector, node = {}) => nodes.set(selector, node);
-  const collectionValue = {};
-  const accessibleCollectionValue = {};
-  add(
-    '[data-collection-resource="gold"] [data-collection-resource-value]',
-    collectionValue,
-  );
-  add(
-    '[data-collection-resource-accessible="gold"]',
-    accessibleCollectionValue,
-  );
-  const root = { querySelector: (selector) => nodes.get(selector) || null };
-  const tick = (rate, stock) =>
-    refreshGameTick({
-      root,
-      busy: false,
-      mode: "demo",
-      production: { gold: rate },
-      displayState: { unclaimed: { gold: stock } },
-      collection: { locked: false, detail: "FELD" },
-      resourceFormat: String,
-      remainingTime: () => 0,
-      state: {},
-    });
-
-  tick(0, 3);
-  assert.equal(collectionValue.textContent, "3");
-  tick(1, 4);
-  assert.equal(collectionValue.textContent, "4");
-  tick(0, 5);
-  assert.equal(collectionValue.textContent, "5");
-  tick(Number.NaN, 6);
-  assert.equal(collectionValue.textContent, "6");
-
-  tick(-1, 7);
-  tick(Infinity, 8);
-});
-
-test("ticks update collect stock without a matching production entry", () => {
-  const nodes = new Map();
-  const add = (selector, node = {}) => {
-    nodes.set(selector, node);
-    return node;
-  };
-  const collectionValue = add(
-    '[data-collection-resource="clay"] [data-collection-resource-value]',
-    {},
-  );
-  const accessibleCollectionValue = add(
-    '[data-collection-resource-accessible="clay"]',
-    {},
-  );
-  const root = { querySelector: (selector) => nodes.get(selector) || null };
-
-  refreshGameTick({
-    root,
-    busy: false,
-    mode: "demo",
-    production: {},
-    displayState: { unclaimed: { clay: 9 } },
-    collection: { locked: false, detail: "FELD" },
-    resourceFormat: String,
-    remainingTime: () => 0,
-    state: {},
-  });
-
-  assert.equal(collectionValue.textContent, "9");
-  assert.equal(accessibleCollectionValue.textContent, "9");
 });

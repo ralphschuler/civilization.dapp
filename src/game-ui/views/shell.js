@@ -1,11 +1,6 @@
-import {
-  BUILDING_ASSETS,
-  BUILDING_IDS,
-  CITY_MAPS,
-  RESOURCE_ASSETS,
-} from "../constants.js";
+import { BUILDING_ASSETS, BUILDING_IDS, CITY_MAPS } from "../constants.js";
 import { mapBuildingAnchorStyle } from "../map-coordinates.js";
-import { compactResourceValue, escapeHtml } from "../helpers.js";
+import { escapeHtml } from "../helpers.js";
 import { civilizationMessages } from "../../lib/civilization-locale.ts";
 // Game feedback can include provider, contract, or contact supplied text.
 // Keep this as the sole markup boundary for the imperative game shell.
@@ -15,45 +10,6 @@ function feedbackText(feedback) {
 
 function assetFailed(assetResult, src) {
   return assetResult?.failed.includes(src);
-}
-
-function collectionResources({
-  resourceDefs,
-  displayState,
-  resourceFormat,
-  copy,
-  locale,
-  assetResult,
-}) {
-  const resources = Object.entries(resourceDefs).map(([id, definition]) => {
-    const value = Number.isFinite(displayState.unclaimed?.[id])
-      ? displayState.unclaimed[id]
-      : 0;
-    return { id, label: copy.resourceNames[id] || definition.label, value };
-  });
-  const compactValue = (value) =>
-    compactResourceValue(value, resourceFormat, locale);
-  return `
-    <span class="collection-resources" aria-hidden="true">
-      ${resources
-        .map(
-          ({ id, label, value }) => `
-            <span class="collection-resource ${assetFailed(assetResult, RESOURCE_ASSETS[id]) ? "has-asset-error" : ""}" data-collection-resource="${id}" data-asset-container>
-              <img src="${RESOURCE_ASSETS[id]}" alt="" aria-hidden="true" data-asset-fallback>
-              <span class="asset-icon-fallback" role="status">${copy.resourceAssetUnavailable(label)}</span>
-              <b data-collection-resource-value>${compactValue(value)}</b>
-            </span>`,
-        )
-        .join("")}
-    </span>
-    <span class="collection-accessibility">
-      ${copy.fieldResources}: ${resources
-        .map(
-          ({ id, label, value }) =>
-            `${label} <span data-collection-resource-accessible="${id}">${resourceFormat(value)}</span>`,
-        )
-        .join("; ")}.
-    </span>`;
 }
 
 function buildingSpot(id, ctx) {
@@ -100,30 +56,14 @@ export function gameShell(ctx) {
     activePanel,
     panel,
     capacity,
-    displayState,
-    collection,
-    readyToClaim,
-    resourceDefs,
     format,
-    resourceFormat,
-    busy,
     copy,
-    locale,
     assetResult,
     assetsLoading,
     reducedMotion,
-    review,
   } = ctx;
   const spots = BUILDING_IDS.map((id) => buildingSpot(id, ctx)).join("");
   const navigation = tabs(activePanel, copy);
-  const collectionStock = collectionResources({
-    resourceDefs,
-    displayState,
-    resourceFormat,
-    copy,
-    locale,
-    assetResult,
-  });
   const mobileNavigation = tabs(activePanel, copy, "mobile");
   return `
     <section class="game-shell village-shell ${reducedMotion ? "motion-reduced" : ""}">
@@ -141,12 +81,7 @@ export function gameShell(ctx) {
 <h1>${copy.yourVillage}</h1>
 <span>${copy.buildingNames.townhall} ${state.buildings.townhall} · ${copy.buildingNames.warehouse} ${format(capacity)}${runtimeMode === "world" ? copy.mapHead(state.prestigeCount) : ""}</span>
 </div>
-          <button class="collect-button" id="gather" ${collection.locked || busy ? "disabled" : ""}>
-<span data-collection-status>${collection.detail}</span>
-<b data-ready-to-claim aria-hidden="true">${collection.locked ? collection.label : `${resourceFormat(readyToClaim)} ${copy.collect}`}</b>
-${collectionStock}
-<span class="collection-accessibility" data-ready-to-claim-accessible>${collection.locked ? collection.label : `${resourceFormat(readyToClaim)} ${copy.collect}`}</span>
-</button>
+          <div data-game-collection-status></div>
           <div class="map-buildings">
             ${spots}
             <button class="map-building map-market ${activePanel === "market" ? "is-selected" : ""} ${assetFailed(assetResult, BUILDING_ASSETS.market) ? "has-asset-error" : ""}" data-panel="market" data-map-anchor="bottom-center" style="${mapBuildingAnchorStyle("market")}" aria-label="${copy.openMarket}" data-asset-container>
