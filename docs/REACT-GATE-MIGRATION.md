@@ -20,8 +20,8 @@ market draft, quote, and revision. Any resource, direction, or amount change
 invalidates the quote, and an async quote is accepted only when it still matches
 the current draft.
 
-The imperative shell still owns the map, collection status, the wallet-review
-dialog, ticks, and game actions. The sixth slice moves Raid-panel content into the typed
+The imperative shell still owns the map, collection status, ticks, and game
+actions. The sixth slice moves Raid-panel content into the typed
 `RaidPanel` island. The runtime owns the address/target and troop draft, while
 React owns its controlled controls, report, busy states, and march countdown.
 Tick updates re-render every React island from existing runtime state; they do
@@ -29,13 +29,14 @@ not write into React-owned nodes.
 
 ```
 CivilizationClient
-├─ imperative game root (map, panels, review dialog, ticks, bindings)
+├─ imperative game root (map, panels, ticks, bindings)
 │  ├─ GameShellHud (typed React HUD island)
 │  ├─ BuildPanel (typed React build island)
 │  ├─ ArmyPanel (typed React army island)
 │  ├─ MarketPanel (typed React market island)
 │  ├─ RaidPanel (typed React raid island)
-│  └─ SettingsDialog (typed React dialog island)
+│  ├─ SettingsDialog (typed React dialog island)
+│  └─ WalletReviewDialog (typed React dialog island)
 └─ CivilizationRuntimeGate (access and runtime feedback)
 ```
 
@@ -46,5 +47,10 @@ and logout action. React owns clipboard feedback, pending logout UI, initial
 focus, Escape/backdrop close, and the dialog focus trap. The HUD trigger is an
 icon-only, labelled 44px control rendered by `GameShellHud`.
 
-The review dialog remains imperative. Each slice retains the runtime adapter
-boundary and keyboard behavior before moving to the next one.
+The eighth slice moves the wallet-review dialog into the typed
+`WalletReviewDialog` island. The runtime-owned, frozen review intent remains
+the only action source; React renders its details and confirm/cancel controls.
+It preserves the non-dismissable backdrop, focuses the modal action on open,
+traps Tab navigation, restores focus to the active panel navigation after
+cancel, and cancels a review on Escape when it is not waiting for wallet or
+chain finality.
