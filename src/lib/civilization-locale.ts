@@ -105,6 +105,8 @@ const copy = {
       `${name}-Symbol nicht verfügbar. Die Gebäudesteuerung bleibt nutzbar.`,
     resourceAssetUnavailable: (name: string) =>
       `${name}-Symbol nicht verfügbar.`,
+    troopAssetUnavailable: (name: string) =>
+      `${name}-Symbol nicht verfügbar. Die Armeesteuerung bleibt nutzbar.`,
     resourceNames: { wood: "Holz", clay: "Lehm", stone: "Stein", gold: "Gold" },
     buildingNames: {
       townhall: "Rathaus",
@@ -493,6 +495,8 @@ const copy = {
     buildingAssetUnavailable: (name: string) =>
       `${name} symbol unavailable. Building controls remain available.`,
     resourceAssetUnavailable: (name: string) => `${name} symbol unavailable.`,
+    troopAssetUnavailable: (name: string) =>
+      `${name} symbol unavailable. Army controls remain available.`,
     resourceNames: { wood: "Wood", clay: "Clay", stone: "Stone", gold: "Gold" },
     buildingNames: {
       townhall: "Town hall",

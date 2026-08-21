@@ -439,8 +439,8 @@ test("all imperative game panels render catalog copy for German and English", ()
   const english = panelContext("en-US");
   assert.equal(buildPanel(german), "<div data-game-build-panel></div>");
   assert.equal(buildPanel(english), "<div data-game-build-panel></div>");
-  assert.match(armyPanel(german), /Armee ausbilden/);
-  assert.match(armyPanel(english), /Train army/);
+  assert.equal(armyPanel(german), "<div data-game-army-panel></div>");
+  assert.equal(armyPanel(english), "<div data-game-army-panel></div>");
   assert.match(raidPanel(german), /Marsch planen/);
   assert.match(raidPanel(english), /Plan march/);
   assert.match(marketPanel(german), /Rohstoffe handeln/);
@@ -766,9 +766,13 @@ test("full construction capacity disables only a new start and states the exact 
   assert.equal(panel, "<div data-game-build-panel></div>");
 });
 
-test("app lifecycle binds non-React controls before mounting and ticking the BuildPanel", async () => {
-  const [app, bindings, tick] = await Promise.all([
+test("app lifecycle keeps React panel controls out of imperative bindings and rerenders them on ticks", async () => {
+  const [app, armyPanel, bindings, tick] = await Promise.all([
     readFile(new URL("../src/app.js", import.meta.url), "utf8"),
+    readFile(
+      new URL("../src/components/ArmyPanel.tsx", import.meta.url),
+      "utf8",
+    ),
     readFile(new URL("../src/game-ui/bindings.js", import.meta.url), "utf8"),
     readFile(new URL("../src/game-tick.js", import.meta.url), "utf8"),
   ]);
@@ -784,14 +788,27 @@ test("app lifecycle binds non-React controls before mounting and ticking the Bui
     app.indexOf("bindGameActions(runtime.root, actions)") <
       app.indexOf("renderBuildPanel();"),
   );
+  assert.ok(
+    app.indexOf("bindGameActions(runtime.root, actions)") <
+      app.indexOf("renderArmyPanel();"),
+  );
   const tickRefresh = app.slice(app.indexOf("const refreshTickValues"));
   assert.ok(
     tickRefresh.indexOf("refreshGameTick({") <
       tickRefresh.indexOf("renderBuildPanel();"),
   );
+  assert.ok(
+    tickRefresh.indexOf("refreshGameTick({") <
+      tickRefresh.indexOf("renderArmyPanel();"),
+  );
+  assert.doesNotMatch(bindings, /data-train/);
   assert.doesNotMatch(tick, /data-construction-countdown/);
   assert.doesNotMatch(tick, /data-complete-upgrade/);
   assert.doesNotMatch(tick, /data-boost-construction/);
+  assert.match(armyPanel, /data-asset-container/);
+  assert.match(armyPanel, /onError=/);
+  assert.match(armyPanel, /classList\.add\("has-asset-error"\)/);
+  assert.match(armyPanel, /asset-building-fallback" role="status"/);
 });
 
 test("game action feedback follows the active locale and formats dynamic values", () => {

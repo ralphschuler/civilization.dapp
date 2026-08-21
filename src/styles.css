@@ -834,6 +834,16 @@ button {
   object-position: bottom;
   filter: drop-shadow(0 0.2rem 0.25rem #0009);
 }
+.troop-card.has-asset-error > img {
+  display: none;
+}
+.troop-card.has-asset-error > .asset-building-fallback {
+  display: grid;
+  grid-column: 1;
+  grid-row: 1;
+  width: 3rem;
+  height: 3.7rem;
+}
 .troop-card b,
 .troop-card small,
 .troop-card em {
