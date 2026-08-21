@@ -100,8 +100,8 @@ test("game area navigation announces its current area, keeps keyboard focus, and
     (page.viewportSize()?.width ?? 0) <= 960
       ? mobileNavigation
       : desktopNavigation;
-  const buildAction = navigation.locator('[data-panel="build"]');
-  const marketAction = navigation.locator('[data-panel="market"]');
+  const buildAction = navigation.locator('[data-command-panel="build"]');
+  const marketAction = navigation.locator('[data-command-panel="market"]');
 
   await expect(buildAction).toHaveAttribute("aria-current", "page");
   await marketAction.press("Enter");
