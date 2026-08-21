@@ -6,6 +6,7 @@ import { BuildPanel } from "./components/BuildPanel";
 import { ArmyPanel } from "./components/ArmyPanel";
 import { MarketPanel } from "./components/MarketPanel";
 import { RaidPanel } from "./components/RaidPanel";
+import { SettingsDialog } from "./components/SettingsDialog";
 import { canRenderGameWorld } from "./world-gate.js";
 import {
   BUILDINGS,
@@ -114,6 +115,7 @@ function createRuntime(options) {
     armyPanelRoot: null,
     marketPanelRoot: null,
     raidPanelRoot: null,
+    settingsDialogRoot: null,
   };
 }
 
@@ -231,6 +233,29 @@ function createController(runtime) {
         tokens: TOKEN_REGISTRY,
         worldApp: runtime.worldApp,
         worldBadge: runtime.worldBadge,
+      }),
+    );
+  };
+  const renderSettingsDialog = () => {
+    const settingsDialog = runtime.root?.querySelector(
+      "[data-game-settings-dialog]",
+    );
+    if (!settingsDialog) return;
+    runtime.settingsDialogRoot ??= createRoot(settingsDialog);
+    if (!runtime.settingsOpen) {
+      runtime.settingsDialogRoot.render(null);
+      return;
+    }
+    runtime.settingsDialogRoot.render(
+      createElement(SettingsDialog, {
+        copy: civilizationMessages(runtime.locale),
+        locale: runtime.locale,
+        onChangeLocale: actions.changeLocale,
+        onClose: actions.closeSettings,
+        onLogout: actions.logout,
+        onSetReducedMotion: actions.setReducedMotion,
+        reducedMotion: runtime.reducedMotion,
+        walletAddress: runtime.walletAddress,
       }),
     );
   };
@@ -468,6 +493,8 @@ function createController(runtime) {
     runtime.marketPanelRoot = null;
     runtime.raidPanelRoot?.unmount();
     runtime.raidPanelRoot = null;
+    runtime.settingsDialogRoot?.unmount();
+    runtime.settingsDialogRoot = null;
     runtime.root.innerHTML = gameShell({
       state: runtime.state,
       runtimeMode: runtime.mode,
@@ -494,8 +521,6 @@ function createController(runtime) {
       locale: runtime.locale,
       assetResult: runtime.assetResult,
       assetsLoading: runtime.assetState === "loading",
-      walletAddress: runtime.walletAddress,
-      settingsOpen: runtime.settingsOpen,
       reducedMotion: runtime.reducedMotion,
     });
     renderHud();
@@ -509,6 +534,9 @@ function createController(runtime) {
     renderMarketPanel();
     // Raid inputs and march status are exclusively React-owned.
     renderRaidPanel();
+    // Settings is exclusively owned by React; imperative bindings do not
+    // attach listeners inside this mount point.
+    renderSettingsDialog();
     world.requestBuildDuration(
       runtime.selectedBuilding,
       runtime.state.buildings[runtime.selectedBuilding] + 1,
@@ -694,5 +722,6 @@ export function stopCivilizationApp() {
   // The parent React tree is removing the imperative root at this point.
   // Calling unmount on its nested HUD root during that render races React.
   runtime.hudRoot = null;
+  runtime.settingsDialogRoot = null;
   runtime.state = null;
 }
