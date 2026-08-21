@@ -354,36 +354,8 @@ test("imperative shell uses the selected locale for navigation and dynamic claim
   assert.match(html, /data-game-shell-hud/);
 });
 
-test("World market UI requires a live on-chain quote and exposes fee and liquidity", () => {
-  const initial = marketPanel({
-    runtimeMode: "world",
-    tokens: {},
-    marketQuote: null,
-    busy: false,
-  });
-  assert.match(initial, /Live-Quote laden/);
-  assert.match(initial, /keine P2P-Orders/);
-  assert.doesNotMatch(initial, /Lokale Demo-Buchung/);
-  const quoted = marketPanel({
-    runtimeMode: "world",
-    tokens: {},
-    busy: false,
-    marketQuote: {
-      resource: "wood",
-      amount: 2,
-      buyGoldIn: 203n,
-      buyFee: 3n,
-      sellGoldOut: 197n,
-      sellFee: 3n,
-      inventory: 9n,
-      reserve: 500n,
-      deadline: 1234,
-    },
-  });
-  assert.match(quoted, /Gebühr 3 Wei/);
-  assert.match(quoted, /Inventar: 9/);
-  assert.match(quoted, /CGOLD-Reserve: 500/);
-  assert.match(quoted, /Kaufen \(max\. Quote\)/);
+test("market panel is a stable React mount point", () => {
+  assert.equal(marketPanel(), "<div data-game-market-panel></div>");
 });
 
 test("all imperative game panels render catalog copy for German and English", () => {
@@ -443,30 +415,11 @@ test("all imperative game panels render catalog copy for German and English", ()
   assert.equal(armyPanel(english), "<div data-game-army-panel></div>");
   assert.match(raidPanel(german), /Marsch planen/);
   assert.match(raidPanel(english), /Plan march/);
-  assert.match(marketPanel(german), /Rohstoffe handeln/);
-  assert.match(marketPanel(english), /Trade resources/);
+  assert.equal(marketPanel(german), "<div data-game-market-panel></div>");
+  assert.equal(marketPanel(english), "<div data-game-market-panel></div>");
 });
 
-test("English panel values use English number formatting", () => {
-  const copy = civilizationMessages("en-US");
-  const html = marketPanel({
-    runtimeMode: "world",
-    tokens: {},
-    busy: false,
-    copy,
-    marketQuote: {
-      resource: "wood",
-      amount: 1234.5,
-      buyGoldIn: 203n,
-      buyFee: 3n,
-      sellGoldOut: 197n,
-      sellFee: 3n,
-      inventory: 9n,
-      reserve: 500n,
-      deadline: 1234,
-    },
-  });
-  assert.match(html, /Quote for 1234\.5 Wood/);
+test("English values retain English number formatting", () => {
   assert.equal(compactResourceValue(1_250, String, "en-US"), "1.3K");
 });
 
@@ -767,10 +720,14 @@ test("full construction capacity disables only a new start and states the exact 
 });
 
 test("app lifecycle keeps React panel controls out of imperative bindings and rerenders them on ticks", async () => {
-  const [app, armyPanel, bindings, tick] = await Promise.all([
+  const [app, armyPanel, marketPanel, bindings, tick] = await Promise.all([
     readFile(new URL("../src/app.js", import.meta.url), "utf8"),
     readFile(
       new URL("../src/components/ArmyPanel.tsx", import.meta.url),
+      "utf8",
+    ),
+    readFile(
+      new URL("../src/components/MarketPanel.tsx", import.meta.url),
       "utf8",
     ),
     readFile(new URL("../src/game-ui/bindings.js", import.meta.url), "utf8"),
@@ -792,6 +749,10 @@ test("app lifecycle keeps React panel controls out of imperative bindings and re
     app.indexOf("bindGameActions(runtime.root, actions)") <
       app.indexOf("renderArmyPanel();"),
   );
+  assert.ok(
+    app.indexOf("bindGameActions(runtime.root, actions)") <
+      app.indexOf("renderMarketPanel();"),
+  );
   const tickRefresh = app.slice(app.indexOf("const refreshTickValues"));
   assert.ok(
     tickRefresh.indexOf("refreshGameTick({") <
@@ -801,7 +762,15 @@ test("app lifecycle keeps React panel controls out of imperative bindings and re
     tickRefresh.indexOf("refreshGameTick({") <
       tickRefresh.indexOf("renderArmyPanel();"),
   );
+  assert.ok(
+    tickRefresh.indexOf("refreshGameTick({") <
+      tickRefresh.indexOf("renderMarketPanel();"),
+  );
   assert.doesNotMatch(bindings, /data-train/);
+  assert.doesNotMatch(
+    bindings,
+    /market-(?:swap|quote|buy|sell|resource|amount)/,
+  );
   assert.doesNotMatch(tick, /data-construction-countdown/);
   assert.doesNotMatch(tick, /data-complete-upgrade/);
   assert.doesNotMatch(tick, /data-boost-construction/);
@@ -809,6 +778,115 @@ test("app lifecycle keeps React panel controls out of imperative bindings and re
   assert.match(armyPanel, /onError=/);
   assert.match(armyPanel, /classList\.add\("has-asset-error"\)/);
   assert.match(armyPanel, /asset-building-fallback" role="status"/);
+  assert.match(marketPanel, /onDraftChange/);
+  assert.match(marketPanel, /quoteMatchesDraft/);
+});
+
+test("changing a quoted market draft invalidates stone x50 and cannot confirm it as wood x1", () => {
+  const reviews = [];
+  const invalidations = [];
+  const runtime = {
+    mode: "world",
+    token: Symbol("market"),
+    marketDraft: { resource: "stone", from: "wood", to: "clay", amount: 50 },
+    marketInputRevision: 0,
+    marketQuote: {
+      resource: "stone",
+      amount: 50,
+      buyGoldIn: 500n,
+      buyFee: 3n,
+      sellGoldOut: 494n,
+      sellFee: 3n,
+      inventory: 9n,
+      reserve: 500n,
+      deadline: 1234,
+    },
+    review: {
+      invalidate: (reason) => invalidations.push(reason),
+      state: () => ({ status: "idle" }),
+    },
+  };
+  const actions = createGameActions(runtime, {
+    render: () => {},
+    requireAccess: () => true,
+    requestWorldAction: (type, payload) => reviews.push({ type, payload }),
+    confirmWorldReview: () => {},
+    cancelWorldReview: () => {},
+    errorText: String,
+    isCurrent: () => true,
+    copy: () => civilizationMessages("en-US"),
+    buildingLabel: String,
+    resourceDefs: () => ({}),
+    numberFormat: String,
+  });
+
+  actions.marketInputsChanged({ resource: "wood", amount: 1 });
+  assert.deepEqual(runtime.marketDraft, {
+    resource: "wood",
+    from: "wood",
+    to: "clay",
+    amount: 1,
+  });
+  assert.equal(runtime.marketQuote, null);
+  assert.deepEqual(invalidations, ["market_inputs_changed"]);
+  actions.marketOrder("buy");
+  assert.deepEqual(reviews, []);
+  assert.equal(runtime.feedback, "Load a current live quote first.");
+});
+
+test("a quote resolving after the market draft changes is discarded and cannot be confirmed", async () => {
+  const reviews = [];
+  let resolveQuote;
+  const runtime = {
+    mode: "world",
+    token: Symbol("market"),
+    marketDraft: { resource: "stone", from: "wood", to: "clay", amount: 50 },
+    marketInputRevision: 0,
+    marketQuote: null,
+    review: {
+      invalidate: () => {},
+      state: () => ({ status: "idle" }),
+    },
+    adapter: {
+      quoteMarket: () =>
+        new Promise((resolve) => {
+          resolveQuote = resolve;
+        }),
+    },
+  };
+  const actions = createGameActions(runtime, {
+    render: () => {},
+    requireAccess: () => true,
+    requestWorldAction: (type, payload) => reviews.push({ type, payload }),
+    confirmWorldReview: () => {},
+    cancelWorldReview: () => {},
+    errorText: String,
+    isCurrent: () => true,
+    copy: () => civilizationMessages("en-US"),
+    buildingLabel: String,
+    resourceDefs: () => ({}),
+    numberFormat: String,
+  });
+
+  const quoteRequest = actions.quoteMarket();
+  actions.marketInputsChanged({ resource: "wood", amount: 1 });
+  resolveQuote({
+    resource: "stone",
+    amount: 50,
+    buyGoldIn: 500n,
+    buyFee: 3n,
+    sellGoldOut: 494n,
+    sellFee: 3n,
+    inventory: 9n,
+    reserve: 500n,
+    deadline: 1234,
+  });
+  await quoteRequest;
+
+  assert.equal(runtime.marketQuote, null);
+  actions.marketOrder("buy");
+  assert.deepEqual(reviews, []);
+  assert.equal(runtime.feedback, "Load a current live quote first.");
 });
 
 test("game action feedback follows the active locale and formats dynamic values", () => {

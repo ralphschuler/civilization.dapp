@@ -61,7 +61,9 @@ export function createGameActions(runtime, services) {
       return confirmWorldReview(success);
     },
     cancelReview: () => cancelWorldReview(),
-    marketInputsChanged() {
+    marketInputsChanged(changes) {
+      runtime.marketDraft = { ...runtime.marketDraft, ...changes };
+      runtime.marketInputRevision += 1;
       runtime.marketQuote = null;
       runtime.review.invalidate("market_inputs_changed");
       if (runtime.review.state().status === "invalidated")
@@ -173,36 +175,48 @@ export function createGameActions(runtime, services) {
         copy().feedback.trainingUnavailable,
       );
     },
-    swap(from, to, amount) {
+    swap() {
       if (runtime.mode !== "demo") return;
       return demo(
-        () => swapInternal(runtime.state, from, to, amount),
+        () =>
+          swapInternal(
+            runtime.state,
+            runtime.marketDraft.from,
+            runtime.marketDraft.to,
+            runtime.marketDraft.amount,
+          ),
         (result) =>
           copy().feedback.demoSwapComplete(
             numberFormat(result.output),
-            copy().resourceNames[to],
+            copy().resourceNames[runtime.marketDraft.to],
           ),
         copy().feedback.demoSwapUnavailable,
       );
     },
-    async quoteMarket(resource, amount) {
+    async quoteMarket() {
       if (!requireAccess() || runtime.mode !== "world") return;
+      const { resource, amount } = runtime.marketDraft;
       if (!Number.isSafeInteger(amount) || amount < 1) {
         runtime.feedback = copy().feedback.marketAmountInvalid;
         render();
         return;
       }
       const token = runtime.token;
+      const inputRevision = runtime.marketInputRevision;
       runtime.busy = true;
       runtime.feedback = copy().feedback.marketQuoteLoading;
       render();
       try {
-        runtime.marketQuote = await runtime.adapter.quoteMarket(
-          resource,
-          amount,
-        );
-        if (isCurrent(token))
+        const quote = await runtime.adapter.quoteMarket(resource, amount);
+        if (
+          isCurrent(token) &&
+          runtime.marketInputRevision === inputRevision &&
+          runtime.marketDraft.resource === resource &&
+          runtime.marketDraft.amount === amount
+        ) {
+          runtime.marketQuote = quote;
           runtime.feedback = copy().feedback.marketQuoteLoaded;
+        }
       } catch (error) {
         if (isCurrent(token)) runtime.feedback = errorText(error);
       } finally {
@@ -214,7 +228,12 @@ export function createGameActions(runtime, services) {
     marketOrder(side) {
       if (!requireAccess() || runtime.mode !== "world") return;
       const quote = runtime.marketQuote;
-      if (!quote || (side !== "buy" && side !== "sell")) {
+      if (
+        !quote ||
+        quote.resource !== runtime.marketDraft.resource ||
+        quote.amount !== runtime.marketDraft.amount ||
+        (side !== "buy" && side !== "sell")
+      ) {
         runtime.feedback = copy().feedback.marketQuoteRequired;
         render();
         return;
