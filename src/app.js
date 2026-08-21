@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client";
 import { GameShellHud } from "./components/GameShellHud";
 import { BuildPanel } from "./components/BuildPanel";
 import { ArmyPanel } from "./components/ArmyPanel";
+import { MarketPanel } from "./components/MarketPanel";
 import { canRenderGameWorld } from "./world-gate.js";
 import {
   BUILDINGS,
@@ -68,6 +69,11 @@ function createRuntime(options) {
     worldStateEpoch: 0,
     durations: new Map(),
     marketQuote: null,
+    marketDraft:
+      options.runtimeMode === "world"
+        ? { resource: "wood", from: "wood", to: "clay", amount: 1 }
+        : { resource: "wood", from: "wood", to: "clay", amount: 25 },
+    marketInputRevision: 0,
     selectedOpponent: null,
     selectedBuilding: "townhall",
     activePanel: "build",
@@ -100,6 +106,7 @@ function createRuntime(options) {
     hudRoot: null,
     buildPanelRoot: null,
     armyPanelRoot: null,
+    marketPanelRoot: null,
   };
 }
 
@@ -380,6 +387,23 @@ function createController(runtime) {
       }),
     );
   };
+  const renderMarketPanel = () => {
+    if (runtime.activePanel !== "market") return;
+    const mount = runtime.root?.querySelector("[data-game-market-panel]");
+    if (!mount) return;
+    runtime.marketPanelRoot ??= createRoot(mount);
+    const context = panelContext();
+    runtime.marketPanelRoot.render(
+      createElement(MarketPanel, {
+        ...context,
+        marketDraft: runtime.marketDraft,
+        onDraftChange: actions.marketInputsChanged,
+        onQuote: actions.quoteMarket,
+        onOrder: actions.marketOrder,
+        onSwap: actions.swap,
+      }),
+    );
+  };
   const render = () => {
     if (!isCurrent(runtime.token)) {
       return;
@@ -416,6 +440,8 @@ function createController(runtime) {
     runtime.buildPanelRoot = null;
     runtime.armyPanelRoot?.unmount();
     runtime.armyPanelRoot = null;
+    runtime.marketPanelRoot?.unmount();
+    runtime.marketPanelRoot = null;
     runtime.root.innerHTML = gameShell({
       state: runtime.state,
       runtimeMode: runtime.mode,
@@ -453,6 +479,8 @@ function createController(runtime) {
     renderBuildPanel();
     // Army training controls are likewise exclusively React-owned.
     renderArmyPanel();
+    // Market form controls are controlled by React and excluded from bindings.
+    renderMarketPanel();
     world.requestBuildDuration(
       runtime.selectedBuilding,
       runtime.state.buildings[runtime.selectedBuilding] + 1,
@@ -549,6 +577,7 @@ function createController(runtime) {
     renderHud();
     renderBuildPanel();
     renderArmyPanel();
+    renderMarketPanel();
   };
   return { render, refreshWorld: world.refresh, refreshTickValues, actions };
 }

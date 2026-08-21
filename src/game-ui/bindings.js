@@ -126,26 +126,6 @@ export function bindGameActions(root, actions) {
     actions.upgrade(event.currentTarget.dataset.planUpgrade),
   );
   all("[data-open-market]", () => actions.selectPanel("market"));
-  on("#market-swap", () =>
-    actions.swap(
-      root.querySelector("#market-from")?.value,
-      root.querySelector("#market-to")?.value,
-      Number(root.querySelector("#market-amount")?.value),
-    ),
-  );
-  on("#market-quote", () =>
-    actions.quoteMarket(
-      root.querySelector("#market-resource")?.value,
-      Number(root.querySelector("#market-amount")?.value),
-    ),
-  );
-  on("#market-buy", () => actions.marketOrder("buy"));
-  on("#market-sell", () => actions.marketOrder("sell"));
-  root
-    .querySelectorAll("#market-resource, #market-amount")
-    .forEach((input) =>
-      input.addEventListener("input", () => actions.marketInputsChanged()),
-    );
   on("#send-raid", () => {
     const target =
       root.querySelector("#raid-target-address")?.value.trim() ||
