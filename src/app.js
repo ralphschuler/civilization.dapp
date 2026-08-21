@@ -5,6 +5,7 @@ import { GameShellHud } from "./components/GameShellHud";
 import { BuildPanel } from "./components/BuildPanel";
 import { ArmyPanel } from "./components/ArmyPanel";
 import { MarketPanel } from "./components/MarketPanel";
+import { RaidPanel } from "./components/RaidPanel";
 import { canRenderGameWorld } from "./world-gate.js";
 import {
   BUILDINGS,
@@ -74,6 +75,11 @@ function createRuntime(options) {
         ? { resource: "wood", from: "wood", to: "clay", amount: 1 }
         : { resource: "wood", from: "wood", to: "clay", amount: 25 },
     marketInputRevision: 0,
+    raidDraft: {
+      army: Object.fromEntries(Object.keys(TROOPS).map((id) => [id, 0])),
+      targetAddress: "",
+      targetId: "",
+    },
     selectedOpponent: null,
     selectedBuilding: "townhall",
     activePanel: "build",
@@ -107,6 +113,7 @@ function createRuntime(options) {
     buildPanelRoot: null,
     armyPanelRoot: null,
     marketPanelRoot: null,
+    raidPanelRoot: null,
   };
 }
 
@@ -404,6 +411,23 @@ function createController(runtime) {
       }),
     );
   };
+  const renderRaidPanel = () => {
+    if (runtime.activePanel !== "raid") return;
+    const mount = runtime.root?.querySelector("[data-game-raid-panel]");
+    if (!mount) return;
+    runtime.raidPanelRoot ??= createRoot(mount);
+    const context = panelContext();
+    runtime.raidPanelRoot.render(
+      createElement(RaidPanel, {
+        ...context,
+        raidDraft: runtime.raidDraft,
+        onDraftChange: actions.raidInputsChanged,
+        onPickOpponent: actions.pickOpponent,
+        onSendRaid: actions.sendRaid,
+        onResolveRaid: actions.resolveRaid,
+      }),
+    );
+  };
   const render = () => {
     if (!isCurrent(runtime.token)) {
       return;
@@ -442,6 +466,8 @@ function createController(runtime) {
     runtime.armyPanelRoot = null;
     runtime.marketPanelRoot?.unmount();
     runtime.marketPanelRoot = null;
+    runtime.raidPanelRoot?.unmount();
+    runtime.raidPanelRoot = null;
     runtime.root.innerHTML = gameShell({
       state: runtime.state,
       runtimeMode: runtime.mode,
@@ -481,6 +507,8 @@ function createController(runtime) {
     renderArmyPanel();
     // Market form controls are controlled by React and excluded from bindings.
     renderMarketPanel();
+    // Raid inputs and march status are exclusively React-owned.
+    renderRaidPanel();
     world.requestBuildDuration(
       runtime.selectedBuilding,
       runtime.state.buildings[runtime.selectedBuilding] + 1,
@@ -578,6 +606,7 @@ function createController(runtime) {
     renderBuildPanel();
     renderArmyPanel();
     renderMarketPanel();
+    renderRaidPanel();
   };
   return { render, refreshWorld: world.refresh, refreshTickValues, actions };
 }

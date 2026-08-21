@@ -70,6 +70,10 @@ export function createGameActions(runtime, services) {
         runtime.feedback = copy().feedback.reviewInvalidated;
       render();
     },
+    raidInputsChanged(changes) {
+      runtime.raidDraft = { ...runtime.raidDraft, ...changes };
+      render();
+    },
     changeLocale: (locale) => services.changeLocale?.(locale),
     openSettings: () => services.openSettings?.(),
     closeSettings: () => services.closeSettings?.(),
@@ -266,6 +270,10 @@ export function createGameActions(runtime, services) {
         const opponent = await runtime.adapter.pickOpponent();
         if (!isCurrent(token)) return;
         runtime.selectedOpponent = opponent;
+        runtime.raidDraft = {
+          ...runtime.raidDraft,
+          targetAddress: opponent.address,
+        };
         runtime.feedback = copy().feedback.opponentSelected(opponent.username);
       } catch (error) {
         if (isCurrent(token)) runtime.feedback = errorText(error);
@@ -304,6 +312,11 @@ export function createGameActions(runtime, services) {
     reset() {
       if (runtime.mode !== "demo") return;
       runtime.state = createInitialState();
+      runtime.raidDraft = {
+        army: Object.fromEntries(Object.keys(TROOPS).map((id) => [id, 0])),
+        targetAddress: "",
+        targetId: "",
+      };
       runtime.selectedBuilding = "townhall";
       runtime.activePanel = "build";
       runtime.feedback = copy().feedback.demoReset;

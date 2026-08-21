@@ -358,6 +358,10 @@ test("market panel is a stable React mount point", () => {
   assert.equal(marketPanel(), "<div data-game-market-panel></div>");
 });
 
+test("raid panel is a stable React mount point", () => {
+  assert.equal(raidPanel(), "<div data-game-raid-panel></div>");
+});
+
 test("all imperative game panels render catalog copy for German and English", () => {
   const state = {
     resources: { wood: 100, clay: 100, stone: 100, gold: 10 },
@@ -413,8 +417,8 @@ test("all imperative game panels render catalog copy for German and English", ()
   assert.equal(buildPanel(english), "<div data-game-build-panel></div>");
   assert.equal(armyPanel(german), "<div data-game-army-panel></div>");
   assert.equal(armyPanel(english), "<div data-game-army-panel></div>");
-  assert.match(raidPanel(german), /Marsch planen/);
-  assert.match(raidPanel(english), /Plan march/);
+  assert.equal(raidPanel(german), "<div data-game-raid-panel></div>");
+  assert.equal(raidPanel(english), "<div data-game-raid-panel></div>");
   assert.equal(marketPanel(german), "<div data-game-market-panel></div>");
   assert.equal(marketPanel(english), "<div data-game-market-panel></div>");
 });
@@ -720,19 +724,24 @@ test("full construction capacity disables only a new start and states the exact 
 });
 
 test("app lifecycle keeps React panel controls out of imperative bindings and rerenders them on ticks", async () => {
-  const [app, armyPanel, marketPanel, bindings, tick] = await Promise.all([
-    readFile(new URL("../src/app.js", import.meta.url), "utf8"),
-    readFile(
-      new URL("../src/components/ArmyPanel.tsx", import.meta.url),
-      "utf8",
-    ),
-    readFile(
-      new URL("../src/components/MarketPanel.tsx", import.meta.url),
-      "utf8",
-    ),
-    readFile(new URL("../src/game-ui/bindings.js", import.meta.url), "utf8"),
-    readFile(new URL("../src/game-tick.js", import.meta.url), "utf8"),
-  ]);
+  const [app, armyPanel, marketPanel, raidPanel, bindings, tick] =
+    await Promise.all([
+      readFile(new URL("../src/app.js", import.meta.url), "utf8"),
+      readFile(
+        new URL("../src/components/ArmyPanel.tsx", import.meta.url),
+        "utf8",
+      ),
+      readFile(
+        new URL("../src/components/MarketPanel.tsx", import.meta.url),
+        "utf8",
+      ),
+      readFile(
+        new URL("../src/components/RaidPanel.tsx", import.meta.url),
+        "utf8",
+      ),
+      readFile(new URL("../src/game-ui/bindings.js", import.meta.url), "utf8"),
+      readFile(new URL("../src/game-tick.js", import.meta.url), "utf8"),
+    ]);
   assert.match(app, /export function startCivilizationApp/);
   assert.match(app, /export function stopCivilizationApp/);
   assert.match(app, /clearInterval\(runtime\.timer\)/);
@@ -753,6 +762,10 @@ test("app lifecycle keeps React panel controls out of imperative bindings and re
     app.indexOf("bindGameActions(runtime.root, actions)") <
       app.indexOf("renderMarketPanel();"),
   );
+  assert.ok(
+    app.indexOf("bindGameActions(runtime.root, actions)") <
+      app.indexOf("renderRaidPanel();"),
+  );
   const tickRefresh = app.slice(app.indexOf("const refreshTickValues"));
   assert.ok(
     tickRefresh.indexOf("refreshGameTick({") <
@@ -766,11 +779,16 @@ test("app lifecycle keeps React panel controls out of imperative bindings and re
     tickRefresh.indexOf("refreshGameTick({") <
       tickRefresh.indexOf("renderMarketPanel();"),
   );
+  assert.ok(
+    tickRefresh.indexOf("refreshGameTick({") <
+      tickRefresh.indexOf("renderRaidPanel();"),
+  );
   assert.doesNotMatch(bindings, /data-train/);
   assert.doesNotMatch(
     bindings,
     /market-(?:swap|quote|buy|sell|resource|amount)/,
   );
+  assert.doesNotMatch(bindings, /(?:send|resolve)-raid|pick-raid-contact/);
   assert.doesNotMatch(tick, /data-construction-countdown/);
   assert.doesNotMatch(tick, /data-complete-upgrade/);
   assert.doesNotMatch(tick, /data-boost-construction/);
@@ -780,6 +798,10 @@ test("app lifecycle keeps React panel controls out of imperative bindings and re
   assert.match(armyPanel, /asset-building-fallback" role="status"/);
   assert.match(marketPanel, /onDraftChange/);
   assert.match(marketPanel, /quoteMatchesDraft/);
+  assert.match(raidPanel, /onPickOpponent/);
+  assert.match(raidPanel, /targetAddress/);
+  assert.match(raidPanel, /data-raid-countdown/);
+  assert.doesNotMatch(tick, /data-raid-countdown/);
 });
 
 test("changing a quoted market draft invalidates stone x50 and cannot confirm it as wood x1", () => {
@@ -1093,7 +1115,7 @@ test("old mount callbacks cannot update the replacement runtime", async () => {
   assert.equal(runtime.durations.get("townhall:2"), null);
 });
 
-test("second tick updates collect stock, claim, and raid controls", () => {
+test("second tick updates collect stock and claim controls", () => {
   const nodes = new Map();
   const add = (selector, node = {}) => {
     nodes.set(selector, node);
@@ -1101,8 +1123,6 @@ test("second tick updates collect stock, claim, and raid controls", () => {
   };
   const claimStatus = {};
   const gather = add("#gather", { querySelector: () => claimStatus });
-  const raid = add("[data-raid-countdown]", {});
-  const resolve = add("#resolve-raid", {});
   const collectionValue = add(
     '[data-collection-resource="wood"] [data-collection-resource-value]',
     {},
@@ -1122,18 +1142,12 @@ test("second tick updates collect stock, claim, and raid controls", () => {
     displayState: { unclaimed: { wood: 2_410_426_546 } },
     collection: { locked: false, detail: "FELD" },
     resourceFormat: String,
-    remainingTime: (value) => value,
-    state: {
-      pendingRaid: { arrivesAt: 0 },
-    },
   });
   assert.equal(collectionValue.textContent, "2,4Mrd");
   assert.equal(accessibleCollectionValue.textContent, "2410426546");
   assert.equal(claim.textContent, "2410426546 sammeln");
   assert.equal(accessibleClaim.textContent, "2410426546 sammeln");
   assert.equal(claimStatus.textContent, "FELD");
-  assert.equal(raid.textContent, "00:00");
-  assert.equal(resolve.textContent, "Schlacht auswerten");
   assert.equal(gather.disabled, false);
 });
 

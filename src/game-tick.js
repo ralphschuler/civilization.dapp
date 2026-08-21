@@ -1,15 +1,13 @@
-import { clock, compactResourceValue } from "./game-ui/helpers.js";
+import { compactResourceValue } from "./game-ui/helpers.js";
 import { civilizationMessages } from "./lib/civilization-locale.ts";
 
 export function refreshGameTick({
   root,
-  state,
   busy,
   production,
   displayState,
   collection,
   resourceFormat,
-  remainingTime,
   locale = "de-DE",
   copy = civilizationMessages("de-DE"),
 }) {
@@ -60,22 +58,4 @@ export function refreshGameTick({
     gather.querySelector("[data-collection-status]").textContent =
       collection.detail;
   }
-
-  updateRaidCountdown(root, state, busy, remainingTime, copy);
-}
-
-function updateRaidCountdown(root, state, busy, remainingTime, copy) {
-  const countdown = root.querySelector("[data-raid-countdown]");
-  if (!countdown || !state.pendingRaid) {
-    return;
-  }
-
-  const seconds = remainingTime(state.pendingRaid.arrivesAt);
-  countdown.textContent = clock(seconds);
-  const resolve = root.querySelector("#resolve-raid");
-  if (!resolve) {
-    return;
-  }
-  resolve.disabled = seconds > 0 || busy;
-  resolve.textContent = seconds ? copy.constructionRunning : copy.resolveBattle;
 }
