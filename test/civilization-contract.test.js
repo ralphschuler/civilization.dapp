@@ -1316,6 +1316,52 @@ test("V1 to V2 to V1 to V2 upgrades only through timelock and preserve proxy sta
   );
 });
 
+test("V1.1 timelock upgrade keeps V1 state and makes Workshop 0 to 1 reachable without CGOLD", async () => {
+  const f = await fixture();
+  const v11 = await deploy(
+    f.vm,
+    artifact(
+      "contracts/src/CivilizationGameWorkshopFixV11.sol",
+      "CivilizationGameWorkshopFixV11",
+    ),
+  );
+  await upgrade(f, v11, 90_000n, `0x${"11".padStart(64, "0")}`);
+  const game = { ...f.game, abi: v11.abi };
+  let at = 90_061n;
+  ok(await call(game, alice, "registerWallet", [], at));
+
+  for (const building of [1, 2, 3, 0, 0]) {
+    at += 86_400n;
+    ok(await call(game, alice, "claim", [], at));
+    ok(await call(game, alice, "upgrade", [building], at));
+    const state = await read(game, "playerState", [alice], at);
+    at = state[8].completesAt;
+    ok(await call(game, alice, "completeUpgrade", [], at));
+  }
+
+  at += 86_400n;
+  ok(await call(game, alice, "claim", [], at));
+  assert.deepEqual((await read(game, "playerState", [alice], at))[5], {
+    townhall: 2n,
+    timber: 2n,
+    claypit: 2n,
+    quarry: 2n,
+    warehouse: 1n,
+    workshop: 0n,
+    goldmine: 0n,
+    barracks: 0n,
+  });
+  assert.equal(
+    await read(game, "balanceOf", [alice], at),
+    0n,
+    "the player has no CGOLD before the bootstrap Workshop upgrade",
+  );
+  ok(await call(game, alice, "upgrade", [5], at));
+  const pending = await read(game, "playerState", [alice], at);
+  assert.equal(pending[8].pending, true);
+  assert.equal(pending[8].building, 5);
+});
+
 test("timelock-configured reward claims mint through the proxy and survive a V1/V2 upgrade", async () => {
   const f = await fixture();
   const distributor = await deploy(

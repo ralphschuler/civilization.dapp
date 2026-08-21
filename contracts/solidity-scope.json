@@ -3,6 +3,7 @@
   "production": [
     "contracts/src/CivilizationBuybackVault.sol",
     "contracts/src/CivilizationGame.sol",
+    "contracts/src/CivilizationGameWorkshopFixV11.sol",
     "contracts/src/CivilizationProxyArchitecture.sol",
     "contracts/src/CivilizationReleaseRegistry.sol",
     "contracts/src/CivilizationRevenueSplitter.sol",
