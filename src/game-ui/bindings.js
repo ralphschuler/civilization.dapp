@@ -126,9 +126,6 @@ export function bindGameActions(root, actions) {
     actions.upgrade(event.currentTarget.dataset.planUpgrade),
   );
   all("[data-open-market]", () => actions.selectPanel("market"));
-  all("[data-train]", (event) =>
-    actions.train(event.currentTarget.dataset.train),
-  );
   on("#market-swap", () =>
     actions.swap(
       root.querySelector("#market-from")?.value,

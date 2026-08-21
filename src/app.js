@@ -3,6 +3,7 @@ import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { GameShellHud } from "./components/GameShellHud";
 import { BuildPanel } from "./components/BuildPanel";
+import { ArmyPanel } from "./components/ArmyPanel";
 import { canRenderGameWorld } from "./world-gate.js";
 import {
   BUILDINGS,
@@ -98,6 +99,7 @@ function createRuntime(options) {
     assetResult: { failed: [] },
     hudRoot: null,
     buildPanelRoot: null,
+    armyPanelRoot: null,
   };
 }
 
@@ -365,6 +367,19 @@ function createController(runtime) {
       }),
     );
   };
+  const renderArmyPanel = () => {
+    if (runtime.activePanel !== "army") return;
+    const mount = runtime.root?.querySelector("[data-game-army-panel]");
+    if (!mount) return;
+    runtime.armyPanelRoot ??= createRoot(mount);
+    const context = panelContext();
+    runtime.armyPanelRoot.render(
+      createElement(ArmyPanel, {
+        ...context,
+        onTrain: actions.train,
+      }),
+    );
+  };
   const render = () => {
     if (!isCurrent(runtime.token)) {
       return;
@@ -399,6 +414,8 @@ function createController(runtime) {
     runtime.hudRoot = null;
     runtime.buildPanelRoot?.unmount();
     runtime.buildPanelRoot = null;
+    runtime.armyPanelRoot?.unmount();
+    runtime.armyPanelRoot = null;
     runtime.root.innerHTML = gameShell({
       state: runtime.state,
       runtimeMode: runtime.mode,
@@ -434,6 +451,8 @@ function createController(runtime) {
     // Keep the BuildPanel outside the imperative binding pass: its controls
     // are owned exclusively by React.
     renderBuildPanel();
+    // Army training controls are likewise exclusively React-owned.
+    renderArmyPanel();
     world.requestBuildDuration(
       runtime.selectedBuilding,
       runtime.state.buildings[runtime.selectedBuilding] + 1,
@@ -529,6 +548,7 @@ function createController(runtime) {
     });
     renderHud();
     renderBuildPanel();
+    renderArmyPanel();
   };
   return { render, refreshWorld: world.refresh, refreshTickValues, actions };
 }
