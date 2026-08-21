@@ -69,3 +69,13 @@ active panel and action feedback. Both mounts call the same runtime
 post-selection focus restoration, so the former navigation string rendering and
 imperative navigation listener are removed. Map market selection remains an
 imperative map action.
+
+The eleventh slice moves the dynamic village map into the typed `VillageMap`
+island. The imperative shell now provides only its stable map mount. The
+runtime remains the sole source of map state (levels, selected building, active
+panel, assets, feedback, collection, and callbacks), while React renders the
+map heading, terrain fallback states, markers, live feedback, and the existing
+`CollectionStatus` as a child of the same root. Map marker actions call the
+runtime callbacks directly; the render cycle records and restores the matching
+map-button focus. Consequently, `bindGameActions` neither binds map controls
+nor attaches map asset listeners.

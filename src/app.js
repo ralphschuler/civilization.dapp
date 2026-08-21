@@ -2,7 +2,7 @@ import "./styles.css";
 import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { GameShellHud } from "./components/GameShellHud";
-import { CollectionStatus } from "./components/CollectionStatus";
+import { VillageMap } from "./components/VillageMap";
 import { BuildPanel } from "./components/BuildPanel";
 import { ArmyPanel } from "./components/ArmyPanel";
 import { MarketPanel } from "./components/MarketPanel";
@@ -96,9 +96,10 @@ function createRuntime(options) {
       typeof window !== "undefined" &&
       window.localStorage.getItem("civilization-reduced-motion") === "true",
     feedback:
-      options.runtimeMode === "world"
+      options.initialFeedback ??
+      (options.runtimeMode === "world"
         ? civilizationMessages(options.locale).loadingState
-        : civilizationMessages(options.locale).chooseBuilding,
+        : civilizationMessages(options.locale).chooseBuilding),
     worldApp: installed
       ? { installed: true, walletAddress }
       : { installed: false },
@@ -115,7 +116,7 @@ function createRuntime(options) {
     hudRoot: null,
     desktopNavigationRoot: null,
     mobileNavigationRoot: null,
-    collectionStatusRoot: null,
+    villageMapRoot: null,
     buildPanelRoot: null,
     armyPanelRoot: null,
     marketPanelRoot: null,
@@ -271,27 +272,48 @@ function createController(runtime) {
       }),
     );
   };
-  const renderCollectionStatus = () => {
-    const mount = runtime.root?.querySelector("[data-game-collection-status]");
+  const renderVillageMap = (focusTarget) => {
+    const mount = runtime.root?.querySelector("[data-game-village-map]");
     if (!mount) return;
-    runtime.collectionStatusRoot ??= createRoot(mount);
     const displayState =
       runtime.mode === "world"
         ? runtime.adapter.projectState(runtime.state, performance.now())
         : runtime.state;
-    runtime.collectionStatusRoot.render(
-      createElement(CollectionStatus, {
+    runtime.villageMapRoot ??= createRoot(mount);
+    runtime.villageMapRoot.render(
+      createElement(VillageMap, {
         assetResult: runtime.assetResult,
-        busy: runtime.busy,
-        collection: collection(),
+        assetsLoading: runtime.assetState === "loading",
+        buildings: BUILDINGS,
+        buildingLevels: runtime.state.buildings,
+        capacity: capacity(),
+        collectionStatus: {
+          assetResult: runtime.assetResult,
+          busy: runtime.busy,
+          collection: collection(),
+          copy: civilizationMessages(runtime.locale),
+          locale: runtime.locale,
+          onGather: actions.gather,
+          resourceDefs: RESOURCE_DEFS,
+          resourceFormat,
+          unclaimed: displayState.unclaimed,
+        },
         copy: civilizationMessages(runtime.locale),
-        locale: runtime.locale,
-        onGather: actions.gather,
-        resourceDefs: RESOURCE_DEFS,
-        resourceFormat,
-        unclaimed: displayState.unclaimed,
+        feedback: runtime.feedback,
+        format,
+        onSelectBuilding: actions.selectBuilding,
+        onSelectMarket: () => actions.selectPanel("market"),
+        prestigeCount: runtime.state.prestigeCount,
+        runtimeMode: runtime.mode,
+        selectedBuilding: runtime.selectedBuilding,
+        activePanel: runtime.activePanel,
       }),
     );
+    if (focusTarget) {
+      requestAnimationFrame(() =>
+        runtime.root?.querySelector(focusTarget)?.focus(),
+      );
+    }
   };
   const renderSettingsDialog = () => {
     const settingsDialog = runtime.root?.querySelector(
@@ -574,8 +596,20 @@ function createController(runtime) {
     runtime.desktopNavigationRoot = null;
     runtime.mobileNavigationRoot?.unmount();
     runtime.mobileNavigationRoot = null;
-    runtime.collectionStatusRoot?.unmount();
-    runtime.collectionStatusRoot = null;
+    const activeMapControl = document.activeElement;
+    let mapFocusTarget = null;
+    if (
+      activeMapControl instanceof HTMLElement &&
+      runtime.root.contains(activeMapControl)
+    ) {
+      if (activeMapControl.dataset.mapBuilding) {
+        mapFocusTarget = `[data-map-building="${activeMapControl.dataset.mapBuilding}"]`;
+      } else if (activeMapControl.dataset.mapPanel) {
+        mapFocusTarget = `[data-map-panel="${activeMapControl.dataset.mapPanel}"]`;
+      }
+    }
+    runtime.villageMapRoot?.unmount();
+    runtime.villageMapRoot = null;
     runtime.buildPanelRoot?.unmount();
     runtime.buildPanelRoot = null;
     runtime.armyPanelRoot?.unmount();
@@ -615,10 +649,10 @@ function createController(runtime) {
     });
     renderHud();
     bindGameActions(runtime.root, actions);
+    // All dynamic map content, including collection and map actions, belongs
+    // to this single React root. Bindings intentionally run before it mounts.
+    renderVillageMap(mapFocusTarget);
     renderNavigation();
-    // The collect button is React-owned and deliberately excluded from the
-    // imperative binding pass.
-    renderCollectionStatus();
     // Keep the BuildPanel outside the imperative binding pass: its controls
     // are owned exclusively by React.
     renderBuildPanel();
@@ -711,7 +745,7 @@ function createController(runtime) {
       return;
     }
     renderHud();
-    renderCollectionStatus();
+    renderVillageMap();
     renderBuildPanel();
     renderArmyPanel();
     renderMarketPanel();
@@ -723,7 +757,7 @@ function createController(runtime) {
 /**
  * @param {{ root: HTMLElement | null, runtimeMode?: "demo" | "world", worldAppInstalled?: boolean,
  *   worldAccessConfirmed?: boolean, worldWalletAddress?: string | null, worldAdapter?: object | null,
- *   locale?: "de-DE" | "en-US", onLocaleChange?: (locale: "de-DE" | "en-US") => void,
+ *   initialFeedback?: string, locale?: "de-DE" | "en-US", onLocaleChange?: (locale: "de-DE" | "en-US") => void,
  *   onLogout?: () => Promise<void>,
  *   onGateStateChange?: (gate: ({ kind: "access", detail: string, title: string } | { kind: "runtime", feedback: string, loading: boolean, retryLabel: string, title: string }) | null, retry: (() => void) | null) => void }} options
  */
@@ -805,7 +839,7 @@ export function stopCivilizationApp() {
   runtime.hudRoot = null;
   runtime.desktopNavigationRoot = null;
   runtime.mobileNavigationRoot = null;
-  runtime.collectionStatusRoot = null;
+  runtime.villageMapRoot = null;
   runtime.settingsDialogRoot = null;
   runtime.walletReviewDialogRoot = null;
   runtime.state = null;

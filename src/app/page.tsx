@@ -8,10 +8,10 @@ import { civilizationMessages } from "@/lib/civilization-locale";
 export default async function Home({
   searchParams,
 }: {
-  searchParams: Promise<{ buildPanelE2e?: string }>;
+  searchParams: Promise<{ buildPanelE2e?: string; feedbackE2e?: string }>;
 }) {
   if (walletAccessE2eModeEnabled()) {
-    const { buildPanelE2e } = await searchParams;
+    const { buildPanelE2e, feedbackE2e } = await searchParams;
     if (
       buildPanelE2e === "one-job" ||
       buildPanelE2e === "two-jobs" ||
@@ -20,7 +20,7 @@ export default async function Home({
     ) {
       return <BuildPanelE2eHarness scenario={buildPanelE2e} />;
     }
-    return <WalletAccessE2eHarness />;
+    return <WalletAccessE2eHarness initialFeedback={feedbackE2e} />;
   }
   const configuration = runtimeConfiguration();
   if (!configuration.ready) {

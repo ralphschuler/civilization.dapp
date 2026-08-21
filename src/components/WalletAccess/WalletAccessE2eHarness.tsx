@@ -21,13 +21,16 @@ type Screen = "login" | "checking" | "gate" | "status-unavailable" | "game";
 const TEST_WALLET_ADDRESS = "0x0000000000000000000000000000000000000001";
 
 function E2eGameRoot({
+  initialFeedback,
   locale,
   onLocaleChange,
 }: {
+  initialFeedback?: string;
   locale: WalletAccessLocale;
   onLocaleChange: (locale: WalletAccessLocale) => void;
 }) {
   const root = useRef<HTMLDivElement>(null);
+  const initialFeedbackRef = useRef(initialFeedback);
   const localeRef = useRef(locale);
   const onLocaleChangeRef = useRef(onLocaleChange);
 
@@ -44,6 +47,7 @@ function E2eGameRoot({
       worldAppInstalled: false,
       worldAccessConfirmed: true,
       worldWalletAddress: TEST_WALLET_ADDRESS,
+      initialFeedback: initialFeedbackRef.current,
       locale: localeRef.current,
       onLocaleChange: (nextLocale) => onLocaleChangeRef.current(nextLocale),
     });
@@ -66,7 +70,11 @@ function E2eGameRoot({
  * injected WalletAuth/SIWE and registration outcomes do not invoke MiniKit,
  * fetch, SIWE, a wallet provider, or an RPC endpoint.
  */
-export function WalletAccessE2eHarness() {
+export function WalletAccessE2eHarness({
+  initialFeedback,
+}: {
+  initialFeedback?: string;
+}) {
   const [scenario, setScenario] = useState<Scenario>("registered");
   const [locale, setLocale] = useState<WalletAccessLocale>("de-DE");
   const [screen, setScreen] = useState<Screen>("login");
@@ -165,6 +173,7 @@ export function WalletAccessE2eHarness() {
       ) : null}
       {screen === "game" ? (
         <E2eGameRoot
+          initialFeedback={initialFeedback}
           locale={locale}
           onLocaleChange={(nextLocale) => {
             window.localStorage.setItem("civilization-locale", nextLocale);

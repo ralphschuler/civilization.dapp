@@ -18,10 +18,7 @@ import {
   loadCriticalAssets,
   resetCriticalAssetCacheForTest,
 } from "../src/game-ui/assets.js";
-import {
-  MAP_BUILDING_ANCHORS,
-  mapBuildingAnchorStyle,
-} from "../src/game-ui/map-coordinates.js";
+import { MAP_BUILDING_ANCHORS } from "../src/game-ui/map-coordinates.js";
 import { gameShell } from "../src/game-ui/views/shell.js";
 import { buildPanel } from "../src/game-ui/views/build.js";
 import { marketPanel } from "../src/game-ui/views/market.js";
@@ -204,8 +201,8 @@ test("shell rendering receives explicit state and no controller callbacks", () =
   assert.doesNotMatch(html, /command-tabs|mobile-hud|data-command-panel/);
   assert.match(html, /id="game-command-panel"/);
   assert.match(html, /<p>panel<\/p>/);
-  assert.match(html, /asset-loading/);
-  assert.match(html, /<div data-game-collection-status><\/div>/);
+  assert.match(html, /data-game-village-map/);
+  assert.match(html, /<div data-game-village-map><\/div>/);
   assert.match(html, /<div data-game-shell-hud><\/div>/);
   assert.match(html, /<div data-game-settings-dialog><\/div>/);
   assert.doesNotMatch(html, /settings-wallet-address/);
@@ -213,7 +210,7 @@ test("shell rendering receives explicit state and no controller callbacks", () =
   assert.match(html, /motion-reduced/);
 });
 
-test("game feedback escapes dynamic contact, provider, and contract messages once", () => {
+test("village-map dynamic feedback is React-owned rather than shell interpolation", async () => {
   const state = createInitialState();
   const feedback =
     '<img src=x onerror="globalThis.pwned=1"> "quoted" & Käse 🏰';
@@ -242,11 +239,13 @@ test("game feedback escapes dynamic contact, provider, and contract messages onc
     copy: civilizationMessages("en-US"),
   });
 
-  assert.match(
-    html,
-    /<p class="map-feedback" aria-live="polite">&lt;img src=x onerror=&quot;globalThis\.pwned=1&quot;&gt; &quot;quoted&quot; &amp; Käse 🏰<\/p>/,
+  const map = await readFile(
+    new URL("../src/components/VillageMap.tsx", import.meta.url),
+    "utf8",
   );
-  assert.doesNotMatch(html, /<img src=x onerror=/);
+  assert.match(map, /className="map-feedback" aria-live="polite"/);
+  assert.match(map, /\{props\.feedback\}/);
+  assert.doesNotMatch(html, /map-feedback|<img src=x onerror=/);
 });
 
 test("typed game navigation mounts both layouts, calls the runtime action, and preserves accessible active controls", async () => {
@@ -284,13 +283,10 @@ test("typed game navigation mounts both layouts, calls the runtime action, and p
   assert.doesNotMatch(component, /role="tab"/);
   assert.doesNotMatch(bindings, /data-command-panel/);
   assert.doesNotMatch(bindings, /data-panel/);
-  assert.match(bindings, /data-map-panel/);
-  assert.match(bindings, /actions\.selectPanel\(panel\)/);
-  assert.match(bindings, /requestAnimationFrame\(\(\) =>/);
-  assert.match(
-    bindings,
-    /root\s*\.querySelector\(`\.map-building\[data-map-panel="\$\{panel\}"\]`\)\s*\?\.focus\(\)/,
-  );
+  assert.doesNotMatch(bindings, /data-map-(?:panel|building)/);
+  assert.match(app, /onSelectMarket: \(\) => actions\.selectPanel\("market"\)/);
+  assert.match(app, /let mapFocusTarget/);
+  assert.match(app, /renderVillageMap\(mapFocusTarget\)/);
   assert.match(css, /\.game-shell button\s*\{\s*min-height:\s*2\.75rem/);
   assert.match(
     css,
@@ -300,7 +296,7 @@ test("typed game navigation mounts both layouts, calls the runtime action, and p
   assert.match(app, /\?\.focus\(\)/);
 });
 
-test("failed resource and building sprites retain visible accessible fallbacks", () => {
+test("failed resource and building sprites retain visible accessible fallbacks", async () => {
   const state = {
     resources: { wood: 1 },
     unclaimed: { wood: 0 },
@@ -337,10 +333,15 @@ test("failed resource and building sprites retain visible accessible fallbacks",
       ],
     },
   });
-  assert.match(html, /map-townhall[^>]*has-asset-error/);
-  assert.match(html, /Rathaus-Symbol nicht verfügbar/);
-  assert.match(html, /role="status"/);
-  assert.match(html, /<div data-game-collection-status><\/div>/);
+  const map = await readFile(
+    new URL("../src/components/VillageMap.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(map, /has-asset-error/);
+  assert.match(map, /buildingAssetUnavailable/);
+  assert.match(map, /asset-building-fallback" role="status"/);
+  assert.match(map, /onError=/);
+  assert.match(html, /<div data-game-village-map><\/div>/);
 });
 
 test("imperative shell provides stable locale-independent navigation mounts", () => {
@@ -378,7 +379,7 @@ test("imperative shell provides stable locale-independent navigation mounts", ()
   assert.match(html, /data-game-command-navigation-mount="desktop"/);
   assert.match(html, /data-game-command-navigation-mount="mobile"/);
   assert.match(html, /data-game-shell-hud/);
-  assert.match(html, /data-game-collection-status/);
+  assert.match(html, /data-game-village-map/);
 });
 
 test("market panel is a stable React mount point", () => {
@@ -497,25 +498,15 @@ test("map buildings use normalized bottom-centre anchors across renders and atla
     ),
     busy: false,
   };
-  const initial = gameShell(context);
-  const updated = gameShell({
-    ...context,
-    state: { ...state, buildings: { ...state.buildings, quarry: 2 } },
-    selectedBuilding: "quarry",
-  });
-
-  for (const id of ids) {
-    const style = mapBuildingAnchorStyle(id);
-    const anchor = new RegExp(
-      `map-${id}[^>]*data-map-anchor="bottom-center"[^>]*style="${style}"`,
-    );
-    assert.match(initial, anchor, `${id} is anchored on the initial render`);
-    assert.match(
-      updated,
-      anchor,
-      `${id} retains its point after state updates`,
-    );
-  }
+  const map = await readFile(
+    new URL("../src/components/VillageMap.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(map, /MAP_BUILDING_ANCHORS/);
+  assert.match(map, /data-map-anchor="bottom-center"/);
+  assert.match(map, /--map-anchor-x-desktop/);
+  assert.match(map, /--map-anchor-y-mobile/);
+  assert.doesNotMatch(gameShell(context), /map-building|data-map-anchor/);
 
   const css = await readFile(
     new URL("../src/styles.css", import.meta.url),
@@ -532,7 +523,7 @@ test("map buildings use normalized bottom-centre anchors across renders and atla
   assert.doesNotMatch(css, /--ground-anchor/);
 });
 
-test("imperative shell provides stable React mounts for HUD and collection status", () => {
+test("imperative shell provides stable React mounts for HUD and village map", () => {
   const state = {
     resources: { wood: 2_410_426_546, clay: 1, stone: 1, gold: 0 },
     unclaimed: { wood: 4, clay: 0, stone: 0, gold: 0 },
@@ -585,12 +576,12 @@ test("imperative shell provides stable React mounts for HUD and collection statu
   });
 
   assert.match(demo, /<div data-game-shell-hud><\/div>/);
-  assert.match(demo, /<div data-game-collection-status><\/div>/);
+  assert.match(demo, /<div data-game-village-map><\/div>/);
   assert.doesNotMatch(demo, /data-resource="wood"/);
   assert.doesNotMatch(demo, /data-resource-field|Feldbestand/);
   assert.doesNotMatch(demo, /data-collection-resource|data-ready-to-claim/);
   assert.match(world, /<div data-game-shell-hud><\/div>/);
-  assert.match(world, /<div data-game-collection-status><\/div>/);
+  assert.match(world, /<div data-game-village-map><\/div>/);
 });
 
 test("mobile HUD keeps all four resources in one bounded row", async () => {
@@ -742,27 +733,38 @@ test("full construction capacity disables only a new start and states the exact 
 });
 
 test("app lifecycle keeps React island controls out of imperative bindings and rerenders them on ticks", async () => {
-  const [app, armyPanel, collectionStatus, marketPanel, raidPanel, bindings] =
-    await Promise.all([
-      readFile(new URL("../src/app.js", import.meta.url), "utf8"),
-      readFile(
-        new URL("../src/components/ArmyPanel.tsx", import.meta.url),
-        "utf8",
-      ),
-      readFile(
-        new URL("../src/components/CollectionStatus.tsx", import.meta.url),
-        "utf8",
-      ),
-      readFile(
-        new URL("../src/components/MarketPanel.tsx", import.meta.url),
-        "utf8",
-      ),
-      readFile(
-        new URL("../src/components/RaidPanel.tsx", import.meta.url),
-        "utf8",
-      ),
-      readFile(new URL("../src/game-ui/bindings.js", import.meta.url), "utf8"),
-    ]);
+  const [
+    app,
+    armyPanel,
+    collectionStatus,
+    marketPanel,
+    raidPanel,
+    bindings,
+    villageMap,
+  ] = await Promise.all([
+    readFile(new URL("../src/app.js", import.meta.url), "utf8"),
+    readFile(
+      new URL("../src/components/ArmyPanel.tsx", import.meta.url),
+      "utf8",
+    ),
+    readFile(
+      new URL("../src/components/CollectionStatus.tsx", import.meta.url),
+      "utf8",
+    ),
+    readFile(
+      new URL("../src/components/MarketPanel.tsx", import.meta.url),
+      "utf8",
+    ),
+    readFile(
+      new URL("../src/components/RaidPanel.tsx", import.meta.url),
+      "utf8",
+    ),
+    readFile(new URL("../src/game-ui/bindings.js", import.meta.url), "utf8"),
+    readFile(
+      new URL("../src/components/VillageMap.tsx", import.meta.url),
+      "utf8",
+    ),
+  ]);
   assert.match(app, /export function startCivilizationApp/);
   assert.match(app, /export function stopCivilizationApp/);
   assert.match(app, /clearInterval\(runtime\.timer\)/);
@@ -773,7 +775,7 @@ test("app lifecycle keeps React island controls out of imperative bindings and r
   assert.match(bindings, /export function bindGameActions/);
   assert.ok(
     app.indexOf("bindGameActions(runtime.root, actions)") <
-      app.indexOf("renderCollectionStatus();"),
+      app.indexOf("renderVillageMap(mapFocusTarget);"),
   );
   assert.ok(
     app.indexOf("bindGameActions(runtime.root, actions)") <
@@ -798,10 +800,18 @@ test("app lifecycle keeps React island controls out of imperative bindings and r
     /market-(?:swap|quote|buy|sell|resource|amount)/,
   );
   assert.doesNotMatch(bindings, /(?:send|resolve)-raid|pick-raid-contact/);
-  assert.match(app, /collectionStatusRoot\?\.unmount\(\)/);
-  assert.match(app, /renderCollectionStatus\(\);/);
+  assert.doesNotMatch(bindings, /data-map-(?:building|panel)/);
+  assert.match(app, /villageMapRoot\?\.unmount\(\)/);
+  assert.match(app, /renderVillageMap\(\);/);
+  assert.match(app, /createElement\(VillageMap/);
   assert.match(collectionStatus, /export type CollectionStatusProps/);
   assert.match(app, /onGather: actions\.gather/);
+  assert.match(
+    villageMap,
+    /<CollectionStatus \{\.\.\.props\.collectionStatus\} \/>/,
+  );
+  assert.match(villageMap, /onClick=\{\(\) => props\.onSelectBuilding\(id\)\}/);
+  assert.match(villageMap, /onClick=\{props\.onSelectMarket\}/);
   assert.match(collectionStatus, /disabled=\{disabled\}/);
   assert.match(collectionStatus, /data-ready-to-claim-accessible/);
   assert.match(collectionStatus, /data-collection-resource-accessible/);

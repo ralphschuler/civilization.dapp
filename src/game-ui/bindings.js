@@ -27,16 +27,6 @@ export function bindGameActions(root, actions) {
   });
   on("#prestige", actions.prestige);
   on("#reset", actions.reset);
-  all("[data-map-building]", (event) =>
-    actions.selectBuilding(event.currentTarget.dataset.mapBuilding),
-  );
-  all("[data-map-panel]", (event) => {
-    const panel = event.currentTarget.dataset.mapPanel;
-    actions.selectPanel(panel);
-    requestAnimationFrame(() =>
-      root.querySelector(`.map-building[data-map-panel="${panel}"]`)?.focus(),
-    );
-  });
   all("[data-building]", (event) =>
     actions.upgrade(event.currentTarget.dataset.building),
   );
