@@ -6,6 +6,11 @@ repository may be labelled "audited" on the basis of these checks. An
 independent external Solidity/security audit of the final source, configured
 proxy, governance and economics is still outstanding.
 
+The exact deployed-but-not-activated V2 candidate and its required external
+review are frozen in [the external audit handoff](./EXTERNAL_AUDIT_HANDOFF.md).
+That handoff also remains non-audit evidence until an independent report and
+re-test exist.
+
 ## Scope and reproducible evidence
 
 `contracts/solidity-scope.json` is the single machine-readable Solidity scope
