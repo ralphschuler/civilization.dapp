@@ -214,10 +214,9 @@ test("shell rendering receives explicit state and no controller callbacks", () =
   assert.match(html, /asset-loading/);
   assert.match(html, /id="gather"/);
   assert.match(html, /<div data-game-shell-hud><\/div>/);
-  assert.match(html, /role="dialog" aria-modal="true"/);
-  assert.match(html, /Connected wallet/);
-  assert.match(html, /0x0000000000000000000000000000000000000001/);
-  assert.match(html, /data-reduced-motion checked/);
+  assert.match(html, /<div data-game-settings-dialog><\/div>/);
+  assert.doesNotMatch(html, /settings-wallet-address/);
+  assert.doesNotMatch(html, /data-reduced-motion/);
   assert.match(html, /motion-reduced/);
 });
 
@@ -802,6 +801,51 @@ test("app lifecycle keeps React panel controls out of imperative bindings and re
   assert.match(raidPanel, /targetAddress/);
   assert.match(raidPanel, /data-raid-countdown/);
   assert.doesNotMatch(tick, /data-raid-countdown/);
+});
+
+test("settings dialog is a typed React island with runtime-owned actions and keyboard lifecycle", async () => {
+  const [app, shell, bindings, settings, hud] = await Promise.all([
+    readFile(new URL("../src/app.js", import.meta.url), "utf8"),
+    readFile(new URL("../src/game-ui/views/shell.js", import.meta.url), "utf8"),
+    readFile(new URL("../src/game-ui/bindings.js", import.meta.url), "utf8"),
+    readFile(
+      new URL("../src/components/SettingsDialog.tsx", import.meta.url),
+      "utf8",
+    ),
+    readFile(
+      new URL("../src/components/GameShellHud.tsx", import.meta.url),
+      "utf8",
+    ),
+  ]);
+
+  assert.match(shell, /<div data-game-settings-dialog><\/div>/);
+  assert.doesNotMatch(shell, /function settingsDialog/);
+  assert.match(app, /import \{ SettingsDialog \}/);
+  assert.match(app, /settingsDialogRoot/);
+  assert.match(app, /createElement\(SettingsDialog/);
+  assert.match(app, /onChangeLocale: actions\.changeLocale/);
+  assert.match(app, /onSetReducedMotion: actions\.setReducedMotion/);
+  assert.match(app, /onLogout: actions\.logout/);
+  assert.ok(
+    app.indexOf("bindGameActions(runtime.root, actions)") <
+      app.indexOf("renderSettingsDialog();"),
+  );
+  assert.doesNotMatch(bindings, /data-(?:open|close)-settings/);
+  assert.doesNotMatch(bindings, /data-(?:copy-wallet|reduced-motion|logout)/);
+  assert.doesNotMatch(bindings, /civilization-locale/);
+  assert.match(settings, /export type SettingsDialogProps/);
+  assert.match(settings, /navigator\.clipboard\?\.writeText/);
+  assert.match(settings, /event\.key === "Escape"/);
+  assert.match(settings, /event\.key !== "Tab"/);
+  assert.match(settings, /\[data-close-settings\].*\.focus\(\)/);
+  assert.match(settings, /aria-modal="true"/);
+  assert.match(settings, /aria-live="polite"/);
+  assert.match(settings, /checked=\{props\.reducedMotion\}/);
+  assert.match(settings, /logoutPending \? props\.copy\.logoutPending/);
+  assert.match(hud, /data-open-settings/);
+  assert.match(hud, /aria-label=\{props\.copy\.settings\}/);
+  assert.match(hud, /title=\{props\.copy\.settings\}/);
+  assert.match(hud, /<span aria-hidden="true">⚙<\/span>/);
 });
 
 test("changing a quoted market draft invalidates stone x50 and cannot confirm it as wood x1", () => {

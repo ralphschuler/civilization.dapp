@@ -91,54 +91,6 @@ function tabs(activePanel, copy, variant = "desktop") {
     .join("");
 }
 
-function settingsDialog({
-  copy,
-  locale,
-  walletAddress,
-  settingsOpen,
-  reducedMotion,
-}) {
-  if (!settingsOpen) return "";
-  return `
-    <div class="settings-backdrop" data-close-settings aria-hidden="true"></div>
-    <section class="settings-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-title" aria-describedby="settings-feedback">
-      <header class="settings-dialog__header">
-        <h2 id="settings-title">${copy.settingsTitle}</h2>
-        <button type="button" class="settings-dialog__close" data-close-settings aria-label="${copy.settingsClose}">×</button>
-      </header>
-      <div class="settings-dialog__body">
-        <section aria-labelledby="settings-language-title">
-          <h3 id="settings-language-title">${copy.language}</h3>
-          <label class="settings-field" for="civilization-locale">
-            <span>${copy.language}</span>
-            <select id="civilization-locale">
-              <option value="de-DE" ${locale === "de-DE" ? "selected" : ""}>${copy.german}</option>
-              <option value="en-US" ${locale === "en-US" ? "selected" : ""}>${copy.english}</option>
-            </select>
-          </label>
-        </section>
-        <section aria-labelledby="settings-account-title">
-          <h3 id="settings-account-title">${copy.account}</h3>
-          <p class="settings-wallet-label">${copy.connectedWallet}</p>
-          <code class="settings-wallet-address">${walletAddress || "—"}</code>
-          <button type="button" class="settings-secondary-action" data-copy-wallet>${copy.copyAddress}</button>
-        </section>
-        <section aria-labelledby="settings-motion-title">
-          <h3 id="settings-motion-title">${copy.motion}</h3>
-          <label class="settings-toggle">
-            <input type="checkbox" data-reduced-motion ${reducedMotion ? "checked" : ""}>
-            <span>${copy.motionDescription}</span>
-          </label>
-        </section>
-        <section aria-labelledby="settings-session-title">
-          <h3 id="settings-session-title">${copy.session}</h3>
-          <button type="button" class="settings-logout" data-logout>${copy.logout}</button>
-        </section>
-        <p id="settings-feedback" class="settings-feedback" role="status" aria-live="polite" data-copy-success="${copy.addressCopied}" data-copy-failure="${copy.addressCopyFailed}" data-logout-failure="${copy.logoutFailed}"></p>
-      </div>
-    </section>`;
-}
-
 function walletReviewDialog({ review, copy }) {
   if (
     !review ||
@@ -185,8 +137,6 @@ export function gameShell(ctx) {
     locale,
     assetResult,
     assetsLoading,
-    walletAddress,
-    settingsOpen,
     reducedMotion,
     review,
   } = ctx;
@@ -248,7 +198,7 @@ ${collectionStock}
 <span>${runtimeMode === "demo" ? copy.demoFooter(state.raids) : copy.worldFooter(state.prestigeCount)}</span>
 ${runtimeMode === "demo" ? `<button id="reset">${copy.demoReset}</button>` : ""}</footer>
       <nav class="mobile-hud" aria-label="${copy.quickAccess}">${mobileNavigation}</nav>
-      ${settingsDialog({ copy, locale, walletAddress, settingsOpen, reducedMotion })}
+      <div data-game-settings-dialog></div>
       ${walletReviewDialog({ review, copy })}
     </section>`;
 }
