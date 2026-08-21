@@ -27,8 +27,6 @@ export function bindGameActions(root, actions) {
     actions.boost(value === undefined ? undefined : Number(value));
   });
   on("#prestige", actions.prestige);
-  on("#pick-raid-contact", actions.pickOpponent);
-  on("#resolve-raid", actions.resolveRaid);
   on("[data-confirm-wallet-review]", actions.confirmReview);
   on("[data-cancel-wallet-review]", actions.cancelReview);
   on("#reset", actions.reset);
@@ -126,16 +124,4 @@ export function bindGameActions(root, actions) {
     actions.upgrade(event.currentTarget.dataset.planUpgrade),
   );
   all("[data-open-market]", () => actions.selectPanel("market"));
-  on("#send-raid", () => {
-    const target =
-      root.querySelector("#raid-target-address")?.value.trim() ||
-      root.querySelector("#raid-target")?.value;
-    const army = Object.fromEntries(
-      actions.troopIds.map((id) => [
-        id,
-        Number(root.querySelector(`#raid-${id}`)?.value),
-      ]),
-    );
-    actions.sendRaid(target, army);
-  });
 }

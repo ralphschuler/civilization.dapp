@@ -20,10 +20,12 @@ market draft, quote, and revision. Any resource, direction, or amount change
 invalidates the quote, and an async quote is accepted only when it still matches
 the current draft.
 
-The imperative shell still owns the map, collection status, Raid panel, dialogs,
-ticks, and game actions. Tick updates re-render the React HUD, Build, Army, and
-Market islands from existing runtime state; they do not write into React-owned
-nodes.
+The imperative shell still owns the map, collection status, dialogs, ticks, and
+game actions. The sixth slice moves Raid-panel content into the typed
+`RaidPanel` island. The runtime owns the address/target and troop draft, while
+React owns its controlled controls, report, busy states, and march countdown.
+Tick updates re-render every React island from existing runtime state; they do
+not write into React-owned nodes.
 
 ```
 CivilizationClient
@@ -31,11 +33,11 @@ CivilizationClient
 │  ├─ GameShellHud (typed React HUD island)
 │  ├─ BuildPanel (typed React build island)
 │  ├─ ArmyPanel (typed React army island)
-│  └─ MarketPanel (typed React market island)
+│  ├─ MarketPanel (typed React market island)
+│  └─ RaidPanel (typed React raid island)
 └─ CivilizationRuntimeGate (access and runtime feedback)
 ```
 
-Subsequent slices should proceed one panel at a time (raid), then settings and
-review dialogs.
+Subsequent slices should proceed with settings and review dialogs.
 Each slice must retain the current runtime adapter boundary and keyboard
 behavior before moving to the next one.
