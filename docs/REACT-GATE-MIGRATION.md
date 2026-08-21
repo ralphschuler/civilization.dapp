@@ -20,8 +20,7 @@ market draft, quote, and revision. Any resource, direction, or amount change
 invalidates the quote, and an async quote is accepted only when it still matches
 the current draft.
 
-The imperative shell still owns the map, collection status, ticks, and game
-actions. The sixth slice moves Raid-panel content into the typed
+The imperative shell still owns the map and game actions. The sixth slice moves Raid-panel content into the typed
 `RaidPanel` island. The runtime owns the address/target and troop draft, while
 React owns its controlled controls, report, busy states, and march countdown.
 Tick updates re-render every React island from existing runtime state; they do
@@ -54,3 +53,9 @@ It preserves the non-dismissable backdrop, focuses the modal action on open,
 traps Tab navigation, restores focus to the active panel navigation after
 cancel, and cancels a review on Escape when it is not waiting for wallet or
 chain finality.
+
+The ninth slice moves the collection control and field-stock status into the
+typed `CollectionStatus` island. Runtime state remains the source for the
+collection lock/countdown, busy state, field stock, and gather callback. Each
+live tick re-renders the island; the former imperative collection tick writer
+is removed.
