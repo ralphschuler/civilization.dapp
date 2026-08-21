@@ -96,9 +96,10 @@ function createRuntime(options) {
       typeof window !== "undefined" &&
       window.localStorage.getItem("civilization-reduced-motion") === "true",
     feedback:
-      options.runtimeMode === "world"
+      options.initialFeedback ??
+      (options.runtimeMode === "world"
         ? civilizationMessages(options.locale).loadingState
-        : civilizationMessages(options.locale).chooseBuilding,
+        : civilizationMessages(options.locale).chooseBuilding),
     worldApp: installed
       ? { installed: true, walletAddress }
       : { installed: false },
@@ -756,7 +757,7 @@ function createController(runtime) {
 /**
  * @param {{ root: HTMLElement | null, runtimeMode?: "demo" | "world", worldAppInstalled?: boolean,
  *   worldAccessConfirmed?: boolean, worldWalletAddress?: string | null, worldAdapter?: object | null,
- *   locale?: "de-DE" | "en-US", onLocaleChange?: (locale: "de-DE" | "en-US") => void,
+ *   initialFeedback?: string, locale?: "de-DE" | "en-US", onLocaleChange?: (locale: "de-DE" | "en-US") => void,
  *   onLogout?: () => Promise<void>,
  *   onGateStateChange?: (gate: ({ kind: "access", detail: string, title: string } | { kind: "runtime", feedback: string, loading: boolean, retryLabel: string, title: string }) | null, retry: (() => void) | null) => void }} options
  */
