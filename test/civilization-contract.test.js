@@ -1362,6 +1362,51 @@ test("V1.1 timelock upgrade keeps V1 state and makes Workshop 0 to 1 reachable w
   assert.equal(pending[8].building, 5);
 });
 
+test("production V2 timelock upgrade preserves V1 state and keeps first Workshop gold-free", async () => {
+  const f = await fixture();
+  ok(await call(f.game, alice, "registerWallet", [], 1_000n));
+  ok(await call(f.game, alice, "claim", [], 90_000n));
+  ok(await call(f.game, alice, "upgrade", [0], 90_000n));
+  const baseline = await read(f.game, "playerState", [alice], 90_000n);
+
+  const v2 = await deploy(
+    f.vm,
+    artifact("contracts/src/CivilizationGame.sol", "CivilizationGame"),
+  );
+  await upgrade(f, v2, 90_001n, `0x${"12".padStart(64, "0")}`);
+  const game = { ...f.game, abi: v2.abi };
+
+  assert.deepEqual(
+    await read(game, "playerState", [alice], 90_001n),
+    baseline,
+    "legacy player state survives the production V2 implementation",
+  );
+  assert.equal(await read(game, "constructionCapacity"), 3);
+  assert.equal(
+    await read(game, "constructionJob", [alice, 0]),
+    1n | (0n << 8n) | (baseline[8].completesAt << 16n),
+    "V2 slot zero reflects the legacy pending construction",
+  );
+
+  let at = baseline[8].completesAt;
+  ok(await call(game, alice, "completeUpgrade", [], at));
+  for (const building of [1, 2, 3, 0]) {
+    at += 86_400n;
+    ok(await call(game, alice, "claim", [], at));
+    ok(await call(game, alice, "upgrade", [building], at));
+    at = (await read(game, "playerState", [alice], at))[8].completesAt;
+    ok(await call(game, alice, "completeUpgrade", [], at));
+  }
+
+  at += 86_400n;
+  ok(await call(game, alice, "claim", [], at));
+  assert.equal(await read(game, "balanceOf", [alice], at), 0n);
+  ok(await call(game, alice, "upgrade", [5], at));
+  const workshop = await read(game, "constructionJob", [alice, 0], at);
+  assert.equal(workshop & 1n, 1n);
+  assert.equal((workshop >> 8n) & 0xffn, 5n);
+});
+
 test("timelock-configured reward claims mint through the proxy and survive a V1/V2 upgrade", async () => {
   const f = await fixture();
   const distributor = await deploy(
