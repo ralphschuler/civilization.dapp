@@ -837,7 +837,8 @@ test("settings dialog is a typed React island with runtime-owned actions and key
   assert.match(settings, /navigator\.clipboard\?\.writeText/);
   assert.match(settings, /event\.key === "Escape"/);
   assert.match(settings, /event\.key !== "Tab"/);
-  assert.match(settings, /\[data-close-settings\].*\.focus\(\)/);
+  assert.match(settings, /querySelector<HTMLElement>\("\[data-close-settings\]"\)/);
+  assert.match(settings, /\.focus\(\)/);
   assert.match(settings, /aria-modal="true"/);
   assert.match(settings, /aria-live="polite"/);
   assert.match(settings, /checked=\{props\.reducedMotion\}/);
