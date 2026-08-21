@@ -193,21 +193,15 @@ test("shell rendering receives explicit state and no controller callbacks", () =
     settingsOpen: true,
     reducedMotion: true,
   });
-  assert.match(html, /data-panel="build"/);
   assert.match(
     html,
-    /<nav class="command-tabs" aria-label="Village actions">[\s\S]*?data-panel="build"[^>]*aria-label="Build"[^>]*aria-current="page"/,
+    /<div data-game-command-navigation-mount="desktop"><\/div>/,
   );
   assert.match(
     html,
-    /<nav class="mobile-hud" aria-label="Quick access">[\s\S]*?data-panel="build"[^>]*aria-label="Build"[^>]*aria-current="page"/,
+    /<div data-game-command-navigation-mount="mobile"><\/div>/,
   );
-  assert.doesNotMatch(html, /role="tab"/);
-  assert.equal(
-    html.match(/aria-current="page"/g)?.length,
-    2,
-    "desktop and mobile navigation each expose exactly one current area",
-  );
+  assert.doesNotMatch(html, /command-tabs|mobile-hud|data-command-panel/);
   assert.match(html, /id="game-command-panel"/);
   assert.match(html, /<p>panel<\/p>/);
   assert.match(html, /asset-loading/);
@@ -255,19 +249,55 @@ test("game feedback escapes dynamic contact, provider, and contract messages onc
   assert.doesNotMatch(html, /<img src=x onerror=/);
 });
 
-test("game navigation exposes one current area per navigation and retains a visible focus treatment", async () => {
-  const [css, bindings] = await Promise.all([
-    readFile(new URL("../src/styles.css", import.meta.url), "utf8"),
+test("typed game navigation mounts both layouts, calls the runtime action, and preserves accessible active controls", async () => {
+  const [app, bindings, component, css, shell] = await Promise.all([
+    readFile(new URL("../src/app.js", import.meta.url), "utf8"),
     readFile(new URL("../src/game-ui/bindings.js", import.meta.url), "utf8"),
+    readFile(
+      new URL("../src/components/CommandNavigation.tsx", import.meta.url),
+      "utf8",
+    ),
+    readFile(new URL("../src/styles.css", import.meta.url), "utf8"),
+    readFile(new URL("../src/game-ui/views/shell.js", import.meta.url), "utf8"),
   ]);
 
+  assert.match(shell, /data-game-command-navigation-mount="desktop"/);
+  assert.match(shell, /data-game-command-navigation-mount="mobile"/);
+  assert.doesNotMatch(shell, /function tabs/);
+  assert.match(app, /import \{ CommandNavigation \}/);
+  assert.match(app, /desktopNavigationRoot/);
+  assert.match(app, /mobileNavigationRoot/);
+  assert.match(app, /createElement\(CommandNavigation/);
+  assert.match(app, /onSelectPanel: \(panel, selectedNavigation\) =>/);
+  assert.match(app, /actions\.selectPanel\(panel\)/);
+  assert.match(app, /data-game-command-navigation="\$\{selectedNavigation\}"/);
+  assert.match(component, /export type CommandNavigationProps/);
+  assert.match(
+    component,
+    /aria-label=\{mobile \? copy\.quickAccess : copy\.villageActions\}/,
+  );
+  assert.match(component, /aria-current=\{selected \? "page" : undefined\}/);
+  assert.match(component, /aria-controls="game-command-panel"/);
+  assert.match(component, /data-command-panel=\{panel\}/);
+  assert.match(component, /copy\.buildShort/);
+  assert.match(component, /copy\.armyShort/);
+  assert.doesNotMatch(component, /role="tab"/);
+  assert.doesNotMatch(bindings, /data-command-panel/);
+  assert.doesNotMatch(bindings, /data-panel/);
+  assert.match(bindings, /data-map-panel/);
+  assert.match(bindings, /actions\.selectPanel\(panel\)/);
+  assert.match(bindings, /requestAnimationFrame\(\(\) =>/);
+  assert.match(
+    bindings,
+    /root\s*\.querySelector\(`\.map-building\[data-map-panel="\$\{panel\}"\]`\)\s*\?\.focus\(\)/,
+  );
   assert.match(css, /\.game-shell button\s*\{\s*min-height:\s*2\.75rem/);
   assert.match(
     css,
     /\.game-shell button:focus-visible,[\s\S]*?outline:\s*3px solid #fff4bb[\s\S]*?box-shadow:\s*0 0 0 6px #07100e/,
   );
-  assert.match(bindings, /requestAnimationFrame\(\(\)\s*=>/);
-  assert.match(bindings, /querySelector\(focusSelector\)\?\.focus\(\)/);
+  assert.match(app, /requestAnimationFrame\(\(\) =>/);
+  assert.match(app, /\?\.focus\(\)/);
 });
 
 test("failed resource and building sprites retain visible accessible fallbacks", () => {
@@ -313,7 +343,7 @@ test("failed resource and building sprites retain visible accessible fallbacks",
   assert.match(html, /<div data-game-collection-status><\/div>/);
 });
 
-test("imperative shell uses the selected locale for navigation and dynamic claim values", () => {
+test("imperative shell provides stable locale-independent navigation mounts", () => {
   const state = {
     resources: { wood: 0, clay: 0, stone: 0, gold: 0 },
     unclaimed: { wood: 0, clay: 0, stone: 0, gold: 0 },
@@ -345,7 +375,8 @@ test("imperative shell uses the selected locale for navigation and dynamic claim
     locale: "en-US",
     copy: civilizationMessages("en-US"),
   });
-  assert.match(html, /aria-label="Village actions"/);
+  assert.match(html, /data-game-command-navigation-mount="desktop"/);
+  assert.match(html, /data-game-command-navigation-mount="mobile"/);
   assert.match(html, /data-game-shell-hud/);
   assert.match(html, /data-game-collection-status/);
 });
@@ -854,7 +885,16 @@ test("wallet review dialog is a typed React island with frozen runtime actions a
   assert.match(app, /onCancel: cancelWalletReview/);
   assert.match(app, /onConfirm: actions\.confirmReview/);
   assert.match(app, /requestAnimationFrame\(\(\) =>/);
-  assert.match(app, /\.command-tabs \[data-panel=/);
+  assert.match(app, /data-game-command-navigation="\$\{selectedNavigation\}"/);
+  const cancelWalletReview = app.slice(
+    app.indexOf("const cancelWalletReview = () =>"),
+    app.indexOf("const panelContext = () =>"),
+  );
+  assert.match(
+    cancelWalletReview,
+    /data-game-command-navigation="desktop"\] \[data-command-panel="\$\{runtime\.activePanel\}"/,
+  );
+  assert.doesNotMatch(cancelWalletReview, /command-tabs|data-panel=/);
   assert.ok(
     app.indexOf("bindGameActions(runtime.root, actions)") <
       app.indexOf("renderWalletReviewDialog();"),
