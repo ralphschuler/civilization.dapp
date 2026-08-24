@@ -13,7 +13,9 @@ import {
 } from "./constants.js";
 import { readCivilizationState } from "./reads.js";
 
-const transaction = (to, data) => ({ to, data, value: "0x0" });
+// MiniKit expects direct non-payable calls to contain only their destination
+// and calldata. Add `value` only when a future action actually transfers ETH.
+const transaction = (to, data) => ({ to, data });
 const MARKET_RESOURCE_INDEX = { wood: 0, clay: 1, stone: 2 };
 const validUserOpHash = (hash) =>
   typeof hash === "string" && /^0x[0-9a-fA-F]{64}$/.test(hash);
