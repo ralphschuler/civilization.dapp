@@ -40,8 +40,14 @@ test("next action reports the concrete build blocker in priority order", () => {
       .kind,
     "requirements",
   );
-  assert.equal(deriveNextAction({ ...base, atCapacity: true }).kind, "capacity");
-  assert.equal(deriveNextAction({ ...base, affordable: false }).kind, "resources");
+  assert.equal(
+    deriveNextAction({ ...base, atCapacity: true }).kind,
+    "capacity",
+  );
+  assert.equal(
+    deriveNextAction({ ...base, affordable: false }).kind,
+    "resources",
+  );
   assert.equal(deriveNextAction({ ...base, level: 25 }).kind, "max-level");
 });
 

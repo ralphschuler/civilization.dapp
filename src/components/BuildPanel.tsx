@@ -411,8 +411,8 @@ export function BuildPanel(props: BuildPanelProps) {
                         `${props.buildings[id].label} ${required}`,
                     )
                     .join(" · "),
-              ),
-            }
+                ),
+              }
             : nextAction.kind === "capacity"
               ? {
                   detail: copy.constructionSlotsOccupied(
@@ -421,7 +421,9 @@ export function BuildPanel(props: BuildPanelProps) {
                   ),
                 }
               : nextAction.kind === "resources"
-                ? { detail: copy.nextActionResources(building.label, level + 1) }
+                ? {
+                    detail: copy.nextActionResources(building.label, level + 1),
+                  }
                 : { detail: copy.fullyUpgraded(building.label) };
   return (
     <div className="inspector build-inspector">
