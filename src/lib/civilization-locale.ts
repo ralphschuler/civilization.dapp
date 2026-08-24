@@ -193,6 +193,14 @@ const copy = {
     dependencyPlanCompletes: (time: string) => `Fertig in ${time}`,
     dependencyPlanDeficit: (cost: string) => `Fehlend: ${cost}.`,
     dependencyPlanMarket: "Markt öffnen",
+    marketAcquire: (amount: string, resource: string) =>
+      `${amount} ${resource} beschaffen`,
+    marketMissingResources:
+      "Fehlende Rohstoffe einzeln am Markt beschaffen. Der Ausbau startet danach nie automatisch.",
+    marketGoldUnavailable:
+      "Gold kann der Rohstoffmarkt nicht beschaffen. Verdiene oder erhalte zuerst den fehlenden Betrag.",
+    marketOrigin: (source: string, amount: string, resource: string) =>
+      `Für ${source}: exakt ${amount} ${resource} vorausgewählt. Kauf und Ursprung bleiben getrennt.`,
     dependencyPlanStart: (building: string, level: number) =>
       `${building} auf Stufe ${level} starten`,
     dependencyPlanBlocked: (reason: string) =>
@@ -378,6 +386,8 @@ const copy = {
       marketQuoteLoading: "Live-Quote und Contract-Liquidität werden gelesen.",
       marketQuoteLoaded:
         "Live-Quote geladen. Prüfe Preis, Gebühr und Liquidität vor der Bestätigung.",
+      marketPrefilled: (amount: string, resource: string) =>
+        `${amount} ${resource} wurden als Markt-Intent vorausgewählt.`,
       marketQuoteRequired: "Lade zuerst eine aktuelle Live-Quote.",
       marketBuyComplete: "Rohstoffe atomar gegen CGOLD gekauft.",
       marketSellComplete: "Rohstoffe atomar gegen CGOLD verkauft.",
@@ -581,6 +591,14 @@ const copy = {
     dependencyPlanCompletes: (time: string) => `Completes in ${time}`,
     dependencyPlanDeficit: (cost: string) => `Missing: ${cost}.`,
     dependencyPlanMarket: "Open market",
+    marketAcquire: (amount: string, resource: string) =>
+      `Get ${amount} ${resource}`,
+    marketMissingResources:
+      "Acquire missing resources one at a time at the market. The upgrade never starts automatically afterwards.",
+    marketGoldUnavailable:
+      "The resource market cannot acquire gold. Earn or receive the missing amount first.",
+    marketOrigin: (source: string, amount: string, resource: string) =>
+      `For ${source}: exactly ${amount} ${resource} is preselected. The purchase and origin remain separate.`,
     dependencyPlanStart: (building: string, level: number) =>
       `Start ${building} to level ${level}`,
     dependencyPlanBlocked: (reason: string) =>
@@ -764,6 +782,8 @@ const copy = {
       marketQuoteLoading: "Reading the live quote and contract liquidity.",
       marketQuoteLoaded:
         "Live quote loaded. Check price, fee, and liquidity before confirming.",
+      marketPrefilled: (amount: string, resource: string) =>
+        `${amount} ${resource} is preselected as the market intent.`,
       marketQuoteRequired: "Load a current live quote first.",
       marketBuyComplete: "Resources bought atomically for CGOLD.",
       marketSellComplete: "Resources sold atomically for CGOLD.",

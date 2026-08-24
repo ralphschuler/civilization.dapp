@@ -10,6 +10,7 @@ import {
 } from "./game.js";
 import { clearDemoState, saveDemoState } from "./demo/storage.js";
 import { costLine } from "./game-ui/helpers.js";
+import { marketPrefill } from "./world-game/market-intent.js";
 
 export function createGameActions(runtime, services) {
   const {
@@ -68,6 +69,25 @@ export function createGameActions(runtime, services) {
       runtime.review.invalidate("market_inputs_changed");
       if (runtime.review.state().status === "invalidated")
         runtime.feedback = copy().feedback.reviewInvalidated;
+      render();
+    },
+    openMarket(intent) {
+      const prefill = marketPrefill({ [intent?.resource]: intent?.amount });
+      if (!prefill) return;
+      runtime.marketDraft = { ...runtime.marketDraft, ...prefill };
+      runtime.marketInputRevision += 1;
+      runtime.marketQuote = null;
+      runtime.marketOrigin = {
+        source: typeof intent.source === "string" ? intent.source : "",
+        panel: intent.panel === "army" ? "army" : "build",
+        ...prefill,
+      };
+      runtime.review.invalidate("market_inputs_changed");
+      runtime.activePanel = "market";
+      runtime.feedback = copy().feedback.marketPrefilled(
+        numberFormat(prefill.amount),
+        copy().resourceNames[prefill.resource],
+      );
       render();
     },
     raidInputsChanged(changes) {
