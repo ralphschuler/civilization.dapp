@@ -378,6 +378,14 @@ function createController(runtime) {
   const panelContext = () => {
     const context = {
       state: runtime.state,
+      collection: {
+        ...collection(),
+        unclaimed:
+          runtime.mode === "world"
+            ? runtime.adapter.projectState(runtime.state, performance.now())
+                .unclaimed
+            : runtime.state.unclaimed,
+      },
       runtimeMode: runtime.mode,
       busy: runtime.busy,
       review: runtime.review.state(),
@@ -519,6 +527,7 @@ function createController(runtime) {
         onBoost: actions.boost,
         onPrestige: actions.prestige,
         onOpenMarket: actions.openMarket,
+        onGather: actions.gather,
       }),
     );
   };

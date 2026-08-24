@@ -135,6 +135,16 @@ const copy = {
       barracks: "Bildet Truppen aus.",
     },
     buildDetail: "GEBÄUDEDETAIL",
+    nextActionTitle: "NÄCHSTE AKTION",
+    nextActionCollect: "Feldressourcen sind bereit zum Sichern.",
+    nextActionComplete: (building: string) =>
+      `${building} kann jetzt abgeschlossen werden.`,
+    nextActionUpgrade: (building: string, level: number) =>
+      `${building} kann auf Stufe ${level} ausgebaut werden.`,
+    nextActionRequirements: (requirements: string) =>
+      `Noch erforderlich: ${requirements}.`,
+    nextActionResources: (building: string, level: number) =>
+      `Für ${building}, Stufe ${level}, fehlen Rohstoffe. Details unten öffnen.`,
     buildProgress: "BAU LÄUFT",
     complete: "Fertig",
     constructionRunning: "Bau läuft",
@@ -531,6 +541,16 @@ const copy = {
       barracks: "Trains troops.",
     },
     buildDetail: "BUILDING DETAILS",
+    nextActionTitle: "NEXT ACTION",
+    nextActionCollect: "Field resources are ready to secure.",
+    nextActionComplete: (building: string) =>
+      `${building} can be completed now.`,
+    nextActionUpgrade: (building: string, level: number) =>
+      `${building} can be upgraded to level ${level}.`,
+    nextActionRequirements: (requirements: string) =>
+      `Still required: ${requirements}.`,
+    nextActionResources: (building: string, level: number) =>
+      `${building} level ${level} needs more resources. Open details below.`,
     buildProgress: "CONSTRUCTION IN PROGRESS",
     complete: "Complete",
     constructionRunning: "Construction in progress",

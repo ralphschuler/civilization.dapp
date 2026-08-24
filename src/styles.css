@@ -647,6 +647,7 @@ button {
 .upgrade-impact,
 .dependency-plan,
 .requirement-box,
+.next-action,
 .gold-boundary,
 .raid-result {
   grid-column: 1/-1;
@@ -656,6 +657,27 @@ button {
   border: 1px solid #99955e55;
   border-radius: 0.75rem;
   background: #172216;
+}
+.next-action {
+  grid-column: 1/-1;
+  gap: 0.28rem;
+  border-color: #d5bf5c9c;
+  background: linear-gradient(135deg, #3b351b, #172216);
+}
+.next-action > span {
+  color: #f0d772;
+  font-size: 0.58rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+}
+.next-action > p {
+  margin: 0;
+  color: #f4f0d8;
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+.next-action > .primary-action {
+  margin-top: 0.28rem;
 }
 .build-secondary {
   grid-column: 1/-1;

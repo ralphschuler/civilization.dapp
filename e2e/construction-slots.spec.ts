@@ -23,6 +23,9 @@ test("workshop 11 with one job retains a keyboard-reachable start composer at 32
   await mountPanel(page, "one-job");
   await expect(page.locator("[data-construction-job]")).toHaveCount(1);
   const start = page.locator('[data-building="timber"]');
+  const recommendation = page.locator('[data-next-action="upgrade"]');
+  await expect(recommendation).toBeVisible();
+  await expect(recommendation).toHaveAccessibleName(/NÄCHSTE AKTION/);
   await expect(start).toBeEnabled();
   for (const width of [320, 390]) await expectNoHorizontalOverflow(page, width);
 
@@ -30,6 +33,15 @@ test("workshop 11 with one job retains a keyboard-reachable start composer at 32
   await expect(start).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(page.getByTestId("build-panel-upgrade-starts")).toHaveText("1");
+
+  const results = await new AxeBuilder({ page })
+    .include(".next-action")
+    .analyze();
+  expect(
+    results.violations.filter(
+      (item) => item.impact === "serious" || item.impact === "critical",
+    ),
+  ).toEqual([]);
 });
 
 test("workshop 21 with two jobs preserves each slot and a keyboard-reachable start composer", async ({
