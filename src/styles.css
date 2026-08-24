@@ -4,6 +4,10 @@
   background: #07100e;
   color: #f3f0de;
   font-optical-sizing: auto;
+  --space-1: 0.35rem;
+  --space-2: 0.65rem;
+  --space-3: 0.9rem;
+  --mobile-nav-safe-space: calc(5.8rem + env(safe-area-inset-bottom));
 }
 * {
   box-sizing: border-box;
@@ -560,6 +564,9 @@ button {
     color 0.16s ease,
     transform 0.16s ease;
 }
+.command-nav-icon {
+  display: none;
+}
 .command-tabs button:hover,
 .mobile-hud button:hover {
   color: #fff8dc;
@@ -649,6 +656,46 @@ button {
   border: 1px solid #99955e55;
   border-radius: 0.75rem;
   background: #172216;
+}
+.build-secondary {
+  grid-column: 1/-1;
+  border: 1px solid #738a5c;
+  border-radius: 0.75rem;
+  background: #142015;
+}
+.build-secondary > summary {
+  display: flex;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: 0.5rem 0.75rem;
+  color: #e8ebc4;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  list-style: none;
+}
+.build-secondary > summary::-webkit-details-marker {
+  display: none;
+}
+.build-secondary > summary::after {
+  content: "+";
+  margin-left: auto;
+  color: #e1c865;
+  font-size: 1.15rem;
+  line-height: 1;
+}
+.build-secondary[open] > summary {
+  border-bottom: 1px solid #738a5c;
+}
+.build-secondary[open] > summary::after {
+  content: "−";
+}
+.build-secondary > .upgrade-impact,
+.build-secondary > .dependency-plan {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 .upgrade-cost > div {
   display: flex;
@@ -1114,7 +1161,7 @@ button {
 }
 @media (max-width: 640px) {
   .game-shell {
-    padding: 0.6rem;
+    padding: 0.6rem 0.6rem var(--mobile-nav-safe-space);
   }
   .hud {
     top: 0.35rem;
@@ -1155,10 +1202,10 @@ button {
     border-radius: 0.85rem;
   }
   .resource {
-    column-gap: 0.1rem;
-    row-gap: 0.05rem;
+    column-gap: 0.22rem;
+    row-gap: 0.12rem;
     min-width: 0;
-    padding: 0.12rem 0.08rem;
+    padding: 0.3rem 0.2rem;
     border: 0;
   }
   .resource-values {
@@ -1169,8 +1216,8 @@ button {
   }
   .resource img {
     grid-row: 1;
-    width: 0.95rem;
-    height: 0.95rem;
+    width: 1.15rem;
+    height: 1.15rem;
   }
   .resource small {
     display: none;
@@ -1181,15 +1228,15 @@ button {
     grid-column: 1/-1;
     min-width: 0;
     max-width: 100%;
-    font-size: 0.46rem;
-    line-height: 1;
+    font-size: 0.62rem;
+    line-height: 1.2;
     white-space: nowrap;
   }
   .resource .resource-production-label {
     display: none;
   }
   .resource strong {
-    font-size: 0.64rem;
+    font-size: 0.88rem;
     white-space: nowrap;
   }
   .command-layout {
@@ -1256,7 +1303,7 @@ button {
     display: none;
   }
   .command-panel {
-    padding: 0.8rem;
+    padding: var(--space-3);
     border-radius: 1.1rem;
   }
   .build-inspector {
@@ -1290,20 +1337,47 @@ button {
     z-index: 12;
     left: 0.65rem;
     right: 0.65rem;
-    bottom: 0.65rem;
+    bottom: max(0.4rem, env(safe-area-inset-bottom));
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    padding: 0.3rem;
+    padding: var(--space-1);
     border: 1px solid #a09c6e66;
     border-radius: 0.9rem;
     background: #111a14ef;
     backdrop-filter: blur(16px);
   }
   .mobile-hud button {
-    font-size: 0.55rem;
+    display: grid;
+    min-width: 0;
+    min-height: 2.75rem;
+    place-items: center;
+    gap: 0.08rem;
+    padding: 0.25rem 0.15rem;
+    font-size: 0.68rem;
+    font-weight: 800;
+    line-height: 1;
+  }
+  .mobile-hud .command-nav-icon {
+    display: block;
+    font-size: 1rem;
+    line-height: 1;
   }
   .mobile-hud button.is-active {
-    color: #302409;
+    outline: 2px solid #fff3aa;
+    outline-offset: -3px;
+    text-decoration: underline;
+    text-decoration-thickness: 2px;
+    text-underline-offset: 0.16rem;
+  }
+  .build-inspector {
+    grid-template-columns: 5.6rem minmax(0, 1fr);
+    gap: var(--space-2);
+  }
+  .build-inspector > .build-primary-action {
+    align-self: start;
+    position: sticky;
+    bottom: calc(4.35rem + env(safe-area-inset-bottom));
+    z-index: 4;
   }
   .token-row {
     grid-template-columns: 2.25rem minmax(0, 1fr);

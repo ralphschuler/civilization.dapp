@@ -7,6 +7,9 @@
   "scripts": {
     "dev": "next dev --hostname 127.0.0.1",
     "build": "next build",
+    "storybook": "storybook dev -p 6006",
+    "build:storybook": "storybook build -o artefacts/storybook-ui-audit/storybook-static",
+    "capture:storybook-audit": "node scripts/capture-storybook-audit.mjs",
     "start": "next start --hostname 0.0.0.0 --port 31057",
     "db:migrate": "node scripts/db-migrate.mjs",
     "test": "node --experimental-strip-types --test test/*.test.js test/*.test.ts",
@@ -44,6 +47,7 @@
     "@openzeppelin/contracts": "5.6.1",
     "@openzeppelin/contracts-upgradeable": "5.6.1",
     "@playwright/test": "1.57.0",
+    "@storybook/nextjs-vite": "10.5.10",
     "@tailwindcss/postcss": "^4.0.0",
     "@types/node": "^26.2.0",
     "@types/react": "^19.0.0",
@@ -54,6 +58,8 @@
     "prettier": "3.9.6",
     "prettier-plugin-solidity": "2.4.1",
     "solc": "0.8.30",
+    "storybook": "10.5.10",
+    "tailwindcss": "4.3.3",
     "typescript": "^6.0.3"
   },
   "dependencies": {
