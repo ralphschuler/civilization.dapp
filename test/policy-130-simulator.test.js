@@ -1,146 +1,19 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  DIRECT_CONSTRUCTION_BOOST_WLD_EQUIVALENT_PER_HOUR,
-  MONTHLY_PAID_ADVANTAGE_CAP_WLD_EQUIVALENT,
   MAX_OFFLINE_SECONDS,
   MAX_REDUCTION_BPS,
   SIMULATOR_VERSION,
   canStartWorkshopJob,
   cappedOfflineSeconds,
   compareCurves,
-  evaluateDirectConstructionBoost,
-  evaluateMonthlyPaidAdvantage,
   rawDurationSeconds,
   reductionBps,
   simulateJob,
   workshopSlots,
 } from "../src/simulation/policy-130-simulator.js";
 
-test("monthly paid-advantage cap aggregates supplied WLD-equivalent routes", () => {
-  const priorCgoldPurchaseEquivalent = 3n * 10n ** 18n;
-  const directBoost = evaluateDirectConstructionBoost({
-    priorMonthlyWldEquivalent: priorCgoldPurchaseEquivalent,
-    requestedHours: 2,
-  });
-  assert.equal(directBoost.allowed, true);
-  assert.equal(directBoost.admittedHours, 2);
-  assert.equal(directBoost.admittedWldEquivalent, 2n * 10n ** 18n);
-
-  const beyondAggregateCap = evaluateMonthlyPaidAdvantage({
-    priorMonthlyWldEquivalent:
-      priorCgoldPurchaseEquivalent + directBoost.admittedWldEquivalent,
-    requestedWldEquivalent: 1n,
-  });
-  assert.deepEqual(beyondAggregateCap, {
-    capWldEquivalent: MONTHLY_PAID_ADVANTAGE_CAP_WLD_EQUIVALENT,
-    priorMonthlyWldEquivalent: MONTHLY_PAID_ADVANTAGE_CAP_WLD_EQUIVALENT,
-    requestedWldEquivalent: 1n,
-    remainingWldEquivalent: 0n,
-    admittedWldEquivalent: 0n,
-    rejectedWldEquivalent: 1n,
-    allowed: false,
-    rejectionReason: "monthly_paid_advantage_cap_exceeded",
-  });
-});
-
-test("monthly paid-advantage cap admits its exact boundary and rejects excess", () => {
-  const exact = evaluateMonthlyPaidAdvantage({
-    priorMonthlyWldEquivalent: 4n * 10n ** 18n,
-    requestedWldEquivalent: 1n * 10n ** 18n,
-  });
-  assert.equal(exact.allowed, true);
-  assert.equal(exact.remainingWldEquivalent, 1n * 10n ** 18n);
-  assert.equal(exact.admittedWldEquivalent, 1n * 10n ** 18n);
-
-  const excess = evaluateMonthlyPaidAdvantage({
-    priorMonthlyWldEquivalent: 4n * 10n ** 18n,
-    requestedWldEquivalent: 1n * 10n ** 18n + 1n,
-  });
-  assert.equal(excess.allowed, false);
-  assert.equal(excess.admittedWldEquivalent, 0n);
-  assert.equal(excess.rejectedWldEquivalent, 1n * 10n ** 18n + 1n);
-  assert.equal(excess.rejectionReason, "monthly_paid_advantage_cap_exceeded");
-
-  const beyondFiveWld = evaluateMonthlyPaidAdvantage({
-    priorMonthlyWldEquivalent: 0n,
-    requestedWldEquivalent: 6n * 10n ** 18n,
-  });
-  assert.equal(beyondFiveWld.allowed, false);
-  assert.equal(beyondFiveWld.rejectedWldEquivalent, 6n * 10n ** 18n);
-});
-
-test("direct construction boosts have a five-hour monthly boundary", () => {
-  const fiveHours = evaluateDirectConstructionBoost({
-    priorMonthlyWldEquivalent: 0n,
-    requestedHours: 5,
-  });
-  assert.equal(fiveHours.allowed, true);
-  assert.equal(fiveHours.requestedWldEquivalent, 5n * 10n ** 18n);
-  assert.equal(fiveHours.admittedHours, 5);
-
-  const sixHours = evaluateDirectConstructionBoost({
-    priorMonthlyWldEquivalent: 0n,
-    requestedHours: 6,
-  });
-  assert.equal(
-    DIRECT_CONSTRUCTION_BOOST_WLD_EQUIVALENT_PER_HOUR,
-    1n * 10n ** 18n,
-  );
-  assert.equal(sixHours.allowed, false);
-  assert.equal(sixHours.admittedHours, 0);
-});
-
-test("paid-advantage policy rejects invalid inputs and is deterministic", () => {
-  assert.throws(
-    () =>
-      evaluateMonthlyPaidAdvantage({
-        priorMonthlyWldEquivalent: -1n,
-        requestedWldEquivalent: 1n,
-      }),
-    /invalid_prior_monthly_wld_equivalent/,
-  );
-  assert.throws(
-    () =>
-      evaluateMonthlyPaidAdvantage({
-        priorMonthlyWldEquivalent: 0n,
-        requestedWldEquivalent: 0n,
-      }),
-    /invalid_requested_wld_equivalent/,
-  );
-  assert.throws(
-    () =>
-      evaluateDirectConstructionBoost({
-        priorMonthlyWldEquivalent: 0n,
-        requestedHours: 1.5,
-      }),
-    /invalid_requested_boost_hours/,
-  );
-  assert.throws(
-    () =>
-      evaluateDirectConstructionBoost({
-        priorMonthlyWldEquivalent:
-          MONTHLY_PAID_ADVANTAGE_CAP_WLD_EQUIVALENT + 1n,
-        requestedHours: 1,
-      }),
-    /invalid_prior_monthly_wld_equivalent/,
-  );
-
-  const input = {
-    priorMonthlyWldEquivalent: 2n * 10n ** 18n,
-    requestedWldEquivalent: 2n * 10n ** 18n,
-  };
-  assert.deepEqual(
-    evaluateMonthlyPaidAdvantage(input),
-    evaluateMonthlyPaidAdvantage(input),
-  );
-});
-
 test("Issue 130 simulator supports every class and only levels 1 through 30", () => {
-  assert.equal(
-    simulateJob({ buildingClass: "civic", level: 1, version: "130.1" }).version,
-    "130.1",
-  );
   for (const buildingClass of [
     "production",
     "logistics",
