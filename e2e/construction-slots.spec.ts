@@ -56,17 +56,23 @@ test("upgrade impact comparison stays accessible and responsive at mobile widths
   page,
 }) => {
   await mountPanel(page, "impact");
-  await expect(
-    page.getByRole("region", { name: "AUSBAU-AUSWIRKUNG" }),
-  ).toBeVisible();
+  const impactDisclosure = page.locator("details.build-impact-details");
+  const impactToggle = impactDisclosure.locator("summary");
+  await expect(impactDisclosure).not.toHaveAttribute("open", "");
+  await expect(impactToggle).toHaveText("AUSBAU-AUSWIRKUNG");
+  await impactToggle.focus();
+  await expect(impactToggle).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(impactDisclosure).toHaveAttribute("open", "");
+
+  const impact = page.getByRole("region", { name: "AUSBAU-AUSWIRKUNG" });
+  await expect(impact).toBeVisible();
   await expect(page.getByText("Bauplätze")).toBeVisible();
   for (const width of [320, 390]) await expectNoHorizontalOverflow(page, width);
   await page.evaluate(() => {
     document.body.style.zoom = "2";
   });
-  await expect(
-    page.getByRole("region", { name: "AUSBAU-AUSWIRKUNG" }),
-  ).toBeVisible();
+  await expect(impact).toBeVisible();
   const results = await new AxeBuilder({ page })
     .include(".upgrade-impact")
     .analyze();

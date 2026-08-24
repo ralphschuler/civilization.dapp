@@ -18,11 +18,19 @@ test("dependency planner is named, accessible, responsive, and offers one next s
   page,
 }) => {
   await mountDependencyPlanner(page);
+  const plannerDisclosure = page.locator("details.build-plan-details");
+  const plannerToggle = plannerDisclosure.locator("summary");
   const planner = page.getByRole("region", { name: "AUSBAUPLAN" });
   const nextStep = planner.getByRole("button", {
     name: "claypit auf Stufe 2 starten",
   });
 
+  await expect(plannerDisclosure).not.toHaveAttribute("open", "");
+  await expect(plannerToggle).toHaveText("AUSBAUPLAN");
+  await plannerToggle.focus();
+  await expect(plannerToggle).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(plannerDisclosure).toHaveAttribute("open", "");
   await expect(planner).toBeVisible();
   await expect(nextStep).toHaveCount(1);
   await expect(nextStep).toBeEnabled();
