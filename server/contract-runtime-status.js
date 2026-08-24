@@ -125,6 +125,8 @@ export async function contractRuntimeStatus(
   configuration,
   { now = Date.now, verify = verifyWorldChainProxy } = {},
 ) {
+  if (configuration.world?.environment !== "production")
+    return sanitized("not_production", new Date(now()).toISOString());
   if (!configuration.ready || !configuration.worldchainRpcUrl)
     return sanitized("missing_configuration", new Date(now()).toISOString());
   const current = now();

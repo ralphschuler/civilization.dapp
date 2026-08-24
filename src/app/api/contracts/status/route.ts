@@ -7,9 +7,14 @@ import { contractStatusPayload } from "../../../../../server/contract-runtime-pr
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const verification = await contractRuntimeStatus(runtimeConfiguration());
+  const configuration = runtimeConfiguration();
+  const verification = await contractRuntimeStatus(configuration);
   return NextResponse.json(
-    contractStatusPayload(CONTRACT_STATUS, verification),
+    contractStatusPayload(
+      CONTRACT_STATUS,
+      verification,
+      configuration.world.environment,
+    ),
     {
       headers: { "cache-control": "no-store" },
     },

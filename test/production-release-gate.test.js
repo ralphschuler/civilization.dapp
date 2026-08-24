@@ -86,6 +86,61 @@ test("historical V1 identity fails the production gate despite V2-named fixture 
   assert.equal(result.observed.capabilities.completeUpgrade, true);
 });
 
+test("production gate fails closed for stale configuration, RPC, and capability observations", async (t) => {
+  const cases = [
+    {
+      name: "configured proxy",
+      configuration: () => ({
+        ...configuration(),
+        world: {
+          ...configuration().world,
+          civilizationContractAddress:
+            "0x0000000000000000000000000000000000000003",
+        },
+      }),
+      verify: async () => reviewedV2Observation(),
+    },
+    {
+      name: "configured implementation codehash",
+      configuration: () => ({
+        ...configuration(),
+        worldchainRelease: {
+          ...configuration().worldchainRelease,
+          implementationCodeHash: `0x${"cc".repeat(32)}`,
+        },
+      }),
+      verify: async () => reviewedV2Observation(),
+    },
+    {
+      name: "required capability",
+      configuration,
+      verify: async () => ({
+        ...reviewedV2Observation(),
+        probes: {
+          ...reviewedV2Observation().probes,
+          constructionJob: { status: "unsupported_or_reverted" },
+        },
+      }),
+    },
+    {
+      name: "RPC observation",
+      configuration,
+      verify: async () => {
+        throw new Error("RPC unavailable");
+      },
+    },
+  ];
+  for (const gateCase of cases) {
+    await t.test(gateCase.name, async () => {
+      const result = await productionReleaseGate(gateCase.configuration(), {
+        verify: gateCase.verify,
+      });
+      assert.equal(result.ok, false);
+      assert.ok(["mismatched", "failed"].includes(result.status));
+    });
+  }
+});
+
 test("delivery gate never runs against a development configuration", async () => {
   const development = configuration();
   development.world.environment = "development";
