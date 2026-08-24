@@ -3,11 +3,18 @@
  * production-config dependency: callers supply every input and receive a pure
  * deterministic projection.
  */
-export const SIMULATOR_VERSION = "130.1";
+export const SIMULATOR_VERSION = "130.2";
 export const MAX_LEVEL = 30;
 export const MAX_OFFLINE_SECONDS = 72 * 60 * 60;
 export const MIN_JOB_SECONDS = 60;
 export const MAX_REDUCTION_BPS = 3_500;
+/** Exact accounting unit for supplied WLD-equivalent amounts. */
+export const WLD_EQUIVALENT_UNIT = 10n ** 18n;
+export const MONTHLY_PAID_ADVANTAGE_CAP_WLD = 5n;
+export const MONTHLY_PAID_ADVANTAGE_CAP_WLD_EQUIVALENT =
+  MONTHLY_PAID_ADVANTAGE_CAP_WLD * WLD_EQUIVALENT_UNIT;
+export const DIRECT_CONSTRUCTION_BOOST_WLD_EQUIVALENT_PER_HOUR =
+  WLD_EQUIVALENT_UNIT;
 
 export const BUILDING_CLASSES = Object.freeze([
   "production",
@@ -17,7 +24,7 @@ export const BUILDING_CLASSES = Object.freeze([
 ]);
 
 const POLICY_130_1 = Object.freeze({
-  version: SIMULATOR_VERSION,
+  version: "130.1",
   // Base duration is intentionally class-specific; all calculations below are
   // integer seconds, so the result is reproducible on every supported runtime.
   baseSeconds: Object.freeze({
@@ -37,8 +44,14 @@ const POLICY_130_1 = Object.freeze({
   }),
 });
 
+const POLICY_130_2 = Object.freeze({
+  ...POLICY_130_1,
+  version: SIMULATOR_VERSION,
+});
+
 export const SIMULATOR_POLICIES = Object.freeze({
-  [SIMULATOR_VERSION]: POLICY_130_1,
+  130.1: POLICY_130_1,
+  [SIMULATOR_VERSION]: POLICY_130_2,
 });
 
 function ceilDiv(numerator, denominator) {
@@ -49,10 +62,79 @@ function requireInteger(value, name) {
   if (!Number.isSafeInteger(value)) throw new Error(`invalid_${name}`);
 }
 
+function requirePositiveBigInt(value, name) {
+  if (typeof value !== "bigint" || value <= 0n)
+    throw new Error(`invalid_${name}`);
+}
+
+function requireMonthlyUsage(value, name) {
+  if (
+    typeof value !== "bigint" ||
+    value < 0n ||
+    value > MONTHLY_PAID_ADVANTAGE_CAP_WLD_EQUIVALENT
+  )
+    throw new Error(`invalid_${name}`);
+}
+
 export function policyFor(version = SIMULATOR_VERSION) {
   const policy = SIMULATOR_POLICIES[version];
   if (!policy) throw new Error("unsupported_simulator_version");
   return policy;
+}
+
+/**
+ * Evaluates one requested paid advantage against a caller-supplied calendar
+ * month's already-used WLD-equivalent total. Amounts are bigint WLD wei
+ * equivalents: callers must establish any future CGOLD valuation elsewhere.
+ * This is an all-or-nothing admission check and has no wallet or clock state.
+ */
+export function evaluateMonthlyPaidAdvantage({
+  priorMonthlyWldEquivalent,
+  requestedWldEquivalent,
+}) {
+  requireMonthlyUsage(
+    priorMonthlyWldEquivalent,
+    "prior_monthly_wld_equivalent",
+  );
+  requirePositiveBigInt(requestedWldEquivalent, "requested_wld_equivalent");
+
+  const remainingWldEquivalent =
+    MONTHLY_PAID_ADVANTAGE_CAP_WLD_EQUIVALENT - priorMonthlyWldEquivalent;
+  const allowed = requestedWldEquivalent <= remainingWldEquivalent;
+  return Object.freeze({
+    capWldEquivalent: MONTHLY_PAID_ADVANTAGE_CAP_WLD_EQUIVALENT,
+    priorMonthlyWldEquivalent,
+    requestedWldEquivalent,
+    remainingWldEquivalent,
+    admittedWldEquivalent: allowed ? requestedWldEquivalent : 0n,
+    rejectedWldEquivalent: allowed ? 0n : requestedWldEquivalent,
+    allowed,
+    rejectionReason: allowed ? null : "monthly_paid_advantage_cap_exceeded",
+  });
+}
+
+/**
+ * Direct construction boosts cost exactly one WLD per requested full hour in
+ * the current contract. This adapter makes that route consume the same budget.
+ */
+export function evaluateDirectConstructionBoost({
+  priorMonthlyWldEquivalent,
+  requestedHours,
+}) {
+  requireInteger(requestedHours, "requested_boost_hours");
+  if (requestedHours <= 0) throw new Error("invalid_requested_boost_hours");
+
+  const requestedWldEquivalent =
+    BigInt(requestedHours) * DIRECT_CONSTRUCTION_BOOST_WLD_EQUIVALENT_PER_HOUR;
+  const decision = evaluateMonthlyPaidAdvantage({
+    priorMonthlyWldEquivalent,
+    requestedWldEquivalent,
+  });
+  return Object.freeze({
+    ...decision,
+    requestedHours,
+    admittedHours: decision.allowed ? requestedHours : 0,
+  });
 }
 
 export function workshopSlots(level) {
