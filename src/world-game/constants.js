@@ -1,5 +1,5 @@
 export const CIVILIZATION_GAME_ADDRESS =
-  "0x0E6689d0649Ad9037465d178231b10F18518D2b0";
+  "0x99976f2f170F17a14ae6c69cEb8Cb31d47366764";
 
 export const BUILDING_INDEX = Object.freeze({
   townhall: 0,
