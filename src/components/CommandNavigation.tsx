@@ -22,6 +22,12 @@ export type CommandNavigationProps = {
 };
 
 const panels: ReadonlyArray<CommandPanel> = ["build", "army", "market", "raid"];
+const panelIcons: Record<CommandPanel, string> = {
+  build: "⌂",
+  army: "⚔",
+  market: "⇄",
+  raid: "◉",
+};
 
 export function CommandNavigation({
   activePanel,
@@ -68,7 +74,10 @@ export function CommandNavigation({
             }}
             type="button"
           >
-            {visibleLabelFor(panel)}
+            <span className="command-nav-icon" aria-hidden="true">
+              {panelIcons[panel]}
+            </span>
+            <span className="command-nav-label">{visibleLabelFor(panel)}</span>
           </button>
         );
       })}

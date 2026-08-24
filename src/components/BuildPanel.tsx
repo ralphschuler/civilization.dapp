@@ -391,8 +391,6 @@ export function BuildPanel(props: BuildPanelProps) {
         {produces ? copy.nextProduction(produces) : ""}
       </p>
       <div className="inspector-divider" />
-      <Impact props={props} />
-      <Plan props={props} />
       {jobs.length ? (
         <section
           className="construction-jobs"
@@ -469,7 +467,7 @@ export function BuildPanel(props: BuildPanelProps) {
           {props.runtimeMode === "world" &&
           props.selectedBuilding === "townhall" ? (
             <button
-              className="primary-action"
+              className="primary-action build-primary-action"
               id="prestige"
               disabled={props.busy}
               onClick={props.onPrestige}
@@ -493,7 +491,7 @@ export function BuildPanel(props: BuildPanelProps) {
             <small>{copy.unlockUpgrade}</small>
           </div>
           <button
-            className="primary-action"
+            className="primary-action build-primary-action"
             data-building={props.selectedBuilding}
             disabled
           >
@@ -518,7 +516,7 @@ export function BuildPanel(props: BuildPanelProps) {
             ) : null}
           </div>
           <button
-            className="primary-action"
+            className="primary-action build-primary-action"
             data-building={props.selectedBuilding}
             disabled={!affordable || props.busy || Boolean(atCapacity)}
             onClick={() => props.onUpgrade(props.selectedBuilding)}
@@ -535,38 +533,48 @@ export function BuildPanel(props: BuildPanelProps) {
               )}
             </small>
           ) : null}
-          {!affordable ? (
-            <div className="market-prefill-blocker" role="status">
-              <small>{copy.marketMissingResources}</small>
-              <span className="market-prefill-actions">
-                {marketPrefills(upgradeDeficits).map(({ resource, amount }) => (
-                  <button
-                    key={resource}
-                    type="button"
-                    className="text-action"
-                    onClick={() =>
-                      props.onOpenMarket({
-                        resource,
-                        amount,
-                        source: `${building.label} ${level + 1}`,
-                        panel: "build",
-                      })
-                    }
-                  >
-                    {copy.marketAcquire(
-                      props.format(amount),
-                      props.resourceDefs[resource].label,
-                    )}
-                  </button>
-                ))}
-                {!marketPrefills(upgradeDeficits).length ? (
-                  <span>{copy.marketGoldUnavailable}</span>
-                ) : null}
-              </span>
-            </div>
-          ) : null}
         </>
       )}
+      <details className="build-secondary build-impact-details">
+        <summary>{copy.upgradeImpactTitle}</summary>
+        <Impact props={props} />
+      </details>
+      {props.runtimeMode === "world" && props.buildingPlan ? (
+        <details className="build-secondary build-plan-details">
+          <summary>{copy.dependencyPlanTitle}</summary>
+          <Plan props={props} />
+        </details>
+      ) : null}
+      {!affordable && !requirements.length && level < MAX_BUILDING_LEVEL ? (
+        <details className="build-secondary market-prefill-blocker" open>
+          <summary>{copy.marketMissingResources}</summary>
+          <span className="market-prefill-actions">
+            {marketPrefills(upgradeDeficits).map(({ resource, amount }) => (
+              <button
+                key={resource}
+                type="button"
+                className="text-action"
+                onClick={() =>
+                  props.onOpenMarket({
+                    resource,
+                    amount,
+                    source: `${building.label} ${level + 1}`,
+                    panel: "build",
+                  })
+                }
+              >
+                {copy.marketAcquire(
+                  props.format(amount),
+                  props.resourceDefs[resource].label,
+                )}
+              </button>
+            ))}
+            {!marketPrefills(upgradeDeficits).length ? (
+              <span>{copy.marketGoldUnavailable}</span>
+            ) : null}
+          </span>
+        </details>
+      ) : null}
     </div>
   );
 }

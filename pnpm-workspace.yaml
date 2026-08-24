@@ -5,5 +5,6 @@ overrides:
   tmp: 0.2.7
 
 allowBuilds:
+  esbuild: true
   sharp: true
   unrs-resolver: true

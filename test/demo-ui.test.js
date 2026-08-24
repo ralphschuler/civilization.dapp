@@ -654,6 +654,40 @@ test("construction jobs span the full build inspector width", async () => {
   );
 });
 
+test("mobile command actions reserve space above the fixed navigation", async () => {
+  const [css, navigation, inspector] = await Promise.all([
+    readFile(new URL("../src/styles.css", import.meta.url), "utf8"),
+    readFile(
+      new URL("../src/components/CommandNavigation.tsx", import.meta.url),
+      "utf8",
+    ),
+    readFile(
+      new URL("../src/components/BuildPanel.tsx", import.meta.url),
+      "utf8",
+    ),
+  ]);
+
+  assert.match(
+    css,
+    /--mobile-nav-safe-space: calc\(5\.8rem \+ env\(safe-area-inset-bottom\)\)/,
+  );
+  assert.match(
+    css,
+    /\.game-shell\s*\{[\s\S]*?padding: 0\.6rem 0\.6rem var\(--mobile-nav-safe-space\)/,
+  );
+  assert.match(
+    css,
+    /\.build-inspector > \.build-primary-action\s*\{[\s\S]*?align-self: start[\s\S]*?position: sticky[\s\S]*?bottom: calc\(4\.35rem \+ env\(safe-area-inset-bottom\)\)/,
+  );
+  assert.match(navigation, /command-nav-icon/);
+  assert.match(navigation, /aria-current=\{selected \? "page" : undefined\}/);
+  assert.match(
+    inspector,
+    /<details className="build-secondary build-impact-details">/,
+  );
+  assert.match(inspector, /className="primary-action build-primary-action"/);
+});
+
 test("parallel construction keeps job controls and the start composer visible", () => {
   const context = ({
     workshop,
