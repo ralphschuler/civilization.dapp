@@ -232,7 +232,7 @@ test("every single-call Civilization action uses its deployed ABI selector and a
       getAddress(transactions[0].to),
       getAddress(CIVILIZATION_GAME_ADDRESS),
     );
-    assert.equal(transactions[0].value, "0x0");
+    assert.deepEqual(Object.keys(transactions[0]).sort(), ["data", "to"]);
     assert.equal(
       transactions[0].data.slice(0, 10),
       functionSelector(item.signature),
@@ -286,7 +286,7 @@ test("adapter exposes the contract build-duration read before an upgrade prompt"
   assert.deepEqual(calls, [["quarry", 2, getAddress(alternateGame)]]);
 });
 
-test("registered wallet skips registration transaction and unregistered wallet sends exactly registerWallet", async () => {
+test("registered wallet skips registration transaction and unregistered wallet sends the exact direct registerWallet MiniKit payload", async () => {
   const wallet = "0x1111111111111111111111111111111111111111";
   const sent = [];
   const registered = await registerWalletWithMiniKit({
@@ -324,7 +324,18 @@ test("registered wallet skips registration transaction and unregistered wallet s
   assert.equal(initialized.alreadyRegistered, false);
   assert.equal(reads, 2, "must read before send and after receipt");
   assert.equal(sent.length, 1);
-  assert.equal(sent[0].transactions.length, 1);
+  assert.deepEqual(sent[0], {
+    chainId: 480,
+    transactions: [
+      {
+        to: getAddress(alternateGame),
+        data: encodeFunctionData({
+          abi: CIVILIZATION_GAME_ABI,
+          functionName: "registerWallet",
+        }),
+      },
+    ],
+  });
   assert.deepEqual(
     sent[0].transactions,
     encodeWalletRegistration(alternateGame),
@@ -392,7 +403,7 @@ test("an unavailable authoritative registration read never opens a registration 
   assert.equal(sends, 0);
 });
 
-test("wallet registration requires the exact WalletAuth checksum address, receipt, and registered readback", async () => {
+test("wallet registration preserves MiniKit error codes and requires the exact WalletAuth checksum address, receipt, and registered readback", async () => {
   const wallet = "0x1111111111111111111111111111111111111111";
   const base = {
     walletAddress: wallet,
@@ -433,7 +444,7 @@ test("wallet registration requires the exact WalletAuth checksum address, receip
         }),
       },
     }),
-    /user_rejected/,
+    (error) => error?.message === "user_rejected",
   );
   await assert.rejects(
     registerWalletWithMiniKit({
@@ -634,7 +645,7 @@ test("construction boost uses the supplied validated WLD configuration", () => {
     transactions[0].data.slice(0, 10),
     functionSelector("approve(address,uint256)"),
   );
-  assert.equal(transactions[0].value, "0x0");
+  assert.deepEqual(Object.keys(transactions[0]).sort(), ["data", "to"]);
   assert.deepEqual(
     decodeFunctionData({ abi: WORLD_TOKEN_ABI, data: transactions[0].data }),
     {
@@ -651,7 +662,7 @@ test("construction boost uses the supplied validated WLD configuration", () => {
     transactions[1].data.slice(0, 10),
     functionSelector("boostConstruction(uint256)"),
   );
-  assert.equal(transactions[1].value, "0x0");
+  assert.deepEqual(Object.keys(transactions[1]).sort(), ["data", "to"]);
   assert.deepEqual(
     decodeFunctionData({
       abi: CIVILIZATION_GAME_ABI,
