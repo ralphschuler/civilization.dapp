@@ -8,12 +8,32 @@ import {
 
 const configuration = { ready: true, missing: [] };
 test("contract status keeps static release metadata separate from observed verification", () => {
-  const body = contractStatusPayload(CONTRACT_STATUS, {
-    status: "failed",
-    observedAt: "2026-08-20T00:00:00.000Z",
-  });
+  const body = contractStatusPayload(
+    CONTRACT_STATUS,
+    {
+      status: "failed",
+      observedAt: "2026-08-20T00:00:00.000Z",
+    },
+    "production",
+  );
+  assert.equal(body.environment, "production");
   assert.equal(body.release, CONTRACT_STATUS.release);
   assert.equal(body.runtimeVerification.status, "failed");
+});
+
+test("development status omits production release metadata", () => {
+  const body = contractStatusPayload(
+    CONTRACT_STATUS,
+    { status: "not_production", observedAt: "2026-08-20T00:00:00.000Z" },
+    "development",
+  );
+  assert.deepEqual(body, {
+    environment: "development",
+    runtimeVerification: {
+      status: "not_production",
+      observedAt: "2026-08-20T00:00:00.000Z",
+    },
+  });
 });
 
 test("readiness is 200 only for a verified runtime contract and fails closed otherwise", () => {
@@ -31,6 +51,17 @@ test("readiness is 200 only for a verified runtime contract and fails closed oth
       schema: true,
       configuration,
       contract: { status: "verified" },
+    }).ready,
+    true,
+  );
+  assert.equal(
+    readinessPayload({
+      schema: true,
+      configuration: {
+        ...configuration,
+        world: { environment: "development" },
+      },
+      contract: { status: "not_production" },
     }).ready,
     true,
   );

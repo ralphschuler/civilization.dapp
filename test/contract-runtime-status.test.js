@@ -151,3 +151,15 @@ test("missing RPC configuration is not ready and is never passed to a verifier",
   );
   assert.equal(result.status, "missing_configuration");
 });
+
+test("development never probes or reports the production release identity", async () => {
+  resetContractRuntimeStatusCacheForTest();
+  const development = configuration();
+  development.world.environment = "development";
+  const result = await contractRuntimeStatus(development, {
+    verify: async () => {
+      throw new Error("must_not_run");
+    },
+  });
+  assert.equal(result.status, "not_production");
+});
