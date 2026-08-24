@@ -10,13 +10,13 @@ export const CONTRACT_STATUS = Object.freeze({
   deployedContracts: Object.freeze([
     Object.freeze({
       name: "CivilizationGame",
-      address: "0x0E6689d0649Ad9037465d178231b10F18518D2b0",
+      address: "0x99976f2f170F17a14ae6c69cEb8Cb31d47366764",
       chainId: 480,
       status: "mainnet_wallet_registration_deployed_not_independently_audited",
     }),
   ]),
-  // Wallet actions remain fail-closed until a V2 address/runtime hash is
-  // published and the read-only verifier can establish a release baseline.
+  // Settlement remains fail-closed; game runtime readiness is established by
+  // the separate read-only V2 verifier.
   onChainActionsEnabled: false,
   productCatalog: PRODUCT_CATALOG_POLICY,
   contracts: Object.freeze([

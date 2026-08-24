@@ -3,8 +3,7 @@
 import { getAddress } from "viem";
 import { verifyWorldChainProxy } from "../scripts/verify-worldchain-proxy.mjs";
 
-// This is the historical implementation currently observed behind the proxy.
-// It is intentionally a denial baseline, never a V2 release identity.
+// Historical V1 is a denial baseline, never a V2 release identity.
 const HISTORICAL_V1_IMPLEMENTATION =
   "0x7330C22d7b61CCcDB7794435535aaB349D9aFF79";
 const HISTORICAL_V1_IMPLEMENTATION_CODEHASH =
@@ -12,17 +11,14 @@ const HISTORICAL_V1_IMPLEMENTATION_CODEHASH =
 
 export const WORLDCHAIN_RELEASE_BASELINE = Object.freeze({
   chainId: "480",
-  proxy: "0x0E6689d0649Ad9037465d178231b10F18518D2b0",
-  admin: "0x8351d16672bD54eAe8cd51Fc00E08aD8Adc4469D",
-  timelock: "0x47CaD4ed6765e2aec7c569b2b1E7142D29d1530B",
+  proxy: "0x99976f2f170F17a14ae6c69cEb8Cb31d47366764",
+  admin: "0x7Fb08C7B18c4F1Df2de673449cD444bD75c10727",
+  timelock: "0xB32b6d663C4B8e7720F63782d674cffA827799eb",
   proxyCodeHash:
-    "0x6ef08fd1df9261908a3870c0e7c652b38d4394eb5d5eff6cf86b82fb1b0209f9",
+    "0x27be4abd1bfdea24045ea14f966fca677e89f68bc6357c94639792245fdf30b1",
   adminCodeHash:
-    "0x596a47f00033112fa6862ce8f8af0ab95443ea529e74be94637d5bab676420d2",
-  worldAppId: "app_civilization",
-  // The production V2 implementation address and runtime hash have not been
-  // published. The historical V1 values are deliberately not a verification
-  // baseline for this client release.
+    "0x9bf47c74c8d31bc85cbad752d32b5934e573556fd716626de5af96db240e0738",
+  worldAppId: "app_fb58623423375293a26d7e54209514e8",
   requiredCapabilities: Object.freeze([
     "timelock()",
     "owner()",

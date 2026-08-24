@@ -52,7 +52,7 @@ const verifierRegression = await readFile(
   "utf8",
 );
 if (
-  !runtimeSource.includes('worldAppId: "app_civilization"') ||
+  !runtimeSource.includes('worldAppId: "app_fb58623423375293a26d7e54209514e8"') ||
   !runtimeSource.includes('"constructionCapacity()"') ||
   !runtimeSource.includes('"constructionJob(address,uint8)"') ||
   !runtimeSource.includes('"completeUpgrade(uint8)"') ||
@@ -64,7 +64,7 @@ if (
 const manifest = JSON.stringify({
   reference: reference.toLowerCase(),
   files,
-  worldAppId: "app_civilization",
+  worldAppId: "app_fb58623423375293a26d7e54209514e8",
   requiredCapabilities: [
     "timelock()",
     "owner()",
@@ -80,7 +80,7 @@ process.stdout.write(
       kind: "civilization-security-offline-manifest/v1",
       reference: reference.toLowerCase(),
       files,
-      worldAppId: "app_civilization",
+      worldAppId: "app_fb58623423375293a26d7e54209514e8",
       requiredCapabilities: [
         "timelock()",
         "owner()",
