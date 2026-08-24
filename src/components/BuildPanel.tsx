@@ -5,6 +5,7 @@ import { clock } from "../game-ui/helpers.js";
 import { boostConstructionStatus } from "../game-ui/boost-status.js";
 import { constructionBoostEligibility } from "../world-game/boost-eligibility.js";
 import { civilizationMessages } from "../lib/civilization-locale";
+import { marketPrefills } from "../world-game/market-intent.js";
 
 type ResourceDefinition = { color?: string; short?: string; label: string };
 type Building = {
@@ -81,7 +82,12 @@ export type BuildPanelProps = {
   onCompleteUpgrade: (slot?: number) => void;
   onBoost: (slot?: number) => void;
   onPrestige: () => void;
-  onOpenMarket: () => void;
+  onOpenMarket: (intent: {
+    resource: string;
+    amount: number;
+    source: string;
+    panel: "build";
+  }) => void;
 };
 
 function CostLine({
@@ -247,15 +253,18 @@ function Plan({ props }: { props: BuildPanelProps }) {
                 ),
               )
             : copy.dependencyPlanSlot(step.slot + 1, clock(step.duration));
-          const deficit =
+          const deficits =
             step.deficits && Object.keys(step.deficits).length
-              ? Object.entries(step.deficits)
-                  .map(
-                    ([id, value]) =>
-                      `${props.format(value as number)} ${props.resourceDefs[id].short}`,
-                  )
-                  .join(" ")
+              ? step.deficits
               : null;
+          const deficit = deficits
+            ? Object.entries(deficits)
+                .map(
+                  ([id, value]) =>
+                    `${props.format(value as number)} ${props.resourceDefs[id].short}`,
+                )
+                .join(" ")
+            : null;
           return (
             <li key={step.key} data-plan-step={step.key}>
               <span>
@@ -266,14 +275,32 @@ function Plan({ props }: { props: BuildPanelProps }) {
               <small>{time}</small>
               {deficit ? (
                 <small>
-                  {copy.dependencyPlanDeficit(deficit)}{" "}
-                  <button
-                    type="button"
-                    className="text-action"
-                    onClick={props.onOpenMarket}
-                  >
-                    {copy.dependencyPlanMarket}
-                  </button>
+                  {copy.dependencyPlanDeficit(deficit)}
+                  <span className="market-prefill-actions">
+                    {marketPrefills(deficits).map(({ resource, amount }) => (
+                      <button
+                        key={resource}
+                        type="button"
+                        className="text-action"
+                        onClick={() =>
+                          props.onOpenMarket({
+                            resource,
+                            amount,
+                            source: `${props.buildings[step.id]?.label || step.id} ${step.level}`,
+                            panel: "build",
+                          })
+                        }
+                      >
+                        {copy.marketAcquire(
+                          props.format(amount),
+                          props.resourceDefs[resource].label,
+                        )}
+                      </button>
+                    ))}
+                    {!marketPrefills(deficits).length ? (
+                      <span>{copy.marketGoldUnavailable}</span>
+                    ) : null}
+                  </span>
                 </small>
               ) : null}
             </li>
@@ -323,6 +350,14 @@ export function BuildPanel(props: BuildPanelProps) {
   const duration = props.buildDuration(props.selectedBuilding, level + 1);
   const affordable = Object.keys(props.resourceDefs).every(
     (id) => props.state.resources[id] >= cost[id],
+  );
+  const upgradeDeficits = Object.fromEntries(
+    Object.entries(props.resourceDefs)
+      .map(([id]) => [
+        id,
+        Math.max(0, (cost[id] ?? 0) - (props.state.resources[id] ?? 0)),
+      ])
+      .filter(([, amount]) => amount),
   );
   const failed = props.assetResult?.failed.includes(
     BUILDING_ASSETS[props.selectedBuilding],
@@ -499,6 +534,36 @@ export function BuildPanel(props: BuildPanelProps) {
                 props.state.constructionCapacity!,
               )}
             </small>
+          ) : null}
+          {!affordable ? (
+            <div className="market-prefill-blocker" role="status">
+              <small>{copy.marketMissingResources}</small>
+              <span className="market-prefill-actions">
+                {marketPrefills(upgradeDeficits).map(({ resource, amount }) => (
+                  <button
+                    key={resource}
+                    type="button"
+                    className="text-action"
+                    onClick={() =>
+                      props.onOpenMarket({
+                        resource,
+                        amount,
+                        source: `${building.label} ${level + 1}`,
+                        panel: "build",
+                      })
+                    }
+                  >
+                    {copy.marketAcquire(
+                      props.format(amount),
+                      props.resourceDefs[resource].label,
+                    )}
+                  </button>
+                ))}
+                {!marketPrefills(upgradeDeficits).length ? (
+                  <span>{copy.marketGoldUnavailable}</span>
+                ) : null}
+              </span>
+            </div>
           ) : null}
         </>
       )}

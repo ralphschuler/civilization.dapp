@@ -2,6 +2,7 @@
 
 import { TROOP_ASSETS } from "../game-ui/constants.js";
 import { civilizationMessages } from "../lib/civilization-locale";
+import { marketPrefills } from "../world-game/market-intent.js";
 
 type ResourceDefinition = { color?: string; short?: string; label: string };
 type Troop = { attack: number; cost: Record<string, number>; label: string };
@@ -22,6 +23,12 @@ export type ArmyPanelProps = {
   busy: boolean;
   copy?: ReturnType<typeof civilizationMessages>;
   onTrain: (id: string) => void;
+  onOpenMarket: (intent: {
+    resource: string;
+    amount: number;
+    source: string;
+    panel: "army";
+  }) => void;
 };
 
 function CostLine({
@@ -69,6 +76,18 @@ export function ArmyPanel(props: ArmyPanelProps) {
               props.state.resources[resource] >= (troop.cost[resource] ?? 0),
           );
           const locked = requirements.length > 0;
+          const deficits = Object.fromEntries(
+            Object.entries(props.resourceDefs)
+              .map(([resource]) => [
+                resource,
+                Math.max(
+                  0,
+                  (troop.cost[resource] ?? 0) -
+                    (props.state.resources[resource] ?? 0),
+                ),
+              ])
+              .filter(([, amount]) => amount),
+          );
           const requirementsText = requirements
             .map(({ id: required, level }) =>
               props.buildings[required]
@@ -116,6 +135,33 @@ export function ArmyPanel(props: ArmyPanelProps) {
                     />
                   )}
                 </em>
+                {!locked && !affordable ? (
+                  <span className="market-prefill-actions">
+                    {marketPrefills(deficits).map(({ resource, amount }) => (
+                      <button
+                        key={resource}
+                        type="button"
+                        className="text-action"
+                        onClick={() =>
+                          props.onOpenMarket({
+                            resource,
+                            amount,
+                            source: `1 ${troop.label}`,
+                            panel: "army",
+                          })
+                        }
+                      >
+                        {copy.marketAcquire(
+                          props.format(amount),
+                          props.resourceDefs[resource].label,
+                        )}
+                      </button>
+                    ))}
+                    {!marketPrefills(deficits).length ? (
+                      <span>{copy.marketGoldUnavailable}</span>
+                    ) : null}
+                  </span>
+                ) : null}
               </div>
               <button
                 type="button"

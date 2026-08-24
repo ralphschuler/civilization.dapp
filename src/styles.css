@@ -928,6 +928,53 @@ button {
   grid-template-columns: 1fr 1fr 0.7fr;
   gap: 0.45rem;
 }
+.market-prefill-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.25rem;
+}
+.market-prefill-blocker {
+  display: grid;
+  gap: 0.25rem;
+  color: #d2c48d;
+  font-size: 0.6rem;
+}
+.market-prefill-actions .text-action {
+  border: 1px solid #92782b;
+  border-radius: 0.4rem;
+  padding: 0.32rem 0.45rem;
+  color: #f3d66f;
+  background: #28200d;
+  font: inherit;
+  cursor: pointer;
+}
+.market-resource-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.35rem;
+}
+.market-resource-cards button {
+  min-width: 0;
+  border: 1px solid #7c926566;
+  border-radius: 0.45rem;
+  padding: 0.48rem 0.25rem;
+  color: #d6decc;
+  background: #0c160e;
+  font-size: 0.58rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.market-resource-cards button.is-selected {
+  border-color: #e1c865;
+  color: #271d0b;
+  background: #e1c865;
+}
+.market-origin {
+  display: block;
+  border-left: 2px solid #e1c865;
+  padding-left: 0.45rem;
+}
 .market-controls label,
 .target-select {
   display: grid;

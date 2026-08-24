@@ -23,6 +23,7 @@ type MarketDraft = {
   to: ResourceId;
   amount: number;
 };
+type MarketOrigin = { source: string; resource: ResourceId; amount: number };
 type Token = { name: string; symbol: string; externalSettlement?: boolean };
 
 export type MarketPanelProps = {
@@ -30,6 +31,7 @@ export type MarketPanelProps = {
   tokens: Record<string, Token>;
   marketDraft: MarketDraft;
   marketQuote: MarketQuote | null;
+  marketOrigin?: MarketOrigin | null;
   busy: boolean;
   copy?: ReturnType<typeof civilizationMessages>;
   onDraftChange: (draft: Partial<MarketDraft>) => void;
@@ -89,20 +91,30 @@ export function MarketPanel(props: MarketPanelProps) {
           <span>{copy.liquiditySpread}</span>
           <b>{copy.marketExplanation}</b>
           <small>{copy.marketDetail}</small>
-          <label>
-            {copy.resource}
-            <select
-              id="market-resource"
-              value={props.marketDraft.resource}
-              onChange={(event) =>
-                props.onDraftChange({
-                  resource: event.currentTarget.value as ResourceId,
-                })
-              }
-            >
-              <ResourceOptions copy={copy} />
-            </select>
-          </label>
+          {props.marketOrigin ? (
+            <small className="market-origin" role="status">
+              {copy.marketOrigin(
+                props.marketOrigin.source,
+                String(props.marketOrigin.amount),
+                copy.resourceNames[props.marketOrigin.resource],
+              )}
+            </small>
+          ) : null}
+          <div className="market-resource-cards" aria-label={copy.resource}>
+            {resources.map((resource) => (
+              <button
+                key={resource}
+                type="button"
+                className={
+                  resource === props.marketDraft.resource ? "is-selected" : ""
+                }
+                aria-pressed={resource === props.marketDraft.resource}
+                onClick={() => props.onDraftChange({ resource })}
+              >
+                {copy.resourceNames[resource]}
+              </button>
+            ))}
+          </div>
           <label>
             {copy.amount}
             <input

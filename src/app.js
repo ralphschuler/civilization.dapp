@@ -78,6 +78,7 @@ function createRuntime(options) {
         ? { resource: "wood", from: "wood", to: "clay", amount: 1 }
         : { resource: "wood", from: "wood", to: "clay", amount: 25 },
     marketInputRevision: 0,
+    marketOrigin: null,
     raidDraft: {
       army: Object.fromEntries(Object.keys(TROOPS).map((id) => [id, 0])),
       targetAddress: "",
@@ -517,7 +518,7 @@ function createController(runtime) {
         onCompleteUpgrade: actions.completeUpgrade,
         onBoost: actions.boost,
         onPrestige: actions.prestige,
-        onOpenMarket: () => actions.selectPanel("market"),
+        onOpenMarket: actions.openMarket,
       }),
     );
   };
@@ -531,6 +532,7 @@ function createController(runtime) {
       createElement(ArmyPanel, {
         ...context,
         onTrain: actions.train,
+        onOpenMarket: actions.openMarket,
       }),
     );
   };
@@ -544,6 +546,7 @@ function createController(runtime) {
       createElement(MarketPanel, {
         ...context,
         marketDraft: runtime.marketDraft,
+        marketOrigin: runtime.marketOrigin,
         onDraftChange: actions.marketInputsChanged,
         onQuote: actions.quoteMarket,
         onOrder: actions.marketOrder,

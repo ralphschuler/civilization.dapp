@@ -23,6 +23,14 @@ export function createWorldRuntime({
 
       runtime.worldStateEpoch += 1;
       runtime.state = result.state;
+      if (
+        intent.type === "market_buy" &&
+        !result.pending &&
+        runtime.marketOrigin
+      ) {
+        runtime.activePanel = runtime.marketOrigin.panel || "build";
+        runtime.marketOrigin = { ...runtime.marketOrigin, completed: true };
+      }
       if (result.pending) runtime.review.pending();
       else runtime.review.confirmed();
       runtime.feedback = result.pending
