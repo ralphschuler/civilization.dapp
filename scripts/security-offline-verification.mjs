@@ -52,7 +52,9 @@ const verifierRegression = await readFile(
   "utf8",
 );
 if (
-  !runtimeSource.includes('worldAppId: "app_fb58623423375293a26d7e54209514e8"') ||
+  !runtimeSource.includes(
+    'worldAppId: "app_fb58623423375293a26d7e54209514e8"',
+  ) ||
   !runtimeSource.includes('"constructionCapacity()"') ||
   !runtimeSource.includes('"constructionJob(address,uint8)"') ||
   !runtimeSource.includes('"completeUpgrade(uint8)"') ||
