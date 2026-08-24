@@ -31,6 +31,10 @@ test("WalletAccess messages provide the German baseline and English test locale"
     walletAccessMessages("en-US").registration.unavailable,
     "The on-chain status could not be read. Check your connection and try again.",
   );
+  assert.match(
+    walletAccessMessages().registration.notConfirmed,
+    /keine zweite Registrierung/,
+  );
   assert.equal(
     civilizationMessages("de-DE").unavailable,
     "Civilization ist vorübergehend nicht verfügbar.",

@@ -34,6 +34,16 @@ const messages = {
         "Deine Wallet ist bestätigt. Erstelle jetzt einmalig dein On-chain-Dorf.",
       created: "Dorf erstellt. On-chain-Spielstand wird geladen …",
       pending: "Registrierung wird in deiner World Wallet bestätigt …",
+      cancelled:
+        "Die Bestätigung wurde abgebrochen. Du kannst dieselbe Registrierung erneut prüfen.",
+      walletRequired:
+        "Öffne Civilization in der World App und versuche es erneut.",
+      transactionFailed:
+        "Die On-chain-Registrierung ist fehlgeschlagen. Du kannst es erneut versuchen.",
+      walletMismatch:
+        "Die bestätigte Wallet stimmt nicht mit der Transaktion überein. Bestätige den Zugang erneut.",
+      notConfirmed:
+        "Die Registrierung ist noch nicht on-chain bestätigt. Prüfe den Status erneut; es wird keine zweite Registrierung gesendet.",
       rejected:
         "Die Registrierung wurde nicht bestätigt. Du kannst es erneut versuchen.",
     },
@@ -66,6 +76,14 @@ const messages = {
       ready: "Your wallet is confirmed. Create your on-chain village once.",
       created: "Village created. Loading on-chain game state …",
       pending: "Confirming registration in your World Wallet …",
+      cancelled:
+        "Confirmation was cancelled. You can check the same registration again.",
+      walletRequired: "Open Civilization in the World App and try again.",
+      transactionFailed: "The on-chain registration failed. You can try again.",
+      walletMismatch:
+        "The confirmed wallet does not match the transaction. Confirm access again.",
+      notConfirmed:
+        "Registration is not confirmed on-chain yet. Check status again; no second registration will be sent.",
       rejected: "Registration was not confirmed. You can try again.",
     },
   },
