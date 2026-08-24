@@ -150,7 +150,14 @@ function Overview() {
             onSelectPanel={(panel) => setActivePanel(panel)}
           />
           <section className="command-panel" id="game-command-panel">
-            <BuildPanel {...buildProps} />
+            <BuildPanel
+              {...buildProps}
+              collection={{
+                locked: false,
+                unclaimed: { wood: 184, clay: 120, stone: 96, gold: 0 },
+              }}
+              onGather={() => undefined}
+            />
           </section>
         </aside>
       </div>
@@ -209,6 +216,36 @@ export const BuildingDetail = {
     <main className="game-shell">
       <section className="command-panel">
         <BuildPanel {...buildProps} />
+      </section>
+    </main>
+  ),
+};
+export const NextActionCollect = {
+  name: "Village build / Next action: collect first",
+  render: () => (
+    <main className="game-shell">
+      <section className="command-panel">
+        <BuildPanel
+          {...buildProps}
+          collection={{ locked: false, unclaimed: { wood: 184, clay: 120 } }}
+          onGather={() => undefined}
+        />
+      </section>
+    </main>
+  ),
+};
+export const NextActionBlocked = {
+  name: "Village build / Next action: resource blocker",
+  render: () => (
+    <main className="game-shell">
+      <section className="command-panel">
+        <BuildPanel
+          {...buildProps}
+          state={{
+            ...buildProps.state,
+            resources: { wood: 1, clay: 1, stone: 1, gold: 0 },
+          }}
+        />
       </section>
     </main>
   ),

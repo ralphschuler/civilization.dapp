@@ -6,6 +6,7 @@ import { boostConstructionStatus } from "../game-ui/boost-status.js";
 import { constructionBoostEligibility } from "../world-game/boost-eligibility.js";
 import { civilizationMessages } from "../lib/civilization-locale";
 import { marketPrefills } from "../world-game/market-intent.js";
+import { deriveNextAction } from "../game-ui/next-action.js";
 
 type ResourceDefinition = { color?: string; short?: string; label: string };
 type Building = {
@@ -88,6 +89,8 @@ export type BuildPanelProps = {
     source: string;
     panel: "build";
   }) => void;
+  collection?: { locked: boolean; unclaimed: Record<string, number> };
+  onGather?: () => void;
 };
 
 function CostLine({
@@ -362,6 +365,64 @@ export function BuildPanel(props: BuildPanelProps) {
   const failed = props.assetResult?.failed.includes(
     BUILDING_ASSETS[props.selectedBuilding],
   );
+  const nextAction = deriveNextAction({
+    collection: props.collection,
+    jobs,
+    remainingTime: props.remainingTime,
+    level,
+    maxLevel: MAX_BUILDING_LEVEL,
+    requirements,
+    affordable,
+    atCapacity: Boolean(atCapacity),
+  });
+  const nextActionContent =
+    nextAction.kind === "collect"
+      ? {
+          detail: copy.nextActionCollect,
+          label: copy.collect,
+          onClick: props.onGather,
+        }
+      : nextAction.kind === "complete"
+        ? {
+            detail: copy.nextActionComplete(
+              props.buildings[
+                jobs.find((job) => job.slot === nextAction.slot)?.buildingId ||
+                  props.selectedBuilding
+              ]?.label || building.label,
+            ),
+            label: copy.completeUpgrade,
+            onClick: () => props.onCompleteUpgrade(nextAction.slot),
+          }
+        : nextAction.kind === "upgrade"
+          ? {
+              detail: copy.nextActionUpgrade(building.label, level + 1),
+              label:
+                props.runtimeMode === "world"
+                  ? copy.startWorldUpgrade(level + 1)
+                  : copy.startDemoUpgrade(level + 1),
+              onClick: () => props.onUpgrade(props.selectedBuilding),
+            }
+          : nextAction.kind === "requirements"
+            ? {
+                detail: copy.nextActionRequirements(
+                  requirements
+                    .map(
+                      ({ id, level: required }) =>
+                        `${props.buildings[id].label} ${required}`,
+                    )
+                    .join(" · "),
+              ),
+            }
+            : nextAction.kind === "capacity"
+              ? {
+                  detail: copy.constructionSlotsOccupied(
+                    props.state.constructionOccupied!,
+                    props.state.constructionCapacity!,
+                  ),
+                }
+              : nextAction.kind === "resources"
+                ? { detail: copy.nextActionResources(building.label, level + 1) }
+                : { detail: copy.fullyUpgraded(building.label) };
   return (
     <div className="inspector build-inspector">
       <div
@@ -390,6 +451,27 @@ export function BuildPanel(props: BuildPanelProps) {
         {building.detail}
         {produces ? copy.nextProduction(produces) : ""}
       </p>
+      <section
+        className="next-action"
+        aria-labelledby="next-action-title"
+        data-next-action={nextAction.kind}
+      >
+        <span id="next-action-title">{copy.nextActionTitle}</span>
+        <p>{nextActionContent.detail}</p>
+        {nextActionContent.label && nextActionContent.onClick ? (
+          <button
+            className="primary-action build-primary-action"
+            data-building={
+              nextAction.kind === "upgrade" ? props.selectedBuilding : undefined
+            }
+            data-next-action-button={nextAction.kind}
+            disabled={props.busy}
+            onClick={nextActionContent.onClick}
+          >
+            {nextActionContent.label}
+          </button>
+        ) : null}
+      </section>
       <div className="inspector-divider" />
       {jobs.length ? (
         <section
@@ -490,13 +572,6 @@ export function BuildPanel(props: BuildPanelProps) {
             </b>
             <small>{copy.unlockUpgrade}</small>
           </div>
-          <button
-            className="primary-action build-primary-action"
-            data-building={props.selectedBuilding}
-            disabled
-          >
-            {copy.meetRequirements}
-          </button>
         </>
       ) : (
         <>
@@ -515,16 +590,6 @@ export function BuildPanel(props: BuildPanelProps) {
               </small>
             ) : null}
           </div>
-          <button
-            className="primary-action build-primary-action"
-            data-building={props.selectedBuilding}
-            disabled={!affordable || props.busy || Boolean(atCapacity)}
-            onClick={() => props.onUpgrade(props.selectedBuilding)}
-          >
-            {props.runtimeMode === "world"
-              ? copy.startWorldUpgrade(level + 1)
-              : copy.startDemoUpgrade(level + 1)}
-          </button>
           {atCapacity ? (
             <small className="construction-capacity-blocker" role="status">
               {copy.constructionSlotsOccupied(
