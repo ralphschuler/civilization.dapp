@@ -1,6 +1,6 @@
 # Civilization DApp
 
-Civilization is a Next.js World Mini App. Its active production target is proxy `0x0E6689d0649Ad9037465d178231b10F18518D2b0`, which lets the connected World wallet create its own village once through `registerWallet()`. Access uses the proven native WalletAuth/SIWE flow, reads `playerState`, and renders the game on the same page after registration. The active client uses no IDKit, Auth.js session, or `/game` redirect.
+Civilization is a Next.js World Mini App. Its active production target is proxy `0x99976f2f170F17a14ae6c69cEb8Cb31d47366764`, which lets the connected World wallet create its own village once through `registerWallet()`. Access uses the proven native WalletAuth/SIWE flow, reads `playerState`, and renders the game on the same page after registration. The active client uses no IDKit, Auth.js session, or `/game` redirect.
 
 ## Wallet-registration trust boundary
 

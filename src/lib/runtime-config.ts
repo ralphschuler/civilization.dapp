@@ -2,7 +2,7 @@ import { getAddress, isAddress } from "viem";
 import { WORLD_CHAIN_ID } from "../world-chain.js";
 
 /** Immutable production identifiers. Development must never inherit these. */
-export const LIVE_CONTRACT = "0x0E6689d0649Ad9037465d178231b10F18518D2b0";
+export const LIVE_CONTRACT = "0x99976f2f170F17a14ae6c69cEb8Cb31d47366764";
 /** WLD's World Chain mainnet contract; clients receive it through runtime config. */
 export const LIVE_WORLD_TOKEN = "0x2cFc85d8E48F8EAB294be644d9E25C3030863003";
 /** Historical V1 is never an admissible reviewed V2 release identity. */
