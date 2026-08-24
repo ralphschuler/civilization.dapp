@@ -31,6 +31,10 @@ export {
   registerWalletWithMiniKit,
 } from "./world-game/actions.js";
 export {
+  persistPendingRegistration,
+  restorePendingRegistration,
+} from "./world-game/registration-pending.js";
+export {
   CONSTRUCTION_BOOST_SECONDS,
   constructionBoostEligibility,
 } from "./world-game/boost-eligibility.js";

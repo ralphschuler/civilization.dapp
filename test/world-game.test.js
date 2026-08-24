@@ -25,7 +25,9 @@ import {
   getContractBuildingCost,
   projectContractUpgradeImpact,
   projectCivilizationState,
+  persistPendingRegistration,
   registerWalletWithMiniKit,
+  restorePendingRegistration,
 } from "../src/world-game.js";
 
 const defender = "0x2222222222222222222222222222222222222222";
@@ -512,6 +514,78 @@ test("wallet registration retry polls one pending user operation instead of send
   );
   assert.equal(sends, 1, "retry must not open a second transaction prompt");
   assert.equal(polls, 2);
+});
+
+test("a pending wallet registration survives a reload and resumes without another wallet prompt", async () => {
+  const wallet = "0x1111111111111111111111111111111111111111";
+  const storage = new Map();
+  const priorStorage = globalThis.sessionStorage;
+  Object.defineProperty(globalThis, "sessionStorage", {
+    configurable: true,
+    value: {
+      getItem: (key) => storage.get(key) || null,
+      setItem: (key, value) => storage.set(key, value),
+      removeItem: (key) => storage.delete(key),
+    },
+  });
+  try {
+    let sends = 0;
+    const savePending = (hash) => {
+      persistPendingRegistration(wallet, alternateGame, hash);
+    };
+    await assert.rejects(
+      registerWalletWithMiniKit({
+        walletAddress: wallet,
+        contractAddress: alternateGame,
+        readState: async () => ({ registered: false }),
+        pollReceipt: async () => {
+          throw new Error("receipt_timeout");
+        },
+        onPendingUserOpHash: savePending,
+        miniKit: {
+          sendTransaction: async () => {
+            sends += 1;
+            return {
+              executedWith: "minikit",
+              data: { status: "success", userOpHash, from: wallet },
+            };
+          },
+        },
+      }),
+      /receipt_timeout/,
+    );
+    const restored = restorePendingRegistration(wallet, alternateGame);
+    assert.equal(restored, userOpHash);
+    let resumedReads = 0;
+    let resumedPolls = 0;
+    await registerWalletWithMiniKit({
+      walletAddress: wallet,
+      contractAddress: alternateGame,
+      pendingUserOpHash: restored,
+      readState: async () => ({ registered: ++resumedReads === 2 }),
+      pollReceipt: async (hash) => {
+        resumedPolls += 1;
+        assert.equal(hash, userOpHash);
+        return { receipt: { status: "success" } };
+      },
+      onPendingUserOpHash: savePending,
+      miniKit: {
+        sendTransaction: async () => {
+          sends += 1;
+          throw new Error("must_not_send");
+        },
+      },
+    });
+    assert.equal(sends, 1, "a restored intent must never open a second prompt");
+    assert.equal(resumedPolls, 1, "the restored intent is polled");
+    assert.equal(resumedReads, 2, "pre-read and readback remain mandatory");
+    assert.equal(restorePendingRegistration(wallet, alternateGame), null);
+  } finally {
+    Object.defineProperty(globalThis, "sessionStorage", {
+      configurable: true,
+      value: priorStorage,
+    });
+  }
 });
 
 test("terminally failed wallet registration clears pending operation before a new send", async () => {
