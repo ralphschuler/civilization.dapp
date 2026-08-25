@@ -1417,6 +1417,9 @@ button {
   .entry-guide-dismiss {
     min-height: 2.75rem;
   }
+  .entry-guide-dismiss {
+    min-width: 2.75rem;
+  }
   .game-shell {
     padding: 0.6rem 0.6rem var(--mobile-nav-safe-space);
   }
@@ -1660,6 +1663,23 @@ button {
   *:after {
     transition: none !important;
     animation: none !important;
+  }
+}
+/* Icons-only navigation is reserved for an extreme effective width, such as
+   a 390px viewport at 200% page zoom (195 CSS px). */
+@media (max-width: 220px) {
+  .mobile-hud {
+    left: 0;
+    right: 0;
+    padding: 1px;
+    border-radius: 0.65rem;
+  }
+  .mobile-hud button {
+    min-width: 2.75rem;
+    padding: 0.25rem 0;
+  }
+  .mobile-hud .command-nav-label {
+    display: none;
   }
 }
 @media (prefers-reduced-transparency: reduce) {
