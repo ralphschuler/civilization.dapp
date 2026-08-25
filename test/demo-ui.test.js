@@ -733,6 +733,77 @@ test("build mobile hierarchy exposes one primary path and statuses for unavailab
   assert.match(stories, /export const ConstructionBoostUnavailable/);
 });
 
+test("mobile collection wayfinding keeps the one map control clear and localizes the handoff", async () => {
+  const [css, collectionStatus, buildPanel, stories] = await Promise.all([
+    readFile(new URL("../src/styles.css", import.meta.url), "utf8"),
+    readFile(
+      new URL("../src/components/CollectionStatus.tsx", import.meta.url),
+      "utf8",
+    ),
+    readFile(
+      new URL("../src/components/BuildPanel.tsx", import.meta.url),
+      "utf8",
+    ),
+    readFile(
+      new URL(
+        "../src/components/CivilizationUiAudit.stories.tsx",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+  ]);
+  const villageMapMobileStart = css.indexOf(
+    "@media (max-width: 640px) {\n  .village-map {",
+  );
+  const villageMapMobileEnd = css.indexOf(
+    "@media (prefers-reduced-motion: reduce)",
+    villageMapMobileStart,
+  );
+  assert.notEqual(villageMapMobileStart, -1);
+  assert.notEqual(villageMapMobileEnd, -1);
+  const mobileMapStyles = css.slice(villageMapMobileStart, villageMapMobileEnd);
+
+  assert.match(
+    mobileMapStyles,
+    /\.collect-button\s*\{[\s\S]*?top:\s*auto[\s\S]*?bottom:\s*1rem/,
+  );
+  assert.match(
+    mobileMapStyles,
+    /\.map-feedback\s*\{[\s\S]*?right:\s*auto[\s\S]*?left:\s*0\.7rem[\s\S]*?max-width:\s*34%/,
+  );
+  assert.match(css, /\.game-shell button\s*\{\s*min-height:\s*2\.75rem/);
+  assert.match(
+    css,
+    /--mobile-nav-safe-space: calc\(5\.8rem \+ env\(safe-area-inset-bottom\)\)/,
+  );
+  assert.match(collectionStatus, /id="gather"/);
+  assert.equal((collectionStatus.match(/id="gather"/g) || []).length, 1);
+  assert.doesNotMatch(buildPanel, /id="gather"/);
+  const collectActionStart = buildPanel.indexOf(
+    'nextAction.kind === "collect"',
+  );
+  const collectActionEnd = buildPanel.indexOf(
+    ': nextAction.kind === "complete"',
+    collectActionStart,
+  );
+  assert.notEqual(collectActionStart, -1);
+  assert.notEqual(collectActionEnd, -1);
+  const collectActionBranch = buildPanel.slice(
+    collectActionStart,
+    collectActionEnd,
+  );
+  assert.doesNotMatch(collectActionBranch, /<button/);
+  assert.equal(
+    civilizationMessages("de-DE").nextActionCollect,
+    "Sammle die Feldressourcen auf der Dorfkarte.",
+  );
+  assert.equal(
+    civilizationMessages("en-US").nextActionCollect,
+    "Collect field resources on the village map.",
+  );
+  assert.match(stories, /export const MobileCollectionWayfinding/);
+});
+
 test("isolated mobile navigation story provides its aria-controls target", async () => {
   const stories = await readFile(
     new URL(

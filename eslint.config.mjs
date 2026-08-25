@@ -9,6 +9,7 @@ const eslintConfig = [
       "out/**",
       "apps/demo/.next/**",
       "apps/demo/out/**",
+      "artefacts/storybook-ui-audit/**",
     ],
   },
   ...nextCoreWebVitals,

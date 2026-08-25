@@ -210,6 +210,10 @@ export const VillageBuildOverview = {
   name: "CivilizationClient / Village and build overview",
   render: () => <Overview />,
 };
+export const MobileCollectionWayfinding = {
+  name: "Village map / Mobile collection wayfinding",
+  render: () => <Overview />,
+};
 export const BuildingDetail = {
   name: "Building detail / Upgrade impact and costs",
   render: () => (
