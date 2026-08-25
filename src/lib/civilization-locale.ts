@@ -138,22 +138,22 @@ const copy = {
     nextActionTitle: "NÄCHSTE AKTION",
     entryGuideTitle: "DEIN NÄCHSTER SCHRITT",
     entryGuideCollect:
-      "Feldressourcen sind bereit. Zeige die Sammelauswahl auf der Dorfkarte.",
-    entryGuideComplete:
-      "Ein Bau ist bereit. Zeige die vorhandene Abschlussauswahl.",
+      "Feldressourcen sind bereit. Sammle sie über die Dorfkarte ein.",
+    entryGuideComplete: "Ein Bau ist bereit und kann abgeschlossen werden.",
     entryGuideUpgrade:
-      "Ein Ausbau ist verfügbar. Zeige das ausgewählte Gebäude auf der Dorfkarte.",
+      "Ein Ausbau ist verfügbar. Das ausgewählte Gebäude ist auf der Dorfkarte erreichbar.",
     entryGuideRequirements:
-      "Zeige das Gebäude, das als Nächstes die Voraussetzung erfüllt.",
+      "Das Gebäude für die nächste Voraussetzung ist auf der Dorfkarte erreichbar.",
     entryGuideCapacity:
-      "Alle Bauplätze sind belegt. Zeige den Bauplan mit dem aktuellen Status.",
+      "Alle Bauplätze sind belegt. Prüfe den Bauplan mit dem aktuellen Status.",
     entryGuideResources:
       "Prüfe den Rohstoffbedarf des ausgewählten Gebäudes. Es wird kein Markt geöffnet.",
     entryGuideMaxLevel:
-      "Das ausgewählte Gebäude ist vollständig ausgebaut. Zeige seine Auswahl auf der Dorfkarte.",
+      "Das ausgewählte Gebäude ist vollständig ausgebaut und auf der Dorfkarte ausgewählt.",
     entryGuideUnavailable:
       "Der Spielstand wird noch eindeutig geladen. Warte auf die Dorfansicht.",
-    entryGuideShow: "Zeigen",
+    entryGuideOpenCompletion: "Bau abschließen öffnen",
+    entryGuideOpenBuildPlan: "Bauplan öffnen",
     entryGuideDismiss: "Einstiegshinweis nur für diese Sitzung schließen",
     nextActionCollect: "Sammle die Feldressourcen auf der Dorfkarte.",
     nextActionComplete: (building: string) =>
@@ -563,22 +563,22 @@ const copy = {
     nextActionTitle: "NEXT ACTION",
     entryGuideTitle: "YOUR NEXT STEP",
     entryGuideCollect:
-      "Field resources are ready. Show the collection control on the village map.",
-    entryGuideComplete:
-      "A construction is ready. Show the existing completion control.",
+      "Field resources are ready. Collect them on the village map.",
+    entryGuideComplete: "A construction is ready and can be completed.",
     entryGuideUpgrade:
-      "An upgrade is available. Show the selected building on the village map.",
+      "An upgrade is available. The selected building is available on the village map.",
     entryGuideRequirements:
-      "Show the building that meets the next requirement.",
+      "The building for the next requirement is available on the village map.",
     entryGuideCapacity:
-      "All construction slots are occupied. Show the build plan and its current status.",
+      "All construction slots are occupied. Review the build plan and its current status.",
     entryGuideResources:
       "Review the selected building’s resource need. No market will open.",
     entryGuideMaxLevel:
-      "The selected building is fully upgraded. Show its selection on the village map.",
+      "The selected building is fully upgraded and selected on the village map.",
     entryGuideUnavailable:
       "The village state is not clear yet. Wait for the village view.",
-    entryGuideShow: "Show",
+    entryGuideOpenCompletion: "Open construction completion",
+    entryGuideOpenBuildPlan: "Open build plan",
     entryGuideDismiss: "Dismiss entry guide for this session only",
     nextActionCollect: "Collect field resources on the village map.",
     nextActionComplete: (building: string) =>

@@ -112,8 +112,13 @@ function EntryGuideFixture({
   );
 }
 
-function Overview() {
+function Overview({
+  showCollectionGuide = false,
+}: {
+  showCollectionGuide?: boolean;
+}) {
   const [activePanel, setActivePanel] = useState<CommandPanel>("build");
+  const [entryGuideDismissed, setEntryGuideDismissed] = useState(false);
   return (
     <main className="game-shell">
       <GameShellHud
@@ -136,6 +141,14 @@ function Overview() {
         worldApp={{ installed: true }}
         worldBadge="WORLD"
       />
+      {showCollectionGuide && !entryGuideDismissed ? (
+        <EntryGuide
+          copy={copy}
+          recommendation={{ kind: "collect", target: "collection" }}
+          onDismiss={() => setEntryGuideDismissed(true)}
+          onRoute={() => undefined}
+        />
+      ) : null}
       <div className="command-layout">
         <VillageMap
           assetResult={{ failed: [] }}
@@ -347,6 +360,10 @@ export const VillageBuildOverview = {
 export const MobileCollectionWayfinding = {
   name: "Village map / Mobile collection wayfinding",
   render: () => <Overview />,
+};
+export const MobileCollectionGuide = {
+  name: "Village map / Mobile collection guide uses visible collect action",
+  render: () => <Overview showCollectionGuide />,
 };
 export const BuildingDetail = {
   name: "Building detail / Upgrade impact and costs",

@@ -92,3 +92,16 @@ test("entry guide remains read-only and routes each deterministic state to an ex
     target: "none",
   });
 });
+
+test("visible map entry-guide targets do not require a redundant route control", async () => {
+  const entryGuide = await (
+    await import("node:fs/promises")
+  ).readFile(
+    new URL("../src/components/EntryGuide.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(entryGuide, /recommendation\.target === "completion"/);
+  assert.match(entryGuide, /recommendation\.target === "build-panel"/);
+  assert.doesNotMatch(entryGuide, /entryGuideShow/);
+  assert.doesNotMatch(entryGuide, /recommendation\.target !== "none"/);
+});

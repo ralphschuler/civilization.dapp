@@ -59,13 +59,13 @@ const shots = [
     { width: 390, height: 844 },
   ],
   [
-    "mobile-entry-guide-320.png",
-    "ui-audit-civilization--entry-guide-collect",
+    "mobile-collection-guide-320.png",
+    "ui-audit-civilization--mobile-collection-guide",
     { width: 320, height: 844 },
   ],
   [
-    "mobile-entry-guide-390.png",
-    "ui-audit-civilization--entry-guide-collect",
+    "mobile-collection-guide-390.png",
+    "ui-audit-civilization--mobile-collection-guide",
     { width: 390, height: 844 },
   ],
   [
@@ -299,18 +299,36 @@ for (const [name, id, viewport] of shots) {
     await page.screenshot({ path: join(output, name) });
     screenshotTaken = true;
   }
-  if (id === "ui-audit-civilization--entry-guide-collect") {
+  if (id === "ui-audit-civilization--mobile-collection-guide") {
     const layout = await page.evaluate(() => {
       const guide = document.querySelector("[data-entry-guide]");
-      const primary = document.querySelector(".entry-guide-primary");
       const dismiss = document.querySelector(".entry-guide-dismiss");
-      if (!guide || !primary || !dismiss)
-        throw new Error("Missing entry guide controls");
+      const gather = document.querySelector("#gather");
+      const nav = document.querySelector(".mobile-hud");
+      if (!guide || !dismiss || !gather || !nav)
+        throw new Error("Missing composed collection guide controls");
+      const rect = (element) => {
+        const { top, right, bottom, left, width, height } =
+          element.getBoundingClientRect();
+        return { top, right, bottom, left, width, height };
+      };
       return {
-        guideWidth: guide.getBoundingClientRect().width,
+        guideWidth: rect(guide).width,
         viewportWidth: window.innerWidth,
-        primaryHeight: primary.getBoundingClientRect().height,
-        dismissHeight: dismiss.getBoundingClientRect().height,
+        primaryCount: document.querySelectorAll(".entry-guide-primary").length,
+        dismissHeight: rect(dismiss).height,
+        gather: rect(gather),
+        gatherHit:
+          document
+            .elementFromPoint(
+              gather.getBoundingClientRect().left +
+                gather.getBoundingClientRect().width / 2,
+              gather.getBoundingClientRect().top +
+                gather.getBoundingClientRect().height / 2,
+            )
+            ?.closest("#gather") === gather,
+        mobileNav: rect(nav),
+        navControls: Array.from(nav.querySelectorAll("button"), rect),
         scrollWidth: document.documentElement.scrollWidth,
       };
     });
@@ -319,8 +337,28 @@ for (const [name, id, viewport] of shots) {
       layout.guideWidth > layout.viewportWidth
     )
       throw new Error("Entry guide has horizontal overflow");
-    if (layout.primaryHeight < 44 || layout.dismissHeight < 44)
-      throw new Error("Entry guide controls are smaller than 44px");
+    if (layout.primaryCount !== 0)
+      throw new Error(
+        "Visible map collect action must not have a redundant guide action",
+      );
+    if (
+      layout.dismissHeight < 44 ||
+      layout.gather.width < 44 ||
+      layout.gather.height < 44
+    )
+      throw new Error("Collection guide controls are smaller than 44px");
+    if (layout.gather.bottom > layout.mobileNav.top)
+      throw new Error(
+        "Visible map collect action is obstructed by bottom navigation",
+      );
+    if (!layout.gatherHit)
+      throw new Error("Visible map collect action center is not hit-testable");
+    if (
+      layout.navControls.some(
+        (control) => control.width < 44 || control.height < 44,
+      )
+    )
+      throw new Error("Bottom navigation control is smaller than 44px");
     await page.screenshot({ path: join(output, name), fullPage: true });
     screenshotTaken = true;
     await page.locator(".entry-guide-dismiss").focus();
