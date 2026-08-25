@@ -36,7 +36,15 @@ export function EntryGuide({
                 : recommendation.kind === "upgrade"
                   ? copy.entryGuideUpgrade
                   : copy.entryGuideUnavailable;
-  const canRoute = recommendation.target !== "none";
+  // Collection and building markers are already direct controls on the map.
+  // Do not insert a second, focus-only step before an action the player can
+  // see and use immediately.
+  const routeLabel =
+    recommendation.target === "completion"
+      ? copy.entryGuideOpenCompletion
+      : recommendation.target === "build-panel"
+        ? copy.entryGuideOpenBuildPlan
+        : null;
   return (
     <aside
       className="entry-guide"
@@ -48,13 +56,13 @@ export function EntryGuide({
         <span>{detail}</span>
       </div>
       <div className="entry-guide-actions">
-        {canRoute ? (
+        {routeLabel ? (
           <button
             className="entry-guide-primary"
             onClick={() => onRoute(recommendation)}
             type="button"
           >
-            {copy.entryGuideShow}
+            {routeLabel}
           </button>
         ) : null}
         <button
