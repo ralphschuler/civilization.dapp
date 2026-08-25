@@ -641,6 +641,10 @@ button {
   padding: 1rem;
   background: linear-gradient(145deg, #142117, #0d1710 65%);
 }
+.command-panel:focus-visible {
+  outline: 2px solid #fff3aa;
+  outline-offset: 0.2rem;
+}
 .inspector {
   display: grid;
   gap: 0.8rem;

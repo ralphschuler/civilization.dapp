@@ -86,6 +86,20 @@ test("native WalletAuth/SIWE seam reaches an already registered game on the same
   await expectNoSeriousAxe(page, "[data-testid='civilization-game-root']");
 });
 
+test("game teardown does not render a nested panel after its runtime is cleared", async ({
+  page,
+}) => {
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+
+  await enterGame(page, "registered");
+  await expect(page.locator("#game-command-panel")).toBeVisible();
+  await page.goto("about:blank");
+  await page.waitForTimeout(100);
+
+  expect(pageErrors).toEqual([]);
+});
+
 test("game area navigation announces its current area, keeps keyboard focus, and fits narrow layouts", async ({
   page,
 }) => {
@@ -107,10 +121,9 @@ test("game area navigation announces its current area, keeps keyboard focus, and
   await marketAction.press("Enter");
   await expect(marketAction).toHaveAttribute("aria-current", "page");
   await expect(buildAction).not.toHaveAttribute("aria-current", "page");
-  await expect(marketAction).toBeFocused();
-  await expect(marketAction).toHaveCSS("outline-style", "solid");
 
   if ((page.viewportSize()?.width ?? 0) <= 960) {
+    await expect(page.locator("#game-command-panel")).toBeFocused();
     await page.setViewportSize({ width: 320, height: 700 });
     await expect(mobileNavigation).toBeVisible();
     const mobileMarket = mobileNavigation.getByRole("button", {
@@ -134,8 +147,64 @@ test("game area navigation announces its current area, keeps keyboard focus, and
         .locator("html")
         .evaluate((node) => node.scrollWidth <= window.innerWidth),
     ).toBe(true);
+  } else {
+    await expect(marketAction).toBeFocused();
+    await expect(marketAction).toHaveCSS("outline-style", "solid");
   }
   await expectNoSeriousAxe(page, "[data-testid='civilization-game-root']");
+});
+
+test("mobile bottom navigation reveals its selected panel at 195 by 422", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "mobile-chromium-390",
+    "This regression covers the mobile-only bottom navigation.",
+  );
+  await page.setViewportSize({ width: 195, height: 422 });
+  await enterGame(page, "registered");
+
+  const mobileNavigation = page.getByRole("navigation", {
+    name: "Schnellzugriff",
+  });
+  const marketAction = mobileNavigation.getByRole("button", { name: "Markt" });
+  await marketAction.click();
+  await expect(marketAction).toHaveAttribute("aria-current", "page");
+
+  const commandPanel = page.locator("#game-command-panel");
+  const selectedPanelHeading = commandPanel.getByRole("heading").first();
+  await expect(commandPanel).toBeFocused();
+  await expect(selectedPanelHeading).toBeVisible();
+  await expect(selectedPanelHeading).toBeInViewport({ ratio: 1 });
+  expect(
+    await page.evaluate(() => {
+      const heading = document.querySelector("#game-command-panel h2");
+      if (!(heading instanceof HTMLElement)) return false;
+      const headingRect = heading.getBoundingClientRect();
+      const hitTarget = document.elementFromPoint(
+        headingRect.left + headingRect.width / 2,
+        headingRect.top + headingRect.height / 2,
+      );
+      const overlays = [".hud", ".mobile-hud"]
+        .map((selector) => document.querySelector(selector))
+        .filter(
+          (overlay): overlay is HTMLElement => overlay instanceof HTMLElement,
+        );
+      return (
+        !hitTarget?.closest(".hud, .mobile-hud") &&
+        overlays.every((overlay) => {
+          const overlayRect = overlay.getBoundingClientRect();
+          return (
+            headingRect.bottom <= overlayRect.top ||
+            headingRect.top >= overlayRect.bottom ||
+            headingRect.right <= overlayRect.left ||
+            headingRect.left >= overlayRect.right
+          );
+        }) &&
+        document.documentElement.scrollWidth <= window.innerWidth
+      );
+    }),
+  ).toBe(true);
 });
 
 test("settings dialog traps focus, closes by Escape, and keeps motion preference locally", async ({

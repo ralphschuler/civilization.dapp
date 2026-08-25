@@ -159,10 +159,36 @@ function Overview({
 }: {
   showCollectionGuide?: boolean;
 }) {
+  const shell = useRef<HTMLElement>(null);
   const [activePanel, setActivePanel] = useState<CommandPanel>("build");
   const [entryGuideDismissed, setEntryGuideDismissed] = useState(false);
+  const selectPanel = (
+    panel: CommandPanel,
+    navigation: "desktop" | "mobile",
+  ) => {
+    setActivePanel(panel);
+    if (navigation !== "mobile") return;
+    requestAnimationFrame(() => {
+      const commandPanel = shell.current?.querySelector<HTMLElement>(
+        "#game-command-panel",
+      );
+      if (!commandPanel) return;
+      commandPanel.tabIndex = -1;
+      commandPanel.focus({ preventScroll: true });
+      commandPanel.scrollIntoView({
+        behavior: "auto",
+        block: "start",
+        inline: "nearest",
+      });
+      const hud = shell.current?.querySelector<HTMLElement>(".hud");
+      if (!hud) return;
+      const panelTop = commandPanel.getBoundingClientRect().top;
+      const hudBottom = hud.getBoundingClientRect().bottom;
+      if (panelTop < hudBottom) window.scrollBy({ top: panelTop - hudBottom });
+    });
+  };
   return (
-    <main className="game-shell">
+    <main className="game-shell" ref={shell}>
       <GameShellHud
         assetResult={{ failed: [] }}
         capacity={2500}
@@ -223,7 +249,7 @@ function Overview({
           <CommandNavigation
             activePanel={activePanel}
             copy={copy}
-            onSelectPanel={(panel) => setActivePanel(panel)}
+            onSelectPanel={selectPanel}
           />
           <section className="command-panel" id="game-command-panel">
             <BuildPanel
@@ -241,7 +267,7 @@ function Overview({
         mobile
         activePanel={activePanel}
         copy={copy}
-        onSelectPanel={(panel) => setActivePanel(panel)}
+        onSelectPanel={selectPanel}
       />
     </main>
   );
@@ -397,6 +423,11 @@ export const RegistrationState = {
 };
 export const VillageBuildOverview = {
   name: "CivilizationClient / Village and build overview",
+  render: () => <Overview />,
+};
+
+export const MobileVillageBuildNavigation = {
+  name: "Village build / Mobile navigation reveals command panel",
   render: () => <Overview />,
 };
 export const MobileCollectionWayfinding = {
