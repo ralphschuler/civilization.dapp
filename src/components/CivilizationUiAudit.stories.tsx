@@ -3,6 +3,7 @@ import { BuildPanel, type BuildPanelProps } from "./BuildPanel";
 import { ArmyPanel, type ArmyPanelProps } from "./ArmyPanel";
 import { CommandNavigation, type CommandPanel } from "./CommandNavigation";
 import { GameShellHud } from "./GameShellHud";
+import { GameFooter } from "./GameFooter";
 import { EntryGuide } from "./EntryGuide";
 import { MarketPanel, type MarketPanelProps } from "./MarketPanel";
 import { VillageMap } from "./VillageMap";
@@ -557,6 +558,47 @@ export const BottomNavigation = {
       <section id="game-command-panel" className="command-panel">
         <p>Build panel</p>
       </section>
+      <CommandNavigation
+        mobile
+        activePanel="build"
+        copy={copy}
+        onSelectPanel={() => undefined}
+      />
+    </main>
+  ),
+};
+
+export const DemoFooter = {
+  name: "GameFooter / Demo reset action",
+  render: () => (
+    <main className="game-shell">
+      <GameFooter
+        authority={copy.demoStorage}
+        onReset={() => undefined}
+        resetLabel={copy.demoReset}
+        runtimeMode="demo"
+        status={copy.demoFooter("3")}
+      />
+      <CommandNavigation
+        mobile
+        activePanel="build"
+        copy={copy}
+        onSelectPanel={() => undefined}
+      />
+    </main>
+  ),
+};
+
+export const WorldFooter = {
+  name: "GameFooter / World authority status",
+  render: () => (
+    <main className="game-shell">
+      <GameFooter
+        authority={copy.gameAuthority}
+        resetLabel={copy.demoReset}
+        runtimeMode="world"
+        status={copy.worldFooter("2")}
+      />
       <CommandNavigation
         mobile
         activePanel="build"

@@ -1351,8 +1351,10 @@ button {
   max-width: 112rem;
   margin: 1rem auto 0;
   display: flex;
+  align-items: center;
   justify-content: space-between;
   gap: 1rem;
+  min-width: 0;
   color: #a4b29b;
   font-size: 0.65rem;
 }
@@ -1366,7 +1368,11 @@ button {
   box-shadow: 0 0 0.65rem #c5df76;
 }
 .game-footer button {
-  border: 0;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid transparent;
+  border-radius: 0.55rem;
   color: #c9c892;
   background: none;
   text-decoration: underline;
@@ -1579,6 +1585,7 @@ button {
   .game-footer {
     padding: 0 0.2rem 4rem;
     flex-wrap: wrap;
+    align-items: center;
   }
   .game-footer span:nth-child(2) {
     display: none;

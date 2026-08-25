@@ -26,7 +26,6 @@ export function bindGameActions(root, actions) {
     actions.boost(value === undefined ? undefined : Number(value));
   });
   on("#prestige", actions.prestige);
-  on("#reset", actions.reset);
   all("[data-building]", (event) =>
     actions.upgrade(event.currentTarget.dataset.building),
   );

@@ -83,6 +83,38 @@ test("pure UI helpers format time, escape markup, and clamp elapsed time", () =>
   assert.equal(remainingTime(1_000, 1_001), 0);
 });
 
+test("GameFooter keeps reset demo-only and renders dynamic values as React children", async () => {
+  const footer = await readFile(
+    new URL("../src/components/GameFooter.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(footer, /<footer className="game-footer">/);
+  assert.match(footer, /<i aria-hidden="true"\s*\/>/);
+  assert.match(footer, /runtimeMode === "demo"/);
+  assert.match(footer, /<button onClick=\{onReset\} type="button">/);
+  assert.match(footer, /\{authority\}/);
+  assert.match(footer, /\{status\}/);
+  assert.doesNotMatch(footer, /dangerouslySetInnerHTML|innerHTML/);
+});
+
+test("footer shell mount and lifecycle leave reset exclusively to React", async () => {
+  const [app, bindings, shell] = await Promise.all([
+    readFile(new URL("../src/app.js", import.meta.url), "utf8"),
+    readFile(new URL("../src/game-ui/bindings.js", import.meta.url), "utf8"),
+    readFile(new URL("../src/game-ui/views/shell.js", import.meta.url), "utf8"),
+  ]);
+  assert.match(shell, /<div data-game-footer><\/div>/);
+  assert.match(gameShell(), /<div data-game-footer><\/div>/);
+  assert.doesNotMatch(
+    shell,
+    /<footer class="game-footer"|id="reset"|demoFooter|worldFooter/,
+  );
+  assert.doesNotMatch(bindings, /#reset|actions\.reset/);
+  assert.match(app, /const renderFooter = \(\) =>/);
+  assert.match(app, /runtime\.footerRoot\?\.unmount\(\)/);
+  assert.match(app, /renderFooter\(\);/);
+});
+
 test("resource HUD helpers abbreviate large values and preserve rate semantics", () => {
   assert.equal(compactResourceValue(999, String), "999");
   assert.equal(compactResourceValue(1_000, String), "1K");
