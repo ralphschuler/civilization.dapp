@@ -1,5 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readdir, readFile } from "node:fs/promises";
+import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   MAX_OFFLINE_SECONDS,
   MAX_REDUCTION_BPS,
@@ -12,6 +15,44 @@ import {
   simulateJob,
   workshopSlots,
 } from "../src/simulation/policy-130-simulator.js";
+
+const repositoryRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
+const simulatorPath = resolve(
+  repositoryRoot,
+  "src/simulation/policy-130-simulator.js",
+);
+const simulatorTestPath = fileURLToPath(import.meta.url);
+const ignoredDirectories = new Set([".git", "docs", "node_modules"]);
+const sourceFile = /\.(?:[cm]?[jt]sx?)$/;
+const simulatorImport =
+  /(?:\b(?:import|export)\s+(?:[\s\S]*?\s+from\s+)?|\bimport\s*\(|\brequire\s*\()\s*["'][^"']*policy-130-simulator(?:\.js)?["']/;
+
+async function findSimulatorImports(directory) {
+  const entries = await readdir(directory, { withFileTypes: true });
+  const matches = await Promise.all(
+    entries.map(async (entry) => {
+      const path = resolve(directory, entry.name);
+      if (entry.isDirectory())
+        return ignoredDirectories.has(entry.name)
+          ? []
+          : findSimulatorImports(path);
+      if (
+        !entry.isFile() ||
+        !sourceFile.test(entry.name) ||
+        path === simulatorPath ||
+        path === simulatorTestPath
+      )
+        return [];
+      return simulatorImport.test(await readFile(path, "utf8")) ? [path] : [];
+    }),
+  );
+  return matches.flat();
+}
+
+test("Issue 130 simulator is not imported by production or runtime code", async () => {
+  const imports = await findSimulatorImports(repositoryRoot);
+  assert.deepEqual(imports, []);
+});
 
 test("Issue 130 simulator supports every class and only levels 1 through 30", () => {
   for (const buildingClass of [
