@@ -28,6 +28,7 @@ const server = createServer((request, response) => {
 await new Promise((resolve) => server.listen(6006, "127.0.0.1", resolve));
 const browser = await chromium.launch({ headless: true });
 const footerMeasurements = [];
+const mobileAuditMeasurements = [];
 const shots = [
   [
     "desktop-village-build-overview.png",
@@ -113,6 +114,16 @@ const shots = [
     "mobile-bottom-navigation-390.png",
     "ui-audit-civilization--bottom-navigation",
     { width: 390, height: 844 },
+  ],
+  [
+    "mobile-bottom-navigation-320.png",
+    "ui-audit-civilization--bottom-navigation",
+    { width: 320, height: 844 },
+  ],
+  [
+    "mobile-bottom-navigation-195.png",
+    "ui-audit-civilization--bottom-navigation",
+    { width: 195, height: 422 },
   ],
   [
     "mobile-build-action-focus-320.png",
@@ -507,7 +518,7 @@ for (const [name, id, viewport] of shots) {
         guideWidth: rect(guide).width,
         viewportWidth: window.innerWidth,
         primaryCount: document.querySelectorAll(".entry-guide-primary").length,
-        dismissHeight: rect(dismiss).height,
+        dismiss: rect(dismiss),
         gather: rect(gather),
         gatherHit:
           document
@@ -533,7 +544,8 @@ for (const [name, id, viewport] of shots) {
         "Visible map collect action must not have a redundant guide action",
       );
     if (
-      layout.dismissHeight < 44 ||
+      layout.dismiss.width < 44 ||
+      layout.dismiss.height < 44 ||
       layout.gather.width < 44 ||
       layout.gather.height < 44
     )
@@ -550,6 +562,11 @@ for (const [name, id, viewport] of shots) {
       )
     )
       throw new Error("Bottom navigation control is smaller than 44px");
+    mobileAuditMeasurements.push({
+      name,
+      viewport,
+      dismissTarget: layout.dismiss,
+    });
     await page.screenshot({ path: join(output, name), fullPage: true });
     screenshotTaken = true;
     await page.locator(".entry-guide-dismiss").focus();
@@ -559,6 +576,69 @@ for (const [name, id, viewport] of shots) {
         "Entry guide dismissal did not remove the guide for this render session",
       );
   }
+  if (id === "ui-audit-civilization--bottom-navigation") {
+    const layout = await page.evaluate(() => {
+      const nav = document.querySelector(".mobile-hud");
+      if (!nav) throw new Error("Missing mobile navigation fixture");
+      const rect = (element) => {
+        const { top, right, bottom, left, width, height } =
+          element.getBoundingClientRect();
+        return { top, right, bottom, left, width, height };
+      };
+      return {
+        controls: Array.from(nav.querySelectorAll("button"), rect),
+        labels: Array.from(
+          nav.querySelectorAll(".command-nav-label"),
+          (label) => ({
+            display: getComputedStyle(label).display,
+            rect: rect(label),
+          }),
+        ),
+        scrollWidth: document.documentElement.scrollWidth,
+        viewportWidth: window.innerWidth,
+      };
+    });
+    const overlaps = (first, second) =>
+      first.left < second.right &&
+      first.right > second.left &&
+      first.top < second.bottom &&
+      first.bottom > second.top;
+    if (layout.scrollWidth > layout.viewportWidth)
+      throw new Error("Mobile navigation has horizontal overflow");
+    if (layout.controls.length !== 4)
+      throw new Error("Mobile navigation is missing controls");
+    if (
+      layout.controls.some(
+        (control) => control.width < 44 || control.height < 44,
+      )
+    )
+      throw new Error("Mobile navigation control is smaller than 44px");
+    const labelsHidden = viewport.width <= 220;
+    if (
+      layout.labels.some((label) => (label.display === "none") !== labelsHidden)
+    )
+      throw new Error(
+        labelsHidden
+          ? "Extreme-width mobile navigation labels are not hidden"
+          : "Normal-width mobile navigation labels are hidden",
+      );
+    if (
+      layout.labels.some((label, index) =>
+        layout.labels
+          .slice(index + 1)
+          .some((other) => overlaps(label.rect, other.rect)),
+      )
+    )
+      throw new Error("Mobile navigation labels collide");
+    mobileAuditMeasurements.push({
+      name,
+      viewport,
+      controls: layout.controls,
+      labelDisplays: layout.labels.map((label) => label.display),
+      scrollWidth: layout.scrollWidth,
+      viewportWidth: layout.viewportWidth,
+    });
+  }
   if (!screenshotTaken)
     await page.screenshot({ path: join(output, name), fullPage: true });
   await page.close();
@@ -567,3 +647,5 @@ await browser.close();
 await new Promise((resolve) => server.close(resolve));
 console.log("Footer audit measurements:");
 console.log(JSON.stringify(footerMeasurements));
+console.log("Mobile audit measurements:");
+console.log(JSON.stringify(mobileAuditMeasurements));
