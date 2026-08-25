@@ -24,8 +24,11 @@ test("workshop 11 with one job retains a keyboard-reachable start composer at 32
   await expect(page.locator("[data-construction-job]")).toHaveCount(1);
   const start = page.locator('[data-building="timber"]');
   const recommendation = page.locator('[data-next-action="upgrade"]');
+  const details = page.locator("details.next-task-details");
   await expect(recommendation).toBeVisible();
   await expect(recommendation).toHaveAccessibleName(/NÄCHSTE AKTION/);
+  await expect(details).toHaveCount(1);
+  await expect(details).not.toHaveAttribute("open", "");
   await expect(start).toBeEnabled();
   for (const width of [320, 390]) await expectNoHorizontalOverflow(page, width);
 
@@ -68,10 +71,10 @@ test("upgrade impact comparison stays accessible and responsive at mobile widths
   page,
 }) => {
   await mountPanel(page, "impact");
-  const impactDisclosure = page.locator("details.build-impact-details");
+  const impactDisclosure = page.locator("details.next-task-details");
   const impactToggle = impactDisclosure.locator("summary");
   await expect(impactDisclosure).not.toHaveAttribute("open", "");
-  await expect(impactToggle).toHaveText("AUSBAU-AUSWIRKUNG");
+  await expect(impactToggle).toHaveText("DETAILS ZUM BAUSCHRITT");
   await impactToggle.focus();
   await expect(impactToggle).toBeFocused();
   await page.keyboard.press("Enter");
