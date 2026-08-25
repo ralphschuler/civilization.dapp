@@ -114,9 +114,33 @@ for (const [name, id, viewport] of shots) {
           element.getBoundingClientRect();
         return { top, right, bottom, left, width, height };
       };
+      const gather = document.querySelector("#gather");
+      if (!gather) throw new Error("Missing #gather");
+      const gatherBounds = gather.getBoundingClientRect();
       return {
         gatherCount: document.querySelectorAll("#gather").length,
         gather: rect("#gather"),
+        buildings: Array.from(
+          document.querySelectorAll(".map-building"),
+          (building) => ({
+            id:
+              building.getAttribute("data-map-building") ||
+              building.getAttribute("data-map-panel") ||
+              "unknown",
+            rect: (() => {
+              const { top, right, bottom, left, width, height } =
+                building.getBoundingClientRect();
+              return { top, right, bottom, left, width, height };
+            })(),
+          }),
+        ),
+        gatherHit:
+          document
+            .elementFromPoint(
+              gatherBounds.left + gatherBounds.width / 2,
+              gatherBounds.top + gatherBounds.height / 2,
+            )
+            ?.closest("#gather") === gather,
         title: rect(".map-head"),
         selectedLabel: rect(".map-building.is-selected span"),
         mobileNav: rect(".mobile-hud"),
@@ -143,6 +167,15 @@ for (const [name, id, viewport] of shots) {
       throw new Error("Map collect control is smaller than 44px");
     if (overlaps(layout.gather, layout.mobileNav))
       throw new Error("Map collect control is obstructed by bottom navigation");
+    const blockedBuilding = layout.buildings.find((building) =>
+      overlaps(layout.gather, building.rect),
+    );
+    if (blockedBuilding)
+      throw new Error(
+        `Map collect control overlaps ${blockedBuilding.id} building hit target`,
+      );
+    if (!layout.gatherHit)
+      throw new Error("Map collect control center is not hit-testable");
   }
   if (id === "ui-audit-civilization--world-market-mobile") {
     const layout = await page.evaluate(() => {
