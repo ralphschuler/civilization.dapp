@@ -79,6 +79,16 @@ const shots = [
     { width: 390, height: 844 },
   ],
   [
+    "mobile-build-action-focus-320.png",
+    "ui-audit-civilization--mobile-build-action-focus",
+    { width: 320, height: 844 },
+  ],
+  [
+    "mobile-build-action-focus-390.png",
+    "ui-audit-civilization--mobile-build-action-focus",
+    { width: 390, height: 844 },
+  ],
+  [
     "mobile-world-market-320.png",
     "ui-audit-civilization--world-market-mobile",
     { width: 320, height: 844 },
@@ -201,6 +211,62 @@ for (const [name, id, viewport] of shots) {
         "Opening market disclosure did not expose fee/reserve detail",
       );
     await page.keyboard.press("Enter");
+  }
+  if (id === "ui-audit-civilization--mobile-build-action-focus") {
+    await page.locator(".entry-guide-primary").click();
+    const layout = await page.evaluate(() => {
+      const action = document.querySelector(
+        '[data-next-action-button="complete"]',
+      );
+      const nav = document.querySelector(".mobile-hud");
+      const panel = document.querySelector("[data-build-action-focus-panel]");
+      if (!(action instanceof HTMLElement) || !nav || !panel)
+        throw new Error("Missing composed mobile BuildPanel focus fixture");
+      const rect = (element) => {
+        const { top, right, bottom, left, width, height } =
+          element.getBoundingClientRect();
+        return { top, right, bottom, left, width, height };
+      };
+      const baselineStyle = action.style.scrollMarginBlockEnd;
+      action.style.scrollMarginBlockEnd = "0px";
+      window.scrollTo(0, 0);
+      action.scrollIntoView({ block: "end" });
+      const baseline = { action: rect(action), nav: rect(nav) };
+      action.style.scrollMarginBlockEnd = baselineStyle;
+      window.scrollTo(0, 0);
+      action.blur();
+      action.focus();
+      return {
+        action: rect(action),
+        mobileNav: rect(nav),
+        panel: rect(panel),
+        baseline,
+        focused: document.activeElement === action,
+        navControls: Array.from(nav.querySelectorAll("button"), rect),
+        scrollWidth: document.documentElement.scrollWidth,
+        viewportWidth: window.innerWidth,
+      };
+    });
+    if (layout.scrollWidth > layout.viewportWidth)
+      throw new Error("Composed mobile BuildPanel has horizontal overflow");
+    if (!layout.focused)
+      throw new Error("Next-action route did not focus the BuildPanel action");
+    if (layout.baseline.action.bottom <= layout.baseline.nav.top)
+      throw new Error(
+        "Expected no-margin baseline to be hidden by bottom navigation",
+      );
+    if (layout.action.bottom > layout.mobileNav.top)
+      throw new Error(
+        "Focused BuildPanel action is hidden by bottom navigation",
+      );
+    if (
+      layout.navControls.some(
+        (control) => control.width < 44 || control.height < 44,
+      )
+    )
+      throw new Error("Bottom navigation control is smaller than 44px");
+    await page.screenshot({ path: join(output, name) });
+    screenshotTaken = true;
   }
   if (id === "ui-audit-civilization--entry-guide-collect") {
     const layout = await page.evaluate(() => {
