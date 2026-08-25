@@ -7,6 +7,7 @@ import { constructionBoostEligibility } from "../world-game/boost-eligibility.js
 import { civilizationMessages } from "../lib/civilization-locale";
 import { marketPrefill } from "../world-game/market-intent.js";
 import { deriveNextAction } from "../game-ui/next-action.js";
+import { NextTaskCard, type NextTaskCardAction } from "./NextTaskCard";
 
 type ResourceDefinition = { color?: string; short?: string; label: string };
 type Building = {
@@ -314,6 +315,7 @@ function Plan({ props }: { props: BuildPanelProps }) {
       </ol>
       {plan.next ? (
         <button
+          type="button"
           className="secondary-action"
           disabled={props.busy}
           onClick={() => props.onUpgrade(plan.next!.id)}
@@ -441,6 +443,43 @@ export function BuildPanel(props: BuildPanelProps) {
                       : undefined,
                   }
                 : { detail: copy.fullyUpgraded(building.label) };
+  const nextTaskAction: NextTaskCardAction | undefined =
+    nextActionContent.label && nextActionContent.onClick
+      ? {
+          kind: nextAction.kind,
+          label: nextActionContent.label,
+          onClick: nextActionContent.onClick,
+          disabled: props.busy,
+          buildingId:
+            nextAction.kind === "upgrade" ? props.selectedBuilding : undefined,
+        }
+      : nextAction.kind === "max-level" &&
+          props.runtimeMode === "world" &&
+          props.selectedBuilding === "townhall"
+        ? {
+            kind: nextAction.kind,
+            label: copy.prestigeStart(props.state.prestigeCount! + 1),
+            onClick: props.onPrestige,
+            disabled: props.busy,
+            id: "prestige",
+          }
+        : undefined;
+  const nextTaskFacts =
+    nextAction.kind === "resources" ? (
+      <span className="market-prefill-actions">
+        {Object.entries(upgradeDeficits).map(([resource, amount]) => (
+          <span key={resource} className="market-deficit">
+            {props.format(amount as number)}{" "}
+            {props.resourceDefs[resource].label}
+          </span>
+        ))}
+        {!prioritizedMarket ? <span>{copy.marketGoldUnavailable}</span> : null}
+      </span>
+    ) : nextAction.kind === "upgrade" ? (
+      <span className="next-task-cost">
+        <CostLine cost={cost} props={props} />
+      </span>
+    ) : null;
   return (
     <div className="inspector build-inspector">
       <div
@@ -469,27 +508,69 @@ export function BuildPanel(props: BuildPanelProps) {
         {building.detail}
         {produces ? copy.nextProduction(produces) : ""}
       </p>
-      <section
-        className="next-action"
-        aria-labelledby="next-action-title"
-        data-next-action={nextAction.kind}
+      <NextTaskCard
+        title={copy.nextActionTitle}
+        kind={nextAction.kind}
+        reason={nextActionContent.detail}
+        relevantFacts={nextTaskFacts}
+        action={nextTaskAction}
+        detailsLabel={copy.nextTaskDetails}
       >
-        <span id="next-action-title">{copy.nextActionTitle}</span>
-        <p>{nextActionContent.detail}</p>
-        {nextActionContent.label && nextActionContent.onClick ? (
-          <button
-            className="primary-action build-primary-action"
-            data-building={
-              nextAction.kind === "upgrade" ? props.selectedBuilding : undefined
-            }
-            data-next-action-button={nextAction.kind}
-            disabled={props.busy}
-            onClick={nextActionContent.onClick}
-          >
-            {nextActionContent.label}
-          </button>
-        ) : null}
-      </section>
+        {level >= MAX_BUILDING_LEVEL ? (
+          <div className="requirement-box">
+            <span>{copy.maxLevel}</span>
+            <b>{copy.fullyUpgraded(building.label)}</b>
+            <small>
+              {props.selectedBuilding === "townhall"
+                ? copy.prestigeDetail
+                : copy.noFurtherUpgrade}
+            </small>
+          </div>
+        ) : requirements.length ? (
+          <div className="requirement-box">
+            <span>{copy.upgradeLocked}</span>
+            <b>
+              {requirements
+                .map(
+                  ({ id, level: required }) =>
+                    `${props.buildings[id].label} ${required}`,
+                )
+                .join(" · ")}
+            </b>
+            <small>{copy.unlockUpgrade}</small>
+          </div>
+        ) : (
+          <div className="upgrade-cost">
+            {nextAction.kind !== "upgrade" ? (
+              <>
+                <span>{copy.upgradeCost(level + 1)}</span>
+                <div>
+                  <CostLine cost={cost} props={props} />
+                </div>
+              </>
+            ) : null}
+            {props.runtimeMode === "world" ? (
+              <small className="build-duration">
+                {duration == null
+                  ? copy.buildDurationLoading
+                  : duration === false
+                    ? copy.buildDurationUnavailable
+                    : copy.buildDuration(clock(duration))}
+              </small>
+            ) : null}
+            {atCapacity ? (
+              <small className="construction-capacity-blocker" role="status">
+                {copy.constructionSlotsOccupied(
+                  props.state.constructionOccupied!,
+                  props.state.constructionCapacity!,
+                )}
+              </small>
+            ) : null}
+          </div>
+        )}
+        <Impact props={props} />
+        <Plan props={props} />
+      </NextTaskCard>
       <div className="inspector-divider" />
       {jobs.length ? (
         <section
@@ -534,6 +615,7 @@ export function BuildPanel(props: BuildPanelProps) {
                 )}
                 {boost.eligible ? (
                   <button
+                    type="button"
                     className="secondary-action"
                     id={legacy ? "boost-construction" : undefined}
                     data-boost-construction
@@ -551,97 +633,6 @@ export function BuildPanel(props: BuildPanelProps) {
             );
           })}
         </section>
-      ) : null}
-      {level >= MAX_BUILDING_LEVEL ? (
-        <>
-          <div className="requirement-box">
-            <span>{copy.maxLevel}</span>
-            <b>{copy.fullyUpgraded(building.label)}</b>
-            <small>
-              {props.selectedBuilding === "townhall"
-                ? copy.prestigeDetail
-                : copy.noFurtherUpgrade}
-            </small>
-          </div>
-          {props.runtimeMode === "world" &&
-          props.selectedBuilding === "townhall" ? (
-            <button
-              className="primary-action build-primary-action"
-              id="prestige"
-              disabled={props.busy}
-              onClick={props.onPrestige}
-            >
-              {copy.prestigeStart(props.state.prestigeCount! + 1)}
-            </button>
-          ) : null}
-        </>
-      ) : requirements.length ? (
-        <>
-          <div className="requirement-box">
-            <span>{copy.upgradeLocked}</span>
-            <b>
-              {requirements
-                .map(
-                  ({ id, level: required }) =>
-                    `${props.buildings[id].label} ${required}`,
-                )
-                .join(" · ")}
-            </b>
-            <small>{copy.unlockUpgrade}</small>
-          </div>
-        </>
-      ) : (
-        <>
-          <div className="upgrade-cost">
-            <span>{copy.upgradeCost(level + 1)}</span>
-            <div>
-              <CostLine cost={cost} props={props} />
-            </div>
-            {props.runtimeMode === "world" ? (
-              <small className="build-duration">
-                {duration == null
-                  ? copy.buildDurationLoading
-                  : duration === false
-                    ? copy.buildDurationUnavailable
-                    : copy.buildDuration(clock(duration))}
-              </small>
-            ) : null}
-          </div>
-          {atCapacity ? (
-            <small className="construction-capacity-blocker" role="status">
-              {copy.constructionSlotsOccupied(
-                props.state.constructionOccupied!,
-                props.state.constructionCapacity!,
-              )}
-            </small>
-          ) : null}
-        </>
-      )}
-      <details className="build-secondary build-impact-details">
-        <summary>{copy.upgradeImpactTitle}</summary>
-        <Impact props={props} />
-      </details>
-      {props.runtimeMode === "world" && props.buildingPlan ? (
-        <details className="build-secondary build-plan-details">
-          <summary>{copy.dependencyPlanTitle}</summary>
-          <Plan props={props} />
-        </details>
-      ) : null}
-      {!affordable && !requirements.length && level < MAX_BUILDING_LEVEL ? (
-        <details className="build-secondary market-prefill-blocker" open>
-          <summary>{copy.marketMissingResources}</summary>
-          <span className="market-prefill-actions">
-            {Object.entries(upgradeDeficits).map(([resource, amount]) => (
-              <span key={resource} className="market-deficit">
-                {props.format(amount as number)}{" "}
-                {props.resourceDefs[resource].label}
-              </span>
-            ))}
-            {!prioritizedMarket ? (
-              <span>{copy.marketGoldUnavailable}</span>
-            ) : null}
-          </span>
-        </details>
       ) : null}
     </div>
   );

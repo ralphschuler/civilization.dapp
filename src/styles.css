@@ -734,6 +734,30 @@ button {
 .next-action > .primary-action {
   margin-top: 0.28rem;
 }
+.next-task-facts,
+.next-task-cost,
+.next-task-details-content {
+  min-width: 0;
+}
+.next-task-facts,
+.next-task-cost {
+  color: #e8ebc4;
+  font-size: 0.7rem;
+  line-height: 1.35;
+}
+.next-task-cost {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.next-task-details {
+  margin-top: 0.3rem;
+}
+.next-task-details-content {
+  display: grid;
+  gap: 0.8rem;
+  padding: 0.75rem;
+}
 .build-secondary {
   grid-column: 1/-1;
   border: 1px solid #738a5c;

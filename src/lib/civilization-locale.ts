@@ -136,6 +136,7 @@ const copy = {
     },
     buildDetail: "GEBÄUDEDETAIL",
     nextActionTitle: "NÄCHSTE AKTION",
+    nextTaskDetails: "DETAILS ZUM BAUSCHRITT",
     entryGuideTitle: "DEIN NÄCHSTER SCHRITT",
     entryGuideCollect:
       "Feldressourcen sind bereit. Sammle sie über die Dorfkarte ein.",
@@ -570,6 +571,7 @@ const copy = {
     },
     buildDetail: "BUILDING DETAILS",
     nextActionTitle: "NEXT ACTION",
+    nextTaskDetails: "BUILD STEP DETAILS",
     entryGuideTitle: "YOUR NEXT STEP",
     entryGuideCollect:
       "Field resources are ready. Collect them on the village map.",

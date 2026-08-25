@@ -18,7 +18,7 @@ test("dependency planner is named, accessible, responsive, and offers one next s
   page,
 }) => {
   await mountDependencyPlanner(page);
-  const plannerDisclosure = page.locator("details.build-plan-details");
+  const plannerDisclosure = page.locator("details.next-task-details");
   const plannerToggle = plannerDisclosure.locator("summary");
   const planner = page.getByRole("region", { name: "AUSBAUPLAN" });
   const nextStep = planner.getByRole("button", {
@@ -26,7 +26,7 @@ test("dependency planner is named, accessible, responsive, and offers one next s
   });
 
   await expect(plannerDisclosure).not.toHaveAttribute("open", "");
-  await expect(plannerToggle).toHaveText("AUSBAUPLAN");
+  await expect(plannerToggle).toHaveText("DETAILS ZUM BAUSCHRITT");
   await plannerToggle.focus();
   await expect(plannerToggle).toBeFocused();
   await page.keyboard.press("Enter");

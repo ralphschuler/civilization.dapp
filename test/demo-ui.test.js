@@ -655,7 +655,7 @@ test("construction jobs span the full build inspector width", async () => {
 });
 
 test("mobile command actions reserve space above the fixed navigation", async () => {
-  const [css, navigation, inspector] = await Promise.all([
+  const [css, navigation, inspector, nextTaskCard] = await Promise.all([
     readFile(new URL("../src/styles.css", import.meta.url), "utf8"),
     readFile(
       new URL("../src/components/CommandNavigation.tsx", import.meta.url),
@@ -663,6 +663,10 @@ test("mobile command actions reserve space above the fixed navigation", async ()
     ),
     readFile(
       new URL("../src/components/BuildPanel.tsx", import.meta.url),
+      "utf8",
+    ),
+    readFile(
+      new URL("../src/components/NextTaskCard.tsx", import.meta.url),
       "utf8",
     ),
   ]);
@@ -681,15 +685,17 @@ test("mobile command actions reserve space above the fixed navigation", async ()
   );
   assert.match(navigation, /command-nav-icon/);
   assert.match(navigation, /aria-current=\{selected \? "page" : undefined\}/);
+  assert.match(inspector, /<NextTaskCard/);
+  assert.match(nextTaskCard, /export type NextTaskCardProps/);
   assert.match(
-    inspector,
-    /<details className="build-secondary build-impact-details">/,
+    nextTaskCard,
+    /<details className="build-secondary next-task-details">/,
   );
-  assert.match(inspector, /className="primary-action build-primary-action"/);
+  assert.match(nextTaskCard, /className="primary-action build-primary-action"/);
 });
 
 test("build mobile hierarchy exposes one primary path and statuses for unavailable construction actions", async () => {
-  const [inspector, css, stories] = await Promise.all([
+  const [inspector, css, stories, nextTaskCard] = await Promise.all([
     readFile(
       new URL("../src/components/BuildPanel.tsx", import.meta.url),
       "utf8",
@@ -702,6 +708,10 @@ test("build mobile hierarchy exposes one primary path and statuses for unavailab
       ),
       "utf8",
     ),
+    readFile(
+      new URL("../src/components/NextTaskCard.tsx", import.meta.url),
+      "utf8",
+    ),
   ]);
 
   assert.match(inspector, /import \{ marketPrefill \}/);
@@ -710,7 +720,8 @@ test("build mobile hierarchy exposes one primary path and statuses for unavailab
     inspector,
     /const prioritizedMarket = marketPrefill\(upgradeDeficits\)/,
   );
-  assert.match(inspector, /data-next-action-button=\{nextAction\.kind\}/);
+  assert.match(inspector, /kind: nextAction\.kind/);
+  assert.match(nextTaskCard, /data-next-action-button=\{action\.kind\}/);
   assert.doesNotMatch(
     inspector,
     /nextAction\.kind === "collect"[\s\S]*?label: copy\.collect/,
