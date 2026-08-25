@@ -1552,3 +1552,44 @@ test("boost UI is clickable at exactly one hour and explains guarded states", ()
   });
   assert.equal(pending, "<div data-game-build-panel></div>");
 });
+
+test("entry guide primary routes dismiss the current session before every focus-only handoff", async () => {
+  const [app, stories] = await Promise.all([
+    readFile(new URL("../src/app.js", import.meta.url), "utf8"),
+    readFile(
+      new URL(
+        "../src/components/CivilizationUiAudit.stories.tsx",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+  ]);
+  const routeStart = app.indexOf("onRoute: (recommendation) => {");
+  const routeEnd = app.indexOf("\n        },\n      }),", routeStart);
+  const route = app.slice(routeStart, routeEnd);
+
+  assert.match(
+    app,
+    /const dismissEntryGuide = \(\) => \{[\s\S]*?entryGuideDismissed = true;[\s\S]*?renderEntryGuide\(\);/,
+  );
+  assert.match(app, /onDismiss: dismissEntryGuide/);
+  assert.match(
+    route,
+    /^onRoute: \(recommendation\) => \{\s*dismissEntryGuide\(\);/,
+  );
+  for (const target of ["building", "collection", "completion", "build-panel"])
+    assert.match(route, new RegExp(`recommendation\\.target === "${target}"`));
+  assert.doesNotMatch(
+    route,
+    /actions\.(?:gather|upgrade|completeUpgrade|boost|prestige|train|swap|marketOrder|sendRaid|resolveRaid)/,
+  );
+  assert.match(
+    stories,
+    /const \[entryGuideDismissed, setEntryGuideDismissed\] = useState\(false\);/,
+  );
+  assert.match(
+    stories,
+    /const routeToBuildAction = \(\) => \{\s*setEntryGuideDismissed\(true\);\s*focusBuildAction\(\);/,
+  );
+  assert.match(stories, /\{entryGuideDismissed \? null : \(/);
+});

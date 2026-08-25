@@ -194,6 +194,7 @@ function Overview() {
 
 function MobileBuildActionFocusFixture() {
   const shell = useRef<HTMLElement>(null);
+  const [entryGuideDismissed, setEntryGuideDismissed] = useState(false);
   const actionProps: BuildPanelProps = {
     ...buildProps,
     state: {
@@ -212,6 +213,10 @@ function MobileBuildActionFocusFixture() {
         )
         ?.focus(),
     );
+  };
+  const routeToBuildAction = () => {
+    setEntryGuideDismissed(true);
+    focusBuildAction();
   };
   return (
     <main
@@ -239,12 +244,14 @@ function MobileBuildActionFocusFixture() {
         worldApp={{ installed: true }}
         worldBadge="WORLD"
       />
-      <EntryGuide
-        copy={copy}
-        recommendation={{ kind: "complete", target: "completion" }}
-        onDismiss={() => undefined}
-        onRoute={focusBuildAction}
-      />
+      {entryGuideDismissed ? null : (
+        <EntryGuide
+          copy={copy}
+          recommendation={{ kind: "complete", target: "completion" }}
+          onDismiss={() => setEntryGuideDismissed(true)}
+          onRoute={routeToBuildAction}
+        />
+      )}
       <div className="command-layout">
         <VillageMap
           assetResult={{ failed: [] }}
