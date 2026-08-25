@@ -181,9 +181,7 @@ for (const [name, id, viewport] of shots) {
       if (!layout.buttons.length || !layout.inputs.length)
         throw new Error("Mobile training state is missing its controls");
       if (
-        layout.buttons.some(
-          (button) => button.width < 44 || button.height < 44,
-        )
+        layout.buttons.some((button) => button.width < 44 || button.height < 44)
       )
         throw new Error("Training primary action is smaller than 44px");
       if (layout.inputs.some((input) => input.height < 44))
