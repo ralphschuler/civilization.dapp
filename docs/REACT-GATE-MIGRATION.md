@@ -30,6 +30,7 @@ not write into React-owned nodes.
 CivilizationClient
 ├─ imperative game root (map, panels, ticks, bindings)
 │  ├─ GameShellHud (typed React HUD island)
+│  ├─ GameFooter (typed React footer island)
 │  ├─ CommandNavigation (typed React desktop and mobile navigation islands)
 │  ├─ BuildPanel (typed React build island)
 │  ├─ ArmyPanel (typed React army island)
@@ -79,3 +80,9 @@ map heading, terrain fallback states, markers, live feedback, and the existing
 runtime callbacks directly; the render cycle records and restores the matching
 map-button focus. Consequently, `bindGameActions` neither binds map controls
 nor attaches map asset listeners.
+
+The twelfth slice moves the dynamic game footer into the typed `GameFooter`
+island. The imperative shell exposes only its stable mount. The runtime remains
+the source of its authority and status values, while React renders the semantic
+footer and its demo-only reset control. Reset is invoked solely through the
+supplied `actions.reset` callback; World never receives or renders that button.

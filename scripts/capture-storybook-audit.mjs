@@ -27,6 +27,7 @@ const server = createServer((request, response) => {
 });
 await new Promise((resolve) => server.listen(6006, "127.0.0.1", resolve));
 const browser = await chromium.launch({ headless: true });
+const footerMeasurements = [];
 const shots = [
   [
     "desktop-village-build-overview.png",
@@ -37,6 +38,31 @@ const shots = [
     "mobile-village-build-overview-390.png",
     "ui-audit-civilization--village-build-overview",
     { width: 390, height: 844 },
+  ],
+  [
+    "mobile-demo-footer-320.png",
+    "ui-audit-civilization--demo-footer",
+    { width: 320, height: 844 },
+  ],
+  [
+    "mobile-demo-footer-390.png",
+    "ui-audit-civilization--demo-footer",
+    { width: 390, height: 844 },
+  ],
+  [
+    "mobile-world-footer-320.png",
+    "ui-audit-civilization--world-footer",
+    { width: 320, height: 844 },
+  ],
+  [
+    "mobile-world-footer-390.png",
+    "ui-audit-civilization--world-footer",
+    { width: 390, height: 844 },
+  ],
+  [
+    "mobile-demo-footer-390-200-zoom.png",
+    "ui-audit-civilization--demo-footer",
+    { width: 390, height: 844, zoom: 2 },
   ],
   [
     "mobile-collection-wayfinding-320.png",
@@ -156,6 +182,66 @@ for (const [name, id, viewport] of shots) {
     waitUntil: "networkidle",
   });
   await page.evaluate(() => window.scrollTo(0, 0));
+  if (viewport.zoom)
+    await page.evaluate(
+      (zoom) => (document.body.style.zoom = zoom),
+      viewport.zoom,
+    );
+  if (id.includes("footer")) {
+    const layout = await page.evaluate(() => {
+      const rect = (element) => {
+        const { top, right, bottom, left, width, height } =
+          element.getBoundingClientRect();
+        return { top, right, bottom, left, width, height };
+      };
+      const footer = document.querySelector(".game-footer");
+      const nav = document.querySelector(".mobile-hud");
+      if (!footer || !nav) throw new Error("Missing footer audit fixture");
+      return {
+        footer: rect(footer),
+        nav: rect(nav),
+        resetButtons: Array.from(footer.querySelectorAll("button"), rect),
+        scrollWidth: document.documentElement.scrollWidth,
+        viewportWidth: window.innerWidth,
+      };
+    });
+    if (layout.scrollWidth > layout.viewportWidth)
+      throw new Error("Footer has horizontal overflow");
+    if (layout.footer.bottom > layout.nav.top)
+      throw new Error("Footer is obstructed by bottom navigation");
+    if (id.includes("demo-footer")) {
+      if (layout.resetButtons.length !== 1)
+        throw new Error("Demo footer must expose exactly one reset action");
+      if (
+        layout.resetButtons[0].width < 44 ||
+        layout.resetButtons[0].height < 44
+      )
+        throw new Error("Footer reset action is smaller than 44px");
+      const focus = await page.evaluate(() => {
+        const button = document.querySelector(".game-footer button");
+        if (!(button instanceof HTMLButtonElement))
+          throw new Error("Missing demo footer reset button");
+        button.focus();
+        return {
+          focused: document.activeElement === button,
+          outlineStyle: getComputedStyle(button).outlineStyle,
+        };
+      });
+      if (!focus.focused || focus.outlineStyle === "none")
+        throw new Error("Footer reset has no visible keyboard focus");
+    } else if (layout.resetButtons.length !== 0) {
+      throw new Error("World footer must not expose reset");
+    }
+    footerMeasurements.push({
+      name,
+      viewport,
+      footerBottom: layout.footer.bottom,
+      mobileNavTop: layout.nav.top,
+      resetTargets: layout.resetButtons,
+      scrollWidth: layout.scrollWidth,
+      viewportWidth: layout.viewportWidth,
+    });
+  }
   if (id === "ui-audit-civilization--army-training-quantity-choice") {
     await page.locator('[data-training-amount="spear"]').fill("3");
     const total = await page
@@ -479,3 +565,5 @@ for (const [name, id, viewport] of shots) {
 }
 await browser.close();
 await new Promise((resolve) => server.close(resolve));
+console.log("Footer audit measurements:");
+console.log(JSON.stringify(footerMeasurements));

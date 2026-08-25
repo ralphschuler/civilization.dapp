@@ -11,6 +11,7 @@ import { CommandNavigation } from "./components/CommandNavigation";
 import { EntryGuide } from "./components/EntryGuide";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { WalletReviewDialog } from "./components/WalletReviewDialog";
+import { GameFooter } from "./components/GameFooter";
 import { canRenderGameWorld } from "./world-gate.js";
 import {
   BUILDINGS,
@@ -117,6 +118,7 @@ function createRuntime(options) {
     assetState: "loading",
     assetResult: { failed: [] },
     hudRoot: null,
+    footerRoot: null,
     desktopNavigationRoot: null,
     mobileNavigationRoot: null,
     villageMapRoot: null,
@@ -274,6 +276,25 @@ function createController(runtime) {
         tokens: TOKEN_REGISTRY,
         worldApp: runtime.worldApp,
         worldBadge: runtime.worldBadge,
+      }),
+    );
+  };
+  const renderFooter = () => {
+    const mount = runtime.root?.querySelector("[data-game-footer]");
+    if (!mount) return;
+    runtime.footerRoot ??= createRoot(mount);
+    const copy = civilizationMessages(runtime.locale);
+    runtime.footerRoot.render(
+      createElement(GameFooter, {
+        authority:
+          runtime.mode === "world" ? copy.gameAuthority : copy.demoStorage,
+        onReset: runtime.mode === "demo" ? actions.reset : undefined,
+        resetLabel: copy.demoReset,
+        runtimeMode: runtime.mode,
+        status:
+          runtime.mode === "demo"
+            ? copy.demoFooter(runtime.state.raids)
+            : copy.worldFooter(runtime.state.prestigeCount),
       }),
     );
   };
@@ -705,6 +726,8 @@ function createController(runtime) {
     }
     runtime.hudRoot?.unmount();
     runtime.hudRoot = null;
+    runtime.footerRoot?.unmount();
+    runtime.footerRoot = null;
     runtime.desktopNavigationRoot?.unmount();
     runtime.desktopNavigationRoot = null;
     runtime.mobileNavigationRoot?.unmount();
@@ -763,6 +786,7 @@ function createController(runtime) {
       reducedMotion: runtime.reducedMotion,
     });
     renderHud();
+    renderFooter();
     renderEntryGuide();
     bindGameActions(runtime.root, actions);
     // All dynamic map content, including collection and map actions, belongs
@@ -861,6 +885,7 @@ function createController(runtime) {
       return;
     }
     renderHud();
+    renderFooter();
     renderVillageMap();
     renderBuildPanel();
     renderArmyPanel();
@@ -954,6 +979,7 @@ export function stopCivilizationApp() {
   // The parent React tree is removing the imperative root at this point.
   // Calling unmount on its nested HUD root during that render races React.
   runtime.hudRoot = null;
+  runtime.footerRoot = null;
   runtime.desktopNavigationRoot = null;
   runtime.mobileNavigationRoot = null;
   runtime.villageMapRoot = null;
