@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { BuildPanel, type BuildPanelProps } from "./BuildPanel";
 import { CommandNavigation, type CommandPanel } from "./CommandNavigation";
 import { GameShellHud } from "./GameShellHud";
@@ -187,6 +187,112 @@ function Overview() {
         activePanel={activePanel}
         copy={copy}
         onSelectPanel={(panel) => setActivePanel(panel)}
+      />
+    </main>
+  );
+}
+
+function MobileBuildActionFocusFixture() {
+  const shell = useRef<HTMLElement>(null);
+  const actionProps: BuildPanelProps = {
+    ...buildProps,
+    state: {
+      ...buildProps.state,
+      constructions: [
+        { buildingId: "timber", completesAt: 1_799_999_999_000, slot: 0 },
+      ],
+    },
+    remainingTime: () => 0,
+  };
+  const focusBuildAction = () => {
+    requestAnimationFrame(() =>
+      shell.current
+        ?.querySelector<HTMLButtonElement>(
+          '[data-next-action-button="complete"]',
+        )
+        ?.focus(),
+    );
+  };
+  return (
+    <main
+      className="game-shell"
+      data-mobile-build-action-focus-audit
+      ref={shell}
+    >
+      <GameShellHud
+        assetResult={{ failed: [] }}
+        capacity={2500}
+        copy={copy}
+        locale="en-US"
+        onOpenSettings={() => undefined}
+        production={{ wood: 56, clay: 42, stone: 36, gold: 18 }}
+        resourceDefs={resourceDefs}
+        resourceFormat={format}
+        resources={actionProps.state.resources}
+        runtimeMode="world"
+        tokens={{
+          wood: { symbol: "WOOD" },
+          clay: { symbol: "CLAY" },
+          stone: { symbol: "STONE" },
+          gold: { symbol: "CGOLD" },
+        }}
+        worldApp={{ installed: true }}
+        worldBadge="WORLD"
+      />
+      <EntryGuide
+        copy={copy}
+        recommendation={{ kind: "complete", target: "completion" }}
+        onDismiss={() => undefined}
+        onRoute={focusBuildAction}
+      />
+      <div className="command-layout">
+        <VillageMap
+          assetResult={{ failed: [] }}
+          assetsLoading={false}
+          buildings={buildings}
+          buildingLevels={actionProps.state.buildings}
+          capacity={2500}
+          collectionStatus={{
+            assetResult: { failed: [] },
+            busy: false,
+            collection: { detail: "Resources ready", locked: false },
+            copy,
+            locale: "en-US",
+            onGather: () => undefined,
+            resourceDefs,
+            resourceFormat: format,
+            unclaimed: { wood: 184, clay: 120, stone: 96, gold: 0 },
+          }}
+          copy={villageCopy}
+          feedback="Timber Camp selected"
+          format={format}
+          onSelectBuilding={() => undefined}
+          onSelectMarket={() => undefined}
+          prestigeCount={1}
+          runtimeMode="world"
+          selectedBuilding="timber"
+          activePanel="build"
+        />
+        <aside className="command-rail">
+          <CommandNavigation
+            activePanel="build"
+            copy={copy}
+            onSelectPanel={() => undefined}
+          />
+          <section
+            className="command-panel"
+            data-build-action-focus-panel
+            id="game-command-panel"
+          >
+            <BuildPanel {...actionProps} />
+          </section>
+        </aside>
+      </div>
+      <CommandNavigation
+        mobile
+        activePanel="build"
+        copy={copy}
+        onSelectPanel={() => undefined}
       />
     </main>
   );
@@ -394,6 +500,11 @@ export const BottomNavigation = {
       />
     </main>
   ),
+};
+
+export const MobileBuildActionFocus = {
+  name: "Village build / Mobile next-action focus above bottom navigation",
+  render: () => <MobileBuildActionFocusFixture />,
 };
 
 function WorldMarketAuditFixture() {

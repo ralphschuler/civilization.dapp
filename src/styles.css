@@ -1567,6 +1567,10 @@ button {
     bottom: calc(4.35rem + env(safe-area-inset-bottom));
     z-index: 4;
   }
+  /* Focus-scroll needs to reserve the fixed bottom navigation. */
+  [data-next-action-button] {
+    scroll-margin-block-end: var(--mobile-nav-safe-space);
+  }
   .token-row {
     grid-template-columns: 2.25rem minmax(0, 1fr);
   }
