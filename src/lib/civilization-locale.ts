@@ -136,7 +136,7 @@ const copy = {
     },
     buildDetail: "GEBÄUDEDETAIL",
     nextActionTitle: "NÄCHSTE AKTION",
-    nextActionCollect: "Feldressourcen sind bereit zum Sichern.",
+    nextActionCollect: "Sammle die Feldressourcen auf der Dorfkarte.",
     nextActionComplete: (building: string) =>
       `${building} kann jetzt abgeschlossen werden.`,
     nextActionUpgrade: (building: string, level: number) =>
@@ -542,7 +542,7 @@ const copy = {
     },
     buildDetail: "BUILDING DETAILS",
     nextActionTitle: "NEXT ACTION",
-    nextActionCollect: "Field resources are ready to secure.",
+    nextActionCollect: "Collect field resources on the village map.",
     nextActionComplete: (building: string) =>
       `${building} can be completed now.`,
     nextActionUpgrade: (building: string, level: number) =>

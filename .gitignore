@@ -4,6 +4,7 @@ dist/
 out/
 apps/demo/.next/
 apps/demo/out/
+artefacts/storybook-ui-audit/
 *.tsbuildinfo
 .DS_Store
 ._.DS_Store

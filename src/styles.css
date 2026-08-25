@@ -1679,8 +1679,9 @@ button {
     font-size: 2.25rem;
   }
   .collect-button {
-    top: 1rem;
+    top: auto;
     right: 1rem;
+    bottom: 1rem;
   }
   .map-buildings {
     inset: 0;
@@ -1701,9 +1702,10 @@ button {
     font-size: 0.4rem;
   }
   .map-feedback {
-    right: 0.7rem;
+    right: auto;
+    left: 0.7rem;
     bottom: 0.65rem;
-    max-width: 58%;
+    max-width: 34%;
     font-size: 0.57rem;
   }
 }

@@ -39,6 +39,16 @@ const shots = [
     { width: 390, height: 844 },
   ],
   [
+    "mobile-collection-wayfinding-320.png",
+    "ui-audit-civilization--mobile-collection-wayfinding",
+    { width: 320, height: 844 },
+  ],
+  [
+    "mobile-collection-wayfinding-390.png",
+    "ui-audit-civilization--mobile-collection-wayfinding",
+    { width: 390, height: 844 },
+  ],
+  [
     "mobile-resource-header-390.png",
     "ui-audit-civilization--resource-status-header",
     { width: 390, height: 844 },
@@ -64,6 +74,38 @@ for (const [name, id, viewport] of shots) {
   await page.goto(`http://127.0.0.1:6006/iframe.html?id=${id}&viewMode=story`, {
     waitUntil: "networkidle",
   });
+  if (id === "ui-audit-civilization--mobile-collection-wayfinding") {
+    const layout = await page.evaluate(() => {
+      const rect = (selector) => {
+        const element = document.querySelector(selector);
+        if (!element) throw new Error(`Missing ${selector}`);
+        const { top, right, bottom, left, width, height } =
+          element.getBoundingClientRect();
+        return { top, right, bottom, left, width, height };
+      };
+      return {
+        gatherCount: document.querySelectorAll("#gather").length,
+        gather: rect("#gather"),
+        title: rect(".map-head"),
+        mobileNav: rect(".mobile-hud"),
+      };
+    });
+    const overlaps = (first, second) =>
+      first.left < second.right &&
+      first.right > second.left &&
+      first.top < second.bottom &&
+      first.bottom > second.top;
+    if (layout.gatherCount !== 1)
+      throw new Error(
+        `Expected one map collect control, got ${layout.gatherCount}`,
+      );
+    if (overlaps(layout.gather, layout.title))
+      throw new Error("Map collect control overlaps the village title");
+    if (layout.gather.width < 44 || layout.gather.height < 44)
+      throw new Error("Map collect control is smaller than 44px");
+    if (overlaps(layout.gather, layout.mobileNav))
+      throw new Error("Map collect control is obstructed by bottom navigation");
+  }
   await page.screenshot({ path: join(output, name), fullPage: true });
   await page.close();
 }
