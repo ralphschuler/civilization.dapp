@@ -1826,7 +1826,7 @@ button {
   .collect-button {
     top: auto;
     right: 1rem;
-    bottom: 1rem;
+    bottom: 0;
   }
   .map-buildings {
     inset: 0;

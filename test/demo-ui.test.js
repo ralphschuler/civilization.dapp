@@ -734,24 +734,29 @@ test("build mobile hierarchy exposes one primary path and statuses for unavailab
 });
 
 test("mobile collection wayfinding keeps the one map control clear and localizes the handoff", async () => {
-  const [css, collectionStatus, buildPanel, stories] = await Promise.all([
-    readFile(new URL("../src/styles.css", import.meta.url), "utf8"),
-    readFile(
-      new URL("../src/components/CollectionStatus.tsx", import.meta.url),
-      "utf8",
-    ),
-    readFile(
-      new URL("../src/components/BuildPanel.tsx", import.meta.url),
-      "utf8",
-    ),
-    readFile(
-      new URL(
-        "../src/components/CivilizationUiAudit.stories.tsx",
-        import.meta.url,
+  const [css, collectionStatus, buildPanel, stories, auditCapture] =
+    await Promise.all([
+      readFile(new URL("../src/styles.css", import.meta.url), "utf8"),
+      readFile(
+        new URL("../src/components/CollectionStatus.tsx", import.meta.url),
+        "utf8",
       ),
-      "utf8",
-    ),
-  ]);
+      readFile(
+        new URL("../src/components/BuildPanel.tsx", import.meta.url),
+        "utf8",
+      ),
+      readFile(
+        new URL(
+          "../src/components/CivilizationUiAudit.stories.tsx",
+          import.meta.url,
+        ),
+        "utf8",
+      ),
+      readFile(
+        new URL("../scripts/capture-storybook-audit.mjs", import.meta.url),
+        "utf8",
+      ),
+    ]);
   const villageMapMobileStart = css.indexOf(
     "@media (max-width: 640px) {\n  .village-map {",
   );
@@ -765,7 +770,7 @@ test("mobile collection wayfinding keeps the one map control clear and localizes
 
   assert.match(
     mobileMapStyles,
-    /\.collect-button\s*\{[\s\S]*?top:\s*auto[\s\S]*?bottom:\s*1rem/,
+    /\.collect-button\s*\{[\s\S]*?top:\s*auto[\s\S]*?bottom:\s*0;/,
   );
   assert.match(
     mobileMapStyles,
@@ -782,6 +787,11 @@ test("mobile collection wayfinding keeps the one map control clear and localizes
   );
   assert.match(collectionStatus, /id="gather"/);
   assert.equal((collectionStatus.match(/id="gather"/g) || []).length, 1);
+  assert.match(
+    auditCapture,
+    /Map collect control overlaps .* building hit target/,
+  );
+  assert.match(auditCapture, /Map collect control center is not hit-testable/);
   assert.doesNotMatch(buildPanel, /id="gather"/);
   const collectActionStart = buildPanel.indexOf(
     'nextAction.kind === "collect"',
