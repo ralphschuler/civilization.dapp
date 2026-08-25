@@ -771,6 +771,10 @@ test("mobile collection wayfinding keeps the one map control clear and localizes
     mobileMapStyles,
     /\.map-feedback\s*\{[\s\S]*?right:\s*auto[\s\S]*?left:\s*0\.7rem[\s\S]*?max-width:\s*34%/,
   );
+  assert.match(
+    css,
+    /@media \(max-width: 359px\)\s*\{[\s\S]*?\.map-building\.map-timber\.is-selected span\s*\{[\s\S]*?transform:\s*translateY\(1\.5rem\) scale\(1\)/,
+  );
   assert.match(css, /\.game-shell button\s*\{\s*min-height:\s*2\.75rem/);
   assert.match(
     css,

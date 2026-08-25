@@ -1854,6 +1854,12 @@ button {
     font-size: 0.57rem;
   }
 }
+/* Keep the selected Timber label clear of the village metadata at 320px. */
+@media (max-width: 359px) {
+  .map-building.map-timber.is-selected span {
+    transform: translateY(1.5rem) scale(1);
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .map-building,
   .map-building span {
