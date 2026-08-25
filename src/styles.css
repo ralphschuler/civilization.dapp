@@ -876,6 +876,26 @@ button {
   cursor: not-allowed;
   opacity: 0.42;
 }
+.secondary-action {
+  min-height: 2.75rem;
+  width: 100%;
+  padding: 0.62rem 0.75rem;
+  border: 1px solid #92782b;
+  border-radius: 0.7rem;
+  color: #fff3bf;
+  background: #28200d;
+  font-size: 0.7rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+.secondary-action:hover,
+.secondary-action:focus-visible {
+  border-color: #e1c865;
+  background: #332a14;
+}
+.construction-jobs [data-construction-status] {
+  color: #e0b193;
+}
 .army-inspector,
 .market-inspector,
 .raid-inspector {
@@ -1397,6 +1417,11 @@ button {
   }
   .build-inspector > .build-primary-action {
     align-self: start;
+    position: sticky;
+    bottom: calc(4.35rem + env(safe-area-inset-bottom));
+    z-index: 4;
+  }
+  .next-action > .primary-action {
     position: sticky;
     bottom: calc(4.35rem + env(safe-area-inset-bottom));
     z-index: 4;

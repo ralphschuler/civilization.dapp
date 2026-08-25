@@ -43,6 +43,21 @@ const shots = [
     "ui-audit-civilization--resource-status-header",
     { width: 390, height: 844 },
   ],
+  [
+    "mobile-next-action-blocked-390.png",
+    "ui-audit-civilization--next-action-blocked",
+    { width: 390, height: 844 },
+  ],
+  [
+    "mobile-construction-ready-390.png",
+    "ui-audit-civilization--construction-ready",
+    { width: 390, height: 844 },
+  ],
+  [
+    "mobile-bottom-navigation-390.png",
+    "ui-audit-civilization--bottom-navigation",
+    { width: 390, height: 844 },
+  ],
 ];
 for (const [name, id, viewport] of shots) {
   const page = await browser.newPage({ viewport });

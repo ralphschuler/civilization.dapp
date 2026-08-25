@@ -5,7 +5,7 @@ import { clock } from "../game-ui/helpers.js";
 import { boostConstructionStatus } from "../game-ui/boost-status.js";
 import { constructionBoostEligibility } from "../world-game/boost-eligibility.js";
 import { civilizationMessages } from "../lib/civilization-locale";
-import { marketPrefills } from "../world-game/market-intent.js";
+import { marketPrefill } from "../world-game/market-intent.js";
 import { deriveNextAction } from "../game-ui/next-action.js";
 
 type ResourceDefinition = { color?: string; short?: string; label: string };
@@ -268,6 +268,9 @@ function Plan({ props }: { props: BuildPanelProps }) {
                 )
                 .join(" ")
             : null;
+          const prioritizedStepMarket = deficits
+            ? marketPrefill(deficits)
+            : null;
           return (
             <li key={step.key} data-plan-step={step.key}>
               <span>
@@ -280,29 +283,28 @@ function Plan({ props }: { props: BuildPanelProps }) {
                 <small>
                   {copy.dependencyPlanDeficit(deficit)}
                   <span className="market-prefill-actions">
-                    {marketPrefills(deficits).map(({ resource, amount }) => (
+                    {prioritizedStepMarket ? (
                       <button
-                        key={resource}
                         type="button"
                         className="text-action"
                         onClick={() =>
                           props.onOpenMarket({
-                            resource,
-                            amount,
+                            resource: prioritizedStepMarket.resource,
+                            amount: prioritizedStepMarket.amount,
                             source: `${props.buildings[step.id]?.label || step.id} ${step.level}`,
                             panel: "build",
                           })
                         }
                       >
                         {copy.marketAcquire(
-                          props.format(amount),
-                          props.resourceDefs[resource].label,
+                          props.format(prioritizedStepMarket.amount),
+                          props.resourceDefs[prioritizedStepMarket.resource]
+                            .label,
                         )}
                       </button>
-                    ))}
-                    {!marketPrefills(deficits).length ? (
+                    ) : (
                       <span>{copy.marketGoldUnavailable}</span>
-                    ) : null}
+                    )}
                   </span>
                 </small>
               ) : null}
@@ -312,7 +314,7 @@ function Plan({ props }: { props: BuildPanelProps }) {
       </ol>
       {plan.next ? (
         <button
-          className="primary-action"
+          className="secondary-action"
           disabled={props.busy}
           onClick={() => props.onUpgrade(plan.next!.id)}
         >
@@ -362,6 +364,7 @@ export function BuildPanel(props: BuildPanelProps) {
       ])
       .filter(([, amount]) => amount),
   );
+  const prioritizedMarket = marketPrefill(upgradeDeficits);
   const failed = props.assetResult?.failed.includes(
     BUILDING_ASSETS[props.selectedBuilding],
   );
@@ -379,8 +382,6 @@ export function BuildPanel(props: BuildPanelProps) {
     nextAction.kind === "collect"
       ? {
           detail: copy.nextActionCollect,
-          label: copy.collect,
-          onClick: props.onGather,
         }
       : nextAction.kind === "complete"
         ? {
@@ -423,6 +424,21 @@ export function BuildPanel(props: BuildPanelProps) {
               : nextAction.kind === "resources"
                 ? {
                     detail: copy.nextActionResources(building.label, level + 1),
+                    label: prioritizedMarket
+                      ? copy.marketAcquire(
+                          props.format(prioritizedMarket.amount),
+                          props.resourceDefs[prioritizedMarket.resource].label,
+                        )
+                      : undefined,
+                    onClick: prioritizedMarket
+                      ? () =>
+                          props.onOpenMarket({
+                            resource: prioritizedMarket.resource,
+                            amount: prioritizedMarket.amount,
+                            source: `${building.label} ${level + 1}`,
+                            panel: "build",
+                          })
+                      : undefined,
                   }
                 : { detail: copy.fullyUpgraded(building.label) };
   return (
@@ -509,26 +525,25 @@ export function BuildPanel(props: BuildPanelProps) {
                   {seconds ? clock(seconds) : copy.complete}
                 </b>
                 <small>{copy.constructionNote}</small>
-                <button
-                  className="primary-action"
-                  data-complete-upgrade
-                  data-construction-slot={slot}
-                  disabled={Boolean(seconds || props.busy)}
-                  onClick={() => props.onCompleteUpgrade(slot)}
-                >
-                  {seconds ? copy.constructionRunning : copy.completeUpgrade}
-                </button>
-                <button
-                  className="primary-action"
-                  id={legacy ? "boost-construction" : undefined}
-                  data-boost-construction
-                  data-construction-slot={slot}
-                  aria-describedby={statusId}
-                  disabled={!boost.eligible}
-                  onClick={() => props.onBoost(slot)}
-                >
-                  {copy.boostConstruction}
-                </button>
+                {seconds ? (
+                  <small data-construction-status>
+                    {copy.constructionRunning}
+                  </small>
+                ) : (
+                  <small data-construction-status>{copy.completeUpgrade}</small>
+                )}
+                {boost.eligible ? (
+                  <button
+                    className="secondary-action"
+                    id={legacy ? "boost-construction" : undefined}
+                    data-boost-construction
+                    data-construction-slot={slot}
+                    aria-describedby={statusId}
+                    onClick={() => props.onBoost(slot)}
+                  >
+                    {copy.boostConstruction}
+                  </button>
+                ) : null}
                 <small id={statusId} data-boost-construction-status>
                   {boostConstructionStatus(boost.reason, copy)}
                 </small>
@@ -616,27 +631,13 @@ export function BuildPanel(props: BuildPanelProps) {
         <details className="build-secondary market-prefill-blocker" open>
           <summary>{copy.marketMissingResources}</summary>
           <span className="market-prefill-actions">
-            {marketPrefills(upgradeDeficits).map(({ resource, amount }) => (
-              <button
-                key={resource}
-                type="button"
-                className="text-action"
-                onClick={() =>
-                  props.onOpenMarket({
-                    resource,
-                    amount,
-                    source: `${building.label} ${level + 1}`,
-                    panel: "build",
-                  })
-                }
-              >
-                {copy.marketAcquire(
-                  props.format(amount),
-                  props.resourceDefs[resource].label,
-                )}
-              </button>
+            {Object.entries(upgradeDeficits).map(([resource, amount]) => (
+              <span key={resource} className="market-deficit">
+                {props.format(amount as number)}{" "}
+                {props.resourceDefs[resource].label}
+              </span>
             ))}
-            {!marketPrefills(upgradeDeficits).length ? (
+            {!prioritizedMarket ? (
               <span>{copy.marketGoldUnavailable}</span>
             ) : null}
           </span>

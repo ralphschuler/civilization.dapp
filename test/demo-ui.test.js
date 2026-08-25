@@ -688,6 +688,66 @@ test("mobile command actions reserve space above the fixed navigation", async ()
   assert.match(inspector, /className="primary-action build-primary-action"/);
 });
 
+test("build mobile hierarchy exposes one primary path and statuses for unavailable construction actions", async () => {
+  const [inspector, css, stories] = await Promise.all([
+    readFile(
+      new URL("../src/components/BuildPanel.tsx", import.meta.url),
+      "utf8",
+    ),
+    readFile(new URL("../src/styles.css", import.meta.url), "utf8"),
+    readFile(
+      new URL(
+        "../src/components/CivilizationUiAudit.stories.tsx",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+  ]);
+
+  assert.match(inspector, /import \{ marketPrefill \}/);
+  assert.doesNotMatch(inspector, /marketPrefills/);
+  assert.match(
+    inspector,
+    /const prioritizedMarket = marketPrefill\(upgradeDeficits\)/,
+  );
+  assert.match(inspector, /data-next-action-button=\{nextAction\.kind\}/);
+  assert.doesNotMatch(
+    inspector,
+    /nextAction\.kind === "collect"[\s\S]*?label: copy\.collect/,
+  );
+  assert.match(inspector, /data-construction-status/);
+  assert.match(inspector, /boost\.eligible \? \(/);
+  assert.match(inspector, /className="secondary-action"/);
+  const boostControl = inspector.slice(
+    inspector.indexOf("data-boost-construction"),
+    inspector.indexOf("data-boost-construction") + 350,
+  );
+  assert.doesNotMatch(boostControl, /disabled=/);
+  assert.doesNotMatch(inspector, /data-complete-upgrade/);
+  assert.match(
+    css,
+    /\.next-action > \.primary-action\s*\{[\s\S]*?bottom: calc\(4\.35rem \+ env\(safe-area-inset-bottom\)\)/,
+  );
+  assert.match(css, /\.secondary-action\s*\{[\s\S]*?min-height: 2\.75rem/);
+  assert.match(stories, /export const ConstructionReady/);
+  assert.match(stories, /export const ConstructionBoostUnavailable/);
+});
+
+test("isolated mobile navigation story provides its aria-controls target", async () => {
+  const stories = await readFile(
+    new URL(
+      "../src/components/CivilizationUiAudit.stories.tsx",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const fixture = stories.slice(
+    stories.indexOf("export const BottomNavigation"),
+  );
+  assert.match(fixture, /id="game-command-panel"/);
+  assert.match(fixture, /<CommandNavigation[\s\S]*?mobile/);
+});
+
 test("parallel construction keeps job controls and the start composer visible", () => {
   const context = ({
     workshop,
