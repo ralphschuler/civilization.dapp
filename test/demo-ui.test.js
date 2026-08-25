@@ -655,7 +655,7 @@ test("construction jobs span the full build inspector width", async () => {
 });
 
 test("mobile command actions reserve space above the fixed navigation", async () => {
-  const [css, navigation, inspector, nextTaskCard] = await Promise.all([
+  const [css, navigation, inspector, nextTaskCard, locale] = await Promise.all([
     readFile(new URL("../src/styles.css", import.meta.url), "utf8"),
     readFile(
       new URL("../src/components/CommandNavigation.tsx", import.meta.url),
@@ -667,6 +667,10 @@ test("mobile command actions reserve space above the fixed navigation", async ()
     ),
     readFile(
       new URL("../src/components/NextTaskCard.tsx", import.meta.url),
+      "utf8",
+    ),
+    readFile(
+      new URL("../src/lib/civilization-locale.ts", import.meta.url),
       "utf8",
     ),
   ]);
@@ -692,6 +696,10 @@ test("mobile command actions reserve space above the fixed navigation", async ()
     /<details className="build-secondary next-task-details">/,
   );
   assert.match(nextTaskCard, /className="primary-action build-primary-action"/);
+  assert.match(
+    locale,
+    /nextTaskDetails: "VIEW BUILD COSTS, REQUIREMENTS & IMPACT"/,
+  );
 });
 
 test("build mobile hierarchy exposes one primary path and statuses for unavailable construction actions", async () => {
