@@ -17,6 +17,10 @@ function compareHeight(left, right) {
   return a === b ? 0 : a < b ? -1 : 1;
 }
 
+function blockIdentity(block) {
+  return `${block.blockNumber}:${block.blockHash}`;
+}
+
 function normalizeTimestamp(value, field) {
   let date;
   if (value instanceof Date) date = value;
@@ -219,7 +223,17 @@ export async function storeFinalizedEvents(pool, batch) {
         observedBlocks: blocks,
         maxRollbackDepth,
       });
-      replayBlocks = plan.replayBlocks;
+      const suppliedBlocksByIdentity = new Map(
+        blocks.map((block) => [blockIdentity(block), block]),
+      );
+      replayBlocks = plan.replayBlocks.map((block) => {
+        const suppliedBlock = suppliedBlocksByIdentity.get(
+          blockIdentity(block),
+        );
+        if (!suppliedBlock || !suppliedBlock.blockTimestamp)
+          throw new Error("replay_block_not_in_supplied_blocks");
+        return suppliedBlock;
+      });
       deleteFromBlockNumber = plan.deleteFromBlockNumber;
       rollbackDepth = plan.rollbackDepth;
     }

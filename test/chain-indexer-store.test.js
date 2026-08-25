@@ -122,6 +122,88 @@ test("store rejects a checkpoint that is not the supplied canonical tip", async 
   );
 });
 
+test("store preserves validated timestamps when replaying an append from a stored checkpoint", async () => {
+  const ten = block(10);
+  const eleven = block(11);
+  const insertedBlocks = [];
+  const pool = {
+    async connect() {
+      return {
+        async query(sql, parameters) {
+          if (
+            sql === "BEGIN" ||
+            sql === "COMMIT" ||
+            sql === "ROLLBACK" ||
+            sql.includes("pg_advisory_xact_lock") ||
+            sql.includes("INSERT INTO chain_indexer_checkpoints")
+          )
+            return { rows: [], rowCount: 0 };
+          if (sql.includes("FROM chain_indexer_checkpoints"))
+            return {
+              rows: [{ block_number: "10", block_hash: ten.blockHash }],
+              rowCount: 1,
+            };
+          if (
+            sql.includes("FROM chain_indexer_canonical_blocks") &&
+            sql.includes("FOR UPDATE")
+          )
+            return {
+              rows: [
+                {
+                  block_number: "10",
+                  block_hash: ten.blockHash,
+                  parent_hash: ten.parentHash,
+                },
+              ],
+              rowCount: 1,
+            };
+          if (sql.includes("INSERT INTO chain_indexer_canonical_blocks")) {
+            insertedBlocks.push(parameters);
+            return { rows: [], rowCount: 1 };
+          }
+          if (sql.includes("FROM chain_indexer_canonical_blocks"))
+            return {
+              rows: [
+                {
+                  block_number: "10",
+                  block_hash: ten.blockHash,
+                  parent_hash: ten.parentHash,
+                  block_timestamp: new Date(ten.timestamp * 1000).toISOString(),
+                },
+                {
+                  block_number: "11",
+                  block_hash: eleven.blockHash,
+                  parent_hash: eleven.parentHash,
+                  block_timestamp: new Date(
+                    eleven.timestamp * 1000,
+                  ).toISOString(),
+                },
+              ],
+              rowCount: 2,
+            };
+          if (sql.includes("FROM chain_indexer_raw_events"))
+            return { rows: [], rowCount: 0 };
+          assert.fail(`unexpected query: ${sql}`);
+        },
+        release() {},
+      };
+    },
+  };
+
+  await storeFinalizedEvents(pool, batch({ blocks: [ten, eleven], logs: [] }));
+
+  assert.deepEqual(insertedBlocks, [
+    [
+      "1",
+      address,
+      "11",
+      eleven.blockHash,
+      eleven.parentHash,
+      new Date(eleven.timestamp * 1000).toISOString(),
+    ],
+  ]);
+});
+
 test("store rolls its transaction back when a write or equality proof fails", async () => {
   const calls = [];
   await assert.rejects(
