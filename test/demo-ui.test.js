@@ -856,6 +856,12 @@ test("app lifecycle keeps React island controls out of imperative bindings and r
   assert.match(armyPanel, /asset-building-fallback" role="status"/);
   assert.match(marketPanel, /onDraftChange/);
   assert.match(marketPanel, /quoteMatchesDraft/);
+  assert.match(
+    marketPanel,
+    /const canOrder = Boolean\(quoteMatchesDraft\) && !props\.busy/,
+  );
+  assert.match(marketPanel, /id="market-buy"\s+disabled=\{!canOrder\}/);
+  assert.match(marketPanel, /id="market-sell"\s+disabled=\{!canOrder\}/);
   assert.match(raidPanel, /onPickOpponent/);
   assert.match(raidPanel, /targetAddress/);
   assert.match(raidPanel, /data-raid-countdown/);
@@ -1059,6 +1065,56 @@ test("a quote resolving after the market draft changes is discarded and cannot b
   actions.marketOrder("buy");
   assert.deepEqual(reviews, []);
   assert.equal(runtime.feedback, "Load a current live quote first.");
+});
+
+test("market review summary and payload use the same frozen quote intent", () => {
+  const reviews = [];
+  const quote = {
+    resource: "stone",
+    amount: 50,
+    buyGoldIn: 500n,
+    buyFee: 3n,
+    sellGoldOut: 494n,
+    sellFee: 3n,
+    inventory: 9n,
+    reserve: 500n,
+    deadline: 1234,
+  };
+  const runtime = {
+    mode: "world",
+    marketDraft: { resource: "stone", from: "wood", to: "clay", amount: 50 },
+    marketQuote: quote,
+  };
+  const actions = createGameActions(runtime, {
+    render: () => {},
+    requireAccess: () => true,
+    requestWorldAction: (type, payload, success, details) =>
+      reviews.push({ type, payload, success, details }),
+    confirmWorldReview: () => {},
+    cancelWorldReview: () => {},
+    errorText: String,
+    isCurrent: () => true,
+    copy: () => civilizationMessages("en-US"),
+    buildingLabel: String,
+    resourceDefs: () => ({}),
+    numberFormat: String,
+  });
+
+  actions.marketOrder("sell");
+  quote.resource = "wood";
+  quote.amount = 1;
+  quote.sellGoldOut = 1n;
+
+  assert.equal(reviews.length, 1);
+  assert.deepEqual(reviews[0].payload, {
+    resource: "stone",
+    amount: 50,
+    limit: 494n,
+    deadline: 1234,
+  });
+  assert.ok(Object.isFrozen(reviews[0].payload));
+  assert.match(reviews[0].details[0], /^Sell 50 Stone$/);
+  assert.equal(reviews[0].details[1], "Limit: 494 CGOLD");
 });
 
 test("game action feedback follows the active locale and formats dynamic values", () => {
