@@ -41,6 +41,21 @@ const shots = [
     { width: 390, height: 844 },
   ],
   [
+    "mobile-village-build-navigation-195.png",
+    "ui-audit-civilization--mobile-village-build-navigation",
+    { width: 195, height: 422 },
+  ],
+  [
+    "mobile-village-build-navigation-320.png",
+    "ui-audit-civilization--mobile-village-build-navigation",
+    { width: 320, height: 844 },
+  ],
+  [
+    "mobile-village-build-navigation-390.png",
+    "ui-audit-civilization--mobile-village-build-navigation",
+    { width: 390, height: 844 },
+  ],
+  [
     "mobile-demo-footer-320.png",
     "ui-audit-civilization--demo-footer",
     { width: 320, height: 844 },
@@ -252,6 +267,68 @@ for (const [name, id, viewport] of shots) {
       scrollWidth: layout.scrollWidth,
       viewportWidth: layout.viewportWidth,
     });
+  }
+  if (id === "ui-audit-civilization--mobile-village-build-navigation") {
+    await page
+      .locator(
+        '[data-game-command-navigation="mobile"] [data-command-panel="build"]',
+      )
+      .click();
+    await page.waitForFunction(
+      () => document.activeElement?.id === "game-command-panel",
+    );
+    const layout = await page.evaluate(() => {
+      const panel = document.querySelector("#game-command-panel");
+      const heading = panel?.querySelector(".inspector-title h2");
+      const hud = document.querySelector(".hud");
+      const nav = document.querySelector(".mobile-hud");
+      if (!(panel instanceof HTMLElement) || !heading || !hud || !nav)
+        throw new Error("Missing Village/Build mobile navigation fixture");
+      const rect = (element) => {
+        const { top, right, bottom, left, width, height } =
+          element.getBoundingClientRect();
+        return { top, right, bottom, left, width, height };
+      };
+      const headingRect = heading.getBoundingClientRect();
+      const hit = document.elementFromPoint(
+        headingRect.left + headingRect.width / 2,
+        headingRect.top + headingRect.height / 2,
+      );
+      return {
+        focused: document.activeElement === panel,
+        heading: rect(heading),
+        hud: rect(hud),
+        headingHitIsHud: Boolean(hit?.closest(".hud")),
+        headingHitIsNav: Boolean(hit?.closest(".mobile-hud button")),
+        mobileNav: rect(nav),
+        navControls: Array.from(nav.querySelectorAll("button"), rect),
+        scrollWidth: document.documentElement.scrollWidth,
+        viewportWidth: window.innerWidth,
+      };
+    });
+    if (!layout.focused)
+      throw new Error("Mobile navigation did not focus the command panel");
+    if (layout.scrollWidth > layout.viewportWidth)
+      throw new Error(
+        "Village/Build mobile navigation has horizontal overflow",
+      );
+    if (
+      layout.heading.top < layout.hud.bottom ||
+      layout.heading.bottom > layout.mobileNav.top ||
+      layout.headingHitIsHud ||
+      layout.headingHitIsNav
+    )
+      throw new Error(
+        "Visible BuildPanel heading is covered by sticky HUD or bottom navigation",
+      );
+    if (
+      layout.navControls.some(
+        (control) => control.width < 44 || control.height < 44,
+      )
+    )
+      throw new Error("Bottom navigation control is smaller than 44px");
+    await page.screenshot({ path: join(output, name) });
+    screenshotTaken = true;
   }
   if (id === "ui-audit-civilization--army-training-quantity-choice") {
     await page.locator('[data-training-amount="spear"]').fill("3");

@@ -227,6 +227,37 @@ function createController(runtime) {
   };
 
   let world;
+  const focusCommandPanel = () => {
+    const commandPanel = runtime.root?.querySelector("#game-command-panel");
+    if (!(commandPanel instanceof HTMLElement)) return;
+    // The panel is a programmatic focus destination after a mobile navigation
+    // choice. Keep it out of the tab order while allowing the browser to
+    // reveal the newly selected command content.
+    commandPanel.tabIndex = -1;
+    commandPanel.focus({ preventScroll: true });
+    commandPanel.scrollIntoView({
+      behavior: "auto",
+      block: "start",
+      inline: "nearest",
+    });
+    // The HUD is sticky, so its rendered height depends on the current
+    // viewport and resource layout. Move the panel below its actual bottom
+    // edge instead of coupling mobile navigation to a guessed HUD height.
+    const hud = runtime.root?.querySelector(".hud");
+    if (!(hud instanceof HTMLElement)) return;
+    const panelTop = commandPanel.getBoundingClientRect().top;
+    const hudBottom = hud.getBoundingClientRect().bottom;
+    if (panelTop < hudBottom) window.scrollBy({ top: panelTop - hudBottom });
+  };
+  const isMobileNavigationVisible = () => {
+    const mobileNavigation = runtime.root?.querySelector(
+      '[data-game-command-navigation="mobile"]',
+    );
+    return (
+      mobileNavigation instanceof HTMLElement &&
+      window.getComputedStyle(mobileNavigation).display !== "none"
+    );
+  };
   const renderNavigation = () => {
     ["desktop", "mobile"].forEach((navigation) => {
       const mount = runtime.root?.querySelector(
@@ -245,13 +276,17 @@ function createController(runtime) {
           mobile: navigation === "mobile",
           onSelectPanel: (panel, selectedNavigation) => {
             actions.selectPanel(panel);
-            requestAnimationFrame(() =>
+            requestAnimationFrame(() => {
+              if (selectedNavigation === "mobile") {
+                focusCommandPanel();
+                return;
+              }
               runtime.root
                 ?.querySelector(
                   `[data-game-command-navigation="${selectedNavigation}"] [data-command-panel="${panel}"]`,
                 )
-                ?.focus(),
-            );
+                ?.focus();
+            });
           },
         }),
       );
@@ -383,13 +418,17 @@ function createController(runtime) {
             );
           } else if (recommendation.target === "build-panel") {
             actions.selectPanel("build");
-            requestAnimationFrame(() =>
+            requestAnimationFrame(() => {
+              if (isMobileNavigationVisible()) {
+                focusCommandPanel();
+                return;
+              }
               runtime.root
                 ?.querySelector(
                   '[data-game-command-navigation="desktop"] [data-command-panel="build"]',
                 )
-                ?.focus(),
-            );
+                ?.focus();
+            });
           }
         },
       }),
@@ -986,5 +1025,8 @@ export function stopCivilizationApp() {
   runtime.settingsDialogRoot = null;
   runtime.entryGuideRoot = null;
   runtime.walletReviewDialogRoot = null;
-  runtime.state = null;
+  // Nested React roots can still flush work that was queued by the final
+  // render while their parent is being removed. Keep this inert snapshot
+  // available until those roots are collected; `activeRuntime = null` above
+  // prevents it from being rendered or mutated by the application.
 }

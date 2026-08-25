@@ -1658,3 +1658,51 @@ test("entry guide primary routes dismiss the current session before every focus-
   );
   assert.match(stories, /\{entryGuideDismissed \? null : \(/);
 });
+
+test("mobile command navigation focuses and reveals the existing command panel", async () => {
+  const [app, stories, audit] = await Promise.all([
+    readFile(new URL("../src/app.js", import.meta.url), "utf8"),
+    readFile(
+      new URL(
+        "../src/components/CivilizationUiAudit.stories.tsx",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+    readFile(
+      new URL("../scripts/capture-storybook-audit.mjs", import.meta.url),
+      "utf8",
+    ),
+  ]);
+  assert.match(
+    app,
+    /const focusCommandPanel = \(\) => \{[\s\S]*?#game-command-panel[\s\S]*?tabIndex = -1;[\s\S]*?focus\(\{ preventScroll: true \}\);[\s\S]*?scrollIntoView\(\{[\s\S]*?block: "start"[\s\S]*?querySelector\("\.hud"\)[\s\S]*?getBoundingClientRect\(\)\.bottom[\s\S]*?window\.scrollBy/,
+  );
+  assert.match(
+    app,
+    /selectedNavigation === "mobile"[\s\S]*?focusCommandPanel\(\)/,
+  );
+  const routeStart = app.indexOf("onRoute: (recommendation) => {");
+  const routeEnd = app.indexOf("\n        },\n      }),", routeStart);
+  const route = app.slice(routeStart, routeEnd);
+  assert.match(
+    app,
+    /const isMobileNavigationVisible = \(\) => \{[\s\S]*?data-game-command-navigation="mobile"[\s\S]*?getComputedStyle\(mobileNavigation\)\.display !== "none"/,
+  );
+  assert.match(
+    route,
+    /recommendation\.target === "build-panel"[\s\S]*?actions\.selectPanel\("build"\);[\s\S]*?requestAnimationFrame\(\(\) => \{[\s\S]*?isMobileNavigationVisible\(\)[\s\S]*?focusCommandPanel\(\);[\s\S]*?data-game-command-navigation="desktop"\] \[data-command-panel="build"\][\s\S]*?\.focus\(\);/,
+  );
+  assert.match(app, /data-game-command-navigation="\$\{selectedNavigation\}"/);
+  assert.match(stories, /export const MobileVillageBuildNavigation/);
+  assert.match(
+    audit,
+    /mobile-village-build-navigation-195\.png[\s\S]*?width: 195, height: 422/,
+  );
+  assert.match(
+    audit,
+    /Visible BuildPanel heading is covered by sticky HUD or bottom navigation/,
+  );
+  assert.match(audit, /headingHitIsHud/);
+  assert.match(audit, /headingHitIsNav/);
+});
