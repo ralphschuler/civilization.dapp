@@ -2,6 +2,7 @@ import { useState } from "react";
 import { BuildPanel, type BuildPanelProps } from "./BuildPanel";
 import { CommandNavigation, type CommandPanel } from "./CommandNavigation";
 import { GameShellHud } from "./GameShellHud";
+import { MarketPanel, type MarketPanelProps } from "./MarketPanel";
 import { VillageMap } from "./VillageMap";
 import { WalletAccess } from "./WalletAccess";
 import { WalletVillageRegistrationGate } from "./CivilizationClient/WalletVillageRegistrationGate";
@@ -353,4 +354,51 @@ export const BottomNavigation = {
       />
     </main>
   ),
+};
+
+function WorldMarketAuditFixture() {
+  const [marketDraft, setMarketDraft] = useState<
+    MarketPanelProps["marketDraft"]
+  >({
+    resource: "wood" as const,
+    from: "wood" as const,
+    to: "clay" as const,
+    amount: 120,
+  });
+  return (
+    <main className="game-shell">
+      <section id="game-command-panel" className="command-panel">
+        <MarketPanel
+          runtimeMode="world"
+          tokens={{}}
+          marketDraft={marketDraft}
+          marketQuote={null}
+          marketOrigin={{
+            source: "Village map",
+            resource: "wood",
+            amount: 184,
+          }}
+          busy={false}
+          copy={copy}
+          onDraftChange={(draft) =>
+            setMarketDraft((current) => ({ ...current, ...draft }))
+          }
+          onOrder={() => undefined}
+          onQuote={() => undefined}
+          onSwap={() => undefined}
+        />
+      </section>
+      <CommandNavigation
+        mobile
+        activePanel="market"
+        copy={copy}
+        onSelectPanel={() => undefined}
+      />
+    </main>
+  );
+}
+
+export const WorldMarketMobile = {
+  name: "World market / Mobile liquidity disclosure",
+  render: () => <WorldMarketAuditFixture />,
 };
