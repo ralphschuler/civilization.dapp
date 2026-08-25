@@ -1412,10 +1412,16 @@ button {
   }
   .entry-guide-actions {
     flex-direction: column-reverse;
+    flex: 0 1 auto;
+    min-width: 0;
   }
   .entry-guide-primary,
   .entry-guide-dismiss {
     min-height: 2.75rem;
+  }
+  .entry-guide-primary {
+    max-width: 100%;
+    overflow-wrap: anywhere;
   }
   .entry-guide-dismiss {
     min-width: 2.75rem;
