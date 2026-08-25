@@ -3,6 +3,13 @@ import { WALLET_AUTH_STATEMENT } from "../auth/wallet-auth-statement.js";
 
 export const walletAuthStatement = WALLET_AUTH_STATEMENT;
 
+class SiweRejectedError extends Error {}
+
+/** Identifies the rejection signal emitted by this module's exact SIWE branch. */
+export function isSiweRejectedError(error) {
+  return error instanceof SiweRejectedError;
+}
+
 function isWalletAuthPayload(value) {
   return (
     Boolean(value) &&
@@ -29,7 +36,15 @@ function readChallenge(value) {
 }
 
 /** Returns only the checksum address accepted by the server-side SIWE verifier. */
-export async function verifyWalletForDirectGame({ fetchImpl, walletAuth }) {
+export async function verifyWalletForDirectGame({
+  fetchImpl,
+  isInstalled,
+  walletAuth,
+}) {
+  // WalletAuth is available only in a World Mini App. Keep this check ahead of
+  // the nonce request so an ordinary browser never creates a challenge.
+  if (!isInstalled()) throw new Error("minikit_unavailable");
+
   const nonceResponse = await fetchImpl("/api/wallet-auth/nonce", {
     method: "POST",
     cache: "no-store",
@@ -56,6 +71,13 @@ export async function verifyWalletForDirectGame({ fetchImpl, walletAuth }) {
     body: JSON.stringify({ nonce, payload: result.data }),
   });
   const verification = await verificationResponse.json().catch(() => null);
+  if (
+    verificationResponse.status === 400 &&
+    verification?.isValid === false &&
+    verification?.error === "wallet_auth_verification_failed"
+  ) {
+    throw new SiweRejectedError();
+  }
   const address =
     verification && typeof verification === "object"
       ? verification.address
