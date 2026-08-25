@@ -11,6 +11,12 @@ const messages = {
       retryAction: "Erneut versuchen",
       pending: "Bestätige den Zugang sicher in deiner World App.",
       success: "Deine Wallet wurde bestätigt. Civilization wird geöffnet …",
+      miniKitUnavailable:
+        "Öffne Civilization in der World App und versuche es erneut.",
+      nonceUnavailable:
+        "Der sichere Zugang ist gerade nicht verfügbar. Bitte versuche es erneut.",
+      siweRejected:
+        "Die Wallet-Bestätigung wurde abgelehnt. Du kannst es erneut versuchen.",
       cancelled:
         "Die Wallet-Bestätigung wurde abgebrochen. Du kannst es erneut versuchen.",
       failure:
@@ -56,6 +62,10 @@ const messages = {
       retryAction: "Try again",
       pending: "Confirm access securely in your World App.",
       success: "Your wallet is confirmed. Civilization is opening …",
+      miniKitUnavailable: "Open Civilization in the World App and try again.",
+      nonceUnavailable:
+        "Secure access is unavailable right now. Please try again.",
+      siweRejected: "Wallet confirmation was rejected. You can try again.",
       cancelled: "Wallet confirmation was cancelled. You can try again.",
       failure: "Wallet confirmation was unavailable. Please try again.",
     },

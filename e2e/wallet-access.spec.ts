@@ -291,6 +291,59 @@ test("wallet rejection remains retryable without auth or chain requests", async 
   await expect(page.getByTestId("civilization-game-root")).toBeFocused();
 });
 
+test("auth availability states are localized, safe, retryable, and fit mobile widths", async ({
+  page,
+}) => {
+  const cases = [
+    [
+      "minikit-unavailable",
+      "minikit-unavailable",
+      "Öffne Civilization in der World App und versuche es erneut.",
+    ],
+    [
+      "nonce-unavailable",
+      "nonce-unavailable",
+      "Der sichere Zugang ist gerade nicht verfügbar. Bitte versuche es erneut.",
+    ],
+    [
+      "wallet-rejected",
+      "cancelled",
+      "Die Wallet-Bestätigung wurde abgebrochen. Du kannst es erneut versuchen.",
+    ],
+    [
+      "siwe-rejected",
+      "siwe-rejected",
+      "Die Wallet-Bestätigung wurde abgelehnt. Du kannst es erneut versuchen.",
+    ],
+    [
+      "siwe-rejected-message",
+      "failure",
+      "Die Wallet-Bestätigung war nicht möglich. Bitte versuche es noch einmal.",
+    ],
+    [
+      "wallet-failed",
+      "failure",
+      "Die Wallet-Bestätigung war nicht möglich. Bitte versuche es noch einmal.",
+    ],
+  ] as const;
+  for (const [scenario, state, message] of cases) {
+    await page.getByTestId("wallet-access-e2e-scenario").selectOption(scenario);
+    await loginAction(page).click();
+    const status = page.locator("#wallet-access-status");
+    await expect(status).toHaveAttribute("data-state", state);
+    await expect(status).toHaveText(message);
+    await expect(status).not.toContainText(
+      /nonce|signature|payload|0x|message|wallet_auth|invalid_or_expired/i,
+    );
+    await expect(loginAction(page)).toHaveText("Erneut versuchen");
+  }
+  for (const width of [320, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    await expectReachable(page, loginAction(page));
+    await expectNoSeriousAxe(page, ".civilization-login");
+  }
+});
+
 test("English is an explicit test locale with locale-specific formatting", async ({
   page,
 }) => {

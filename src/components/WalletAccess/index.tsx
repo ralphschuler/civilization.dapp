@@ -3,7 +3,10 @@
 import { MiniKit } from "@worldcoin/minikit-js";
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
-import { verifyWalletForDirectGame } from "@/lib/direct-wallet-game-flow";
+import {
+  isSiweRejectedError,
+  verifyWalletForDirectGame,
+} from "@/lib/direct-wallet-game-flow";
 import {
   type WalletAccessLocale,
   walletAccessMessages,
@@ -34,17 +37,36 @@ type WalletAccessProps = {
 
 export type WalletAccessAttempt = () => Promise<string>;
 
-type AccessStatus = "idle" | "pending" | "success" | "cancelled" | "failure";
+type AccessStatus =
+  | "idle"
+  | "pending"
+  | "success"
+  | "minikit-unavailable"
+  | "nonce-unavailable"
+  | "siwe-rejected"
+  | "cancelled"
+  | "failure";
 type SessionState = "restoring" | "ready";
 
-function wasCancelled(error: unknown) {
-  return (
-    (error instanceof DOMException && error.name === "AbortError") ||
-    (typeof error === "object" &&
-      error !== null &&
-      "code" in error &&
-      error.code === "user_rejected")
-  );
+function accessStatusForError(error: unknown): AccessStatus {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === "user_rejected"
+  ) {
+    return "cancelled";
+  }
+  if (error instanceof Error && error.message === "minikit_unavailable") {
+    return "minikit-unavailable";
+  }
+  if (error instanceof Error && error.message === "nonce_unavailable") {
+    return "nonce-unavailable";
+  }
+  if (isSiweRejectedError(error)) {
+    return "siwe-rejected";
+  }
+  return "failure";
 }
 
 export const WalletAccess = ({
@@ -143,13 +165,14 @@ export const WalletAccess = ({
         (() =>
           verifyWalletForDirectGame({
             fetchImpl: fetch,
+            isInstalled: () => MiniKit.isInstalled(),
             walletAuth: (input: Parameters<typeof MiniKit.walletAuth>[0]) =>
               MiniKit.walletAuth(input),
           }));
       setVerifiedWalletAddress(await verifyWallet());
       setStatus("success");
     } catch (error) {
-      setStatus(wasCancelled(error) ? "cancelled" : "failure");
+      setStatus(accessStatusForError(error));
     } finally {
       attemptInFlight.current = false;
     }
@@ -190,6 +213,18 @@ export const WalletAccess = ({
     idle: { action: copy.action, message: "" },
     pending: { action: copy.pendingAction, message: copy.pending },
     success: { action: copy.successAction, message: copy.success },
+    "minikit-unavailable": {
+      action: copy.retryAction,
+      message: copy.miniKitUnavailable,
+    },
+    "nonce-unavailable": {
+      action: copy.retryAction,
+      message: copy.nonceUnavailable,
+    },
+    "siwe-rejected": {
+      action: copy.retryAction,
+      message: copy.siweRejected,
+    },
     cancelled: { action: copy.retryAction, message: copy.cancelled },
     failure: { action: copy.retryAction, message: copy.failure },
   }[status];

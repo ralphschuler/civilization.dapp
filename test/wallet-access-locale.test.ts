@@ -31,6 +31,30 @@ test("WalletAccess messages provide the German baseline and English test locale"
     walletAccessMessages("en-US").registration.unavailable,
     "The on-chain status could not be read. Check your connection and try again.",
   );
+  assert.equal(
+    walletAccessMessages().login.miniKitUnavailable,
+    "Öffne Civilization in der World App und versuche es erneut.",
+  );
+  assert.equal(
+    walletAccessMessages("en-US").login.miniKitUnavailable,
+    "Open Civilization in the World App and try again.",
+  );
+  assert.equal(
+    walletAccessMessages().login.nonceUnavailable,
+    "Der sichere Zugang ist gerade nicht verfügbar. Bitte versuche es erneut.",
+  );
+  assert.equal(
+    walletAccessMessages("en-US").login.nonceUnavailable,
+    "Secure access is unavailable right now. Please try again.",
+  );
+  assert.equal(
+    walletAccessMessages().login.siweRejected,
+    "Die Wallet-Bestätigung wurde abgelehnt. Du kannst es erneut versuchen.",
+  );
+  assert.equal(
+    walletAccessMessages("en-US").login.siweRejected,
+    "Wallet confirmation was rejected. You can try again.",
+  );
   assert.match(
     walletAccessMessages().registration.notConfirmed,
     /keine zweite Registrierung/,

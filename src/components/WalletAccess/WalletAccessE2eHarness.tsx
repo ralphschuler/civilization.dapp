@@ -7,6 +7,7 @@ import {
   type WalletAccessLocale,
   walletAccessMessages,
 } from "@/lib/wallet-access-locale";
+import { verifyWalletForDirectGame } from "@/lib/direct-wallet-game-flow";
 import { WalletAccess, type WalletAccessAttempt } from "./index";
 
 type Scenario =
@@ -15,6 +16,11 @@ type Scenario =
   | "unregistered-rejected"
   | "status-loading"
   | "status-unavailable"
+  | "minikit-unavailable"
+  | "nonce-unavailable"
+  | "siwe-rejected"
+  | "siwe-rejected-message"
+  | "wallet-failed"
   | "wallet-rejected";
 type Screen = "login" | "checking" | "gate" | "status-unavailable" | "game";
 
@@ -95,6 +101,54 @@ export function WalletAccessE2eHarness({
         window.setTimeout(() => {
           if (scenario === "wallet-rejected") {
             reject({ code: "user_rejected" });
+            return;
+          }
+          if (scenario === "minikit-unavailable") {
+            reject(new Error("minikit_unavailable"));
+            return;
+          }
+          if (scenario === "nonce-unavailable") {
+            reject(new Error("nonce_unavailable"));
+            return;
+          }
+          if (scenario === "siwe-rejected") {
+            void verifyWalletForDirectGame({
+              isInstalled: () => true,
+              fetchImpl: async (url: string) => {
+                if (url.endsWith("/nonce")) {
+                  return new Response(
+                    JSON.stringify({
+                      nonce: "aBcD1234efGH5678",
+                      expires_at: Date.now() + 60_000,
+                    }),
+                    { status: 200 },
+                  );
+                }
+                return new Response(
+                  JSON.stringify({
+                    isValid: false,
+                    error: "wallet_auth_verification_failed",
+                  }),
+                  { status: 400 },
+                );
+              },
+              walletAuth: async () => ({
+                executedWith: "minikit",
+                data: {
+                  address: TEST_WALLET_ADDRESS,
+                  message: "message",
+                  signature: "signature",
+                },
+              }),
+            }).then(resolve, reject);
+            return;
+          }
+          if (scenario === "siwe-rejected-message") {
+            reject(new Error("siwe_rejected"));
+            return;
+          }
+          if (scenario === "wallet-failed") {
+            reject(new Error("wallet_auth_verification_failed"));
             return;
           }
           resolve(TEST_WALLET_ADDRESS);
@@ -196,6 +250,11 @@ export function WalletAccessE2eHarness({
           <option value="status-unavailable">
             On-chain status unavailable
           </option>
+          <option value="minikit-unavailable">MiniKit unavailable</option>
+          <option value="nonce-unavailable">Nonce unavailable</option>
+          <option value="siwe-rejected">SIWE rejected</option>
+          <option value="siwe-rejected-message">SIWE rejected message</option>
+          <option value="wallet-failed">WalletAuth failed</option>
           <option value="wallet-rejected">Wallet rejected</option>
         </select>
         <label htmlFor="wallet-access-e2e-locale">Test locale</label>
