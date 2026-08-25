@@ -118,7 +118,10 @@ for (const [name, id, viewport] of shots) {
         gatherCount: document.querySelectorAll("#gather").length,
         gather: rect("#gather"),
         title: rect(".map-head"),
+        selectedLabel: rect(".map-building.is-selected span"),
         mobileNav: rect(".mobile-hud"),
+        scrollWidth: document.documentElement.scrollWidth,
+        viewportWidth: window.innerWidth,
       };
     });
     const overlaps = (first, second) =>
@@ -130,6 +133,10 @@ for (const [name, id, viewport] of shots) {
       throw new Error(
         `Expected one map collect control, got ${layout.gatherCount}`,
       );
+    if (overlaps(layout.selectedLabel, layout.title))
+      throw new Error("Selected map-building label overlaps village metadata");
+    if (layout.scrollWidth > layout.viewportWidth)
+      throw new Error("Mobile village map has horizontal overflow");
     if (overlaps(layout.gather, layout.title))
       throw new Error("Map collect control overlaps the village title");
     if (layout.gather.width < 44 || layout.gather.height < 44)
