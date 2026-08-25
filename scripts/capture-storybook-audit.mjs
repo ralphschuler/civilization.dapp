@@ -59,6 +59,16 @@ const shots = [
     { width: 390, height: 844 },
   ],
   [
+    "mobile-entry-guide-320.png",
+    "ui-audit-civilization--entry-guide-collect",
+    { width: 320, height: 844 },
+  ],
+  [
+    "mobile-entry-guide-390.png",
+    "ui-audit-civilization--entry-guide-collect",
+    { width: 390, height: 844 },
+  ],
+  [
     "mobile-construction-ready-390.png",
     "ui-audit-civilization--construction-ready",
     { width: 390, height: 844 },
@@ -81,6 +91,7 @@ const shots = [
 ];
 for (const [name, id, viewport] of shots) {
   const page = await browser.newPage({ viewport });
+  let screenshotTaken = false;
   await page.goto(`http://127.0.0.1:6006/iframe.html?id=${id}&viewMode=story`, {
     waitUntil: "networkidle",
   });
@@ -191,7 +202,39 @@ for (const [name, id, viewport] of shots) {
       );
     await page.keyboard.press("Enter");
   }
-  await page.screenshot({ path: join(output, name), fullPage: true });
+  if (id === "ui-audit-civilization--entry-guide-collect") {
+    const layout = await page.evaluate(() => {
+      const guide = document.querySelector("[data-entry-guide]");
+      const primary = document.querySelector(".entry-guide-primary");
+      const dismiss = document.querySelector(".entry-guide-dismiss");
+      if (!guide || !primary || !dismiss)
+        throw new Error("Missing entry guide controls");
+      return {
+        guideWidth: guide.getBoundingClientRect().width,
+        viewportWidth: window.innerWidth,
+        primaryHeight: primary.getBoundingClientRect().height,
+        dismissHeight: dismiss.getBoundingClientRect().height,
+        scrollWidth: document.documentElement.scrollWidth,
+      };
+    });
+    if (
+      layout.scrollWidth > layout.viewportWidth ||
+      layout.guideWidth > layout.viewportWidth
+    )
+      throw new Error("Entry guide has horizontal overflow");
+    if (layout.primaryHeight < 44 || layout.dismissHeight < 44)
+      throw new Error("Entry guide controls are smaller than 44px");
+    await page.screenshot({ path: join(output, name), fullPage: true });
+    screenshotTaken = true;
+    await page.locator(".entry-guide-dismiss").focus();
+    await page.keyboard.press("Enter");
+    if (await page.locator("[data-entry-guide]").count())
+      throw new Error(
+        "Entry guide dismissal did not remove the guide for this render session",
+      );
+  }
+  if (!screenshotTaken)
+    await page.screenshot({ path: join(output, name), fullPage: true });
   await page.close();
 }
 await browser.close();

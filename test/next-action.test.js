@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { deriveNextAction } from "../src/game-ui/next-action.js";
+import {
+  deriveEntryGuide,
+  deriveNextAction,
+} from "../src/game-ui/next-action.js";
 
 const base = {
   collection: { locked: true, unclaimed: {} },
@@ -53,4 +56,39 @@ test("next action reports the concrete build blocker in priority order", () => {
 
 test("next action offers an upgrade only when it is immediately actionable", () => {
   assert.equal(deriveNextAction(base).kind, "upgrade");
+});
+
+test("entry guide remains read-only and routes each deterministic state to an existing focus target", () => {
+  const input = {
+    ...base,
+    state: { buildings: { townhall: 1 } },
+    selectedBuilding: "townhall",
+    buildings: { townhall: {} },
+  };
+  assert.deepEqual(
+    deriveEntryGuide({
+      ...input,
+      collection: { locked: false, unclaimed: { wood: 1 } },
+    }),
+    { kind: "collect", target: "collection" },
+  );
+  assert.deepEqual(
+    deriveEntryGuide({
+      ...input,
+      jobs: [{ slot: 0, completesAt: 0 }],
+      remainingTime: () => 0,
+    }),
+    { kind: "complete", slot: 0, target: "completion" },
+  );
+  assert.deepEqual(
+    deriveEntryGuide({
+      ...input,
+      requirements: [{ id: "townhall", level: 2 }],
+    }),
+    { kind: "requirements", target: "building", buildingId: "townhall" },
+  );
+  assert.deepEqual(deriveEntryGuide({ ...input, state: null }), {
+    kind: "unavailable",
+    target: "none",
+  });
 });

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { BuildPanel, type BuildPanelProps } from "./BuildPanel";
 import { CommandNavigation, type CommandPanel } from "./CommandNavigation";
 import { GameShellHud } from "./GameShellHud";
+import { EntryGuide } from "./EntryGuide";
 import { MarketPanel, type MarketPanelProps } from "./MarketPanel";
 import { VillageMap } from "./VillageMap";
 import { WalletAccess } from "./WalletAccess";
@@ -91,6 +92,25 @@ const buildProps: BuildPanelProps = {
   onPrestige: () => undefined,
   onOpenMarket: () => undefined,
 };
+
+function EntryGuideFixture({
+  recommendation,
+}: {
+  recommendation: {
+    kind: string;
+    target: "none" | "collection" | "completion" | "building" | "build-panel";
+  };
+}) {
+  const [dismissed, setDismissed] = useState(false);
+  return dismissed ? null : (
+    <EntryGuide
+      copy={copy}
+      recommendation={recommendation}
+      onDismiss={() => setDismissed(true)}
+      onRoute={() => undefined}
+    />
+  );
+}
 
 function Overview() {
   const [activePanel, setActivePanel] = useState<CommandPanel>("build");
@@ -252,6 +272,26 @@ export const NextActionBlocked = {
           }}
         />
       </section>
+    </main>
+  ),
+};
+export const EntryGuideCollect = {
+  name: "Entry guide / Collection recommendation",
+  render: () => (
+    <main className="game-shell">
+      <EntryGuideFixture
+        recommendation={{ kind: "collect", target: "collection" }}
+      />
+    </main>
+  ),
+};
+export const EntryGuideUnclearState = {
+  name: "Entry guide / Unclear runtime state",
+  render: () => (
+    <main className="game-shell">
+      <EntryGuideFixture
+        recommendation={{ kind: "unavailable", target: "none" }}
+      />
     </main>
   ),
 };

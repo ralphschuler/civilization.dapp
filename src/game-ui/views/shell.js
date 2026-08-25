@@ -6,6 +6,7 @@ export function gameShell(ctx) {
   return `
     <section class="game-shell village-shell ${reducedMotion ? "motion-reduced" : ""}">
       <div data-game-shell-hud></div>
+      <div data-entry-guide-mount></div>
       <main class="command-layout">
         <div data-game-village-map></div>
         <aside class="command-rail">
