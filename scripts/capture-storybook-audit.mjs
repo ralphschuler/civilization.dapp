@@ -54,6 +54,11 @@ const shots = [
     { width: 390, height: 844 },
   ],
   [
+    "mobile-next-action-blocked-320.png",
+    "ui-audit-civilization--next-action-blocked",
+    { width: 320, height: 844 },
+  ],
+  [
     "mobile-next-action-blocked-390.png",
     "ui-audit-civilization--next-action-blocked",
     { width: 390, height: 844 },
@@ -67,6 +72,11 @@ const shots = [
     "mobile-collection-guide-390.png",
     "ui-audit-civilization--mobile-collection-guide",
     { width: 390, height: 844 },
+  ],
+  [
+    "mobile-construction-ready-320.png",
+    "ui-audit-civilization--construction-ready",
+    { width: 320, height: 844 },
   ],
   [
     "mobile-construction-ready-390.png",
@@ -381,6 +391,18 @@ for (const [name, id, viewport] of shots) {
       throw new Error("Bottom navigation control is smaller than 44px");
     await page.screenshot({ path: join(output, name) });
     screenshotTaken = true;
+  }
+  if (
+    id === "ui-audit-civilization--construction-ready" ||
+    id === "ui-audit-civilization--next-action-blocked"
+  ) {
+    const disclosure = await page.locator(".next-task-details > summary");
+    const label = (await disclosure.textContent())?.trim() || "";
+    const box = await disclosure.boundingBox();
+    if (!label.includes("COSTS") || !label.includes("REQUIREMENTS"))
+      throw new Error("Build-detail disclosure label is not specific enough");
+    if (!box || box.height < 44)
+      throw new Error("Build-detail disclosure target is smaller than 44px");
   }
   if (id === "ui-audit-civilization--mobile-collection-guide") {
     const layout = await page.evaluate(() => {
