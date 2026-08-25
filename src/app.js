@@ -318,6 +318,10 @@ function createController(runtime) {
           runtime.state.constructionCapacity,
     });
   };
+  const dismissEntryGuide = () => {
+    runtime.entryGuideDismissed = true;
+    renderEntryGuide();
+  };
   const renderEntryGuide = () => {
     const mount = runtime.root?.querySelector("[data-entry-guide-mount]");
     if (!mount) return;
@@ -330,11 +334,9 @@ function createController(runtime) {
       createElement(EntryGuide, {
         copy: civilizationMessages(runtime.locale),
         recommendation: entryGuideRecommendation(),
-        onDismiss: () => {
-          runtime.entryGuideDismissed = true;
-          renderEntryGuide();
-        },
+        onDismiss: dismissEntryGuide,
         onRoute: (recommendation) => {
+          dismissEntryGuide();
           if (
             recommendation.target === "building" &&
             recommendation.buildingId
