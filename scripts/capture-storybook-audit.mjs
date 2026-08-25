@@ -163,7 +163,10 @@ for (const [name, id, viewport] of shots) {
         return { width, height };
       };
       return {
-        buttons: Array.from(document.querySelectorAll(".training-submit"), rect),
+        buttons: Array.from(
+          document.querySelectorAll(".training-submit"),
+          rect,
+        ),
         inputs: Array.from(
           document.querySelectorAll("[data-training-amount]"),
           rect,
