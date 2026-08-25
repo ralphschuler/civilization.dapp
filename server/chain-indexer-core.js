@@ -45,6 +45,18 @@ function hash(value, field) {
   return value.toLowerCase();
 }
 
+export function normalizeChainId(value) {
+  return decimalQuantity(value, "chainId");
+}
+
+export function normalizeNonnegativeQuantity(value, field) {
+  return decimalQuantity(value, field);
+}
+
+export function normalizeContractAddress(value) {
+  return address(value);
+}
+
 function address(value) {
   if (typeof value !== "string" || !/^0x[0-9a-fA-F]{40}$/.test(value))
     invalid("address");
@@ -130,7 +142,7 @@ export function finalizedLogs(chainId, logs, finalizedBlockNumber) {
   );
 }
 
-function normalizeBlock(block, field) {
+export function normalizeCanonicalBlock(block, field = "block") {
   if (!block || typeof block !== "object") invalid(field);
   return {
     blockNumber: databaseBigint(block.blockNumber, `${field}.blockNumber`),
@@ -141,7 +153,9 @@ function normalizeBlock(block, field) {
 
 function sortedBlocks(blocks, field) {
   if (!Array.isArray(blocks)) invalid(field);
-  const normalized = blocks.map((block) => normalizeBlock(block, field));
+  const normalized = blocks.map((block) =>
+    normalizeCanonicalBlock(block, field),
+  );
   normalized.sort((left, right) =>
     compareQuantities(left.blockNumber, right.blockNumber),
   );
@@ -169,7 +183,7 @@ export function planReorgRollback({
   observedBlocks,
   maxRollbackDepth,
 }) {
-  const current = normalizeBlock(checkpoint, "checkpoint");
+  const current = normalizeCanonicalBlock(checkpoint, "checkpoint");
   const stored = sortedBlocks(canonicalBlocks, "canonicalBlocks");
   const observed = sortedBlocks(observedBlocks, "observedBlocks");
   const maxDepth = quantity(maxRollbackDepth, "maxRollbackDepth");
