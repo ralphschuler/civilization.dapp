@@ -269,6 +269,44 @@ export const ConstructionProgress = {
     </main>
   ),
 };
+export const ConstructionReady = {
+  name: "Village build / Next action: complete construction",
+  render: () => (
+    <main className="game-shell">
+      <section className="command-panel">
+        <BuildPanel
+          {...buildProps}
+          state={{
+            ...buildProps.state,
+            constructions: [
+              { buildingId: "timber", completesAt: 1_799_999_999_000, slot: 0 },
+            ],
+          }}
+          remainingTime={() => 0}
+        />
+      </section>
+    </main>
+  ),
+};
+export const ConstructionBoostUnavailable = {
+  name: "Village build / Construction boost unavailable status",
+  render: () => (
+    <main className="game-shell">
+      <section className="command-panel">
+        <BuildPanel
+          {...buildProps}
+          state={{
+            ...buildProps.state,
+            constructions: [
+              { buildingId: "timber", completesAt: 1_800_000_030_000, slot: 0 },
+            ],
+          }}
+          remainingTime={() => 30 * 60}
+        />
+      </section>
+    </main>
+  ),
+};
 export const ResourceStatusHeader = {
   name: "GameShellHud / Resource and status header",
   render: () => (
@@ -300,6 +338,9 @@ export const BottomNavigation = {
   name: "CommandNavigation / Mobile bottom navigation",
   render: () => (
     <main className="game-shell">
+      <section id="game-command-panel" className="command-panel">
+        <p>Build panel</p>
+      </section>
       <CommandNavigation
         mobile
         activePanel="build"

@@ -144,7 +144,7 @@ const copy = {
     nextActionRequirements: (requirements: string) =>
       `Noch erforderlich: ${requirements}.`,
     nextActionResources: (building: string, level: number) =>
-      `Für ${building}, Stufe ${level}, fehlen Rohstoffe. Details unten öffnen.`,
+      `Für ${building}, Stufe ${level}, fehlen Rohstoffe. Der Marktweg priorisiert einen fehlenden Rohstoff.`,
     buildProgress: "BAU LÄUFT",
     complete: "Fertig",
     constructionRunning: "Bau läuft",
@@ -206,7 +206,7 @@ const copy = {
     marketAcquire: (amount: string, resource: string) =>
       `${amount} ${resource} beschaffen`,
     marketMissingResources:
-      "Fehlende Rohstoffe einzeln am Markt beschaffen. Der Ausbau startet danach nie automatisch.",
+      "Alle fehlenden Rohstoffe. Der priorisierte Marktweg oben öffnet genau einen Entwurf; der Ausbau startet danach nie automatisch.",
     marketGoldUnavailable:
       "Gold kann der Rohstoffmarkt nicht beschaffen. Verdiene oder erhalte zuerst den fehlenden Betrag.",
     marketOrigin: (source: string, amount: string, resource: string) =>
@@ -550,7 +550,7 @@ const copy = {
     nextActionRequirements: (requirements: string) =>
       `Still required: ${requirements}.`,
     nextActionResources: (building: string, level: number) =>
-      `${building} level ${level} needs more resources. Open details below.`,
+      `${building} level ${level} needs more resources. The market path prioritizes one missing resource.`,
     buildProgress: "CONSTRUCTION IN PROGRESS",
     complete: "Complete",
     constructionRunning: "Construction in progress",
@@ -614,7 +614,7 @@ const copy = {
     marketAcquire: (amount: string, resource: string) =>
       `Get ${amount} ${resource}`,
     marketMissingResources:
-      "Acquire missing resources one at a time at the market. The upgrade never starts automatically afterwards.",
+      "All missing resources. The prioritized market path above opens exactly one draft; the upgrade never starts automatically afterwards.",
     marketGoldUnavailable:
       "The resource market cannot acquire gold. Earn or receive the missing amount first.",
     marketOrigin: (source: string, amount: string, resource: string) =>
