@@ -74,7 +74,9 @@ test("upgrade impact comparison stays accessible and responsive at mobile widths
   const impactDisclosure = page.locator("details.next-task-details");
   const impactToggle = impactDisclosure.locator("summary");
   await expect(impactDisclosure).not.toHaveAttribute("open", "");
-  await expect(impactToggle).toHaveText("DETAILS ZUM BAUSCHRITT");
+  await expect(impactToggle).toHaveText(
+    "BAUKOSTEN, VORAUSSETZUNGEN & WIRKUNG ANZEIGEN",
+  );
   await impactToggle.focus();
   await expect(impactToggle).toBeFocused();
   await page.keyboard.press("Enter");

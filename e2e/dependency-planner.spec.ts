@@ -26,7 +26,9 @@ test("dependency planner is named, accessible, responsive, and offers one next s
   });
 
   await expect(plannerDisclosure).not.toHaveAttribute("open", "");
-  await expect(plannerToggle).toHaveText("DETAILS ZUM BAUSCHRITT");
+  await expect(plannerToggle).toHaveText(
+    "BAUKOSTEN, VORAUSSETZUNGEN & WIRKUNG ANZEIGEN",
+  );
   await plannerToggle.focus();
   await expect(plannerToggle).toBeFocused();
   await page.keyboard.press("Enter");
