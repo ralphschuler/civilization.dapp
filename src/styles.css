@@ -880,6 +880,9 @@ button {
   font-size: 0.65rem;
   white-space: nowrap;
 }
+.cost + .cost {
+  margin-left: 0.3rem;
+}
 .cost.wood {
   color: #b6df87;
 }
@@ -962,7 +965,7 @@ button {
 }
 .troop-card {
   display: grid;
-  grid-template-columns: 3.1rem minmax(0, 1fr) auto;
+  grid-template-columns: 3.1rem minmax(0, 1fr);
   gap: 0.65rem;
   align-items: center;
   min-height: 4.5rem;
@@ -1006,6 +1009,47 @@ button {
   color: #dfc972;
   font-size: 0.53rem;
   font-style: normal;
+}
+.training-control {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: auto minmax(4.5rem, 6rem) 1fr;
+  gap: 0.35rem 0.5rem;
+  align-items: center;
+  padding-top: 0.2rem;
+}
+.training-control label,
+.training-help,
+.training-total,
+.training-error {
+  font-size: 0.62rem;
+}
+.training-control input {
+  min-height: 2.75rem;
+  width: 100%;
+  border: 1px solid #809e62;
+  border-radius: 0.5rem;
+  padding: 0.35rem 0.5rem;
+  color: #efffdc;
+  background: #111a14;
+  font: inherit;
+}
+.training-help {
+  color: #adbb9f;
+}
+.training-total,
+.training-error {
+  grid-column: 1 / -1;
+}
+.training-total {
+  color: #dfc972;
+}
+.training-error {
+  color: #e0b193;
+}
+.training-submit {
+  grid-column: 1 / -1;
+  min-height: 2.75rem;
 }
 .troop-card button {
   border: 1px solid #809e62;
@@ -1499,7 +1543,7 @@ button {
     font-size: 1.28rem;
   }
   .troop-card {
-    grid-template-columns: 2.7rem minmax(0, 1fr) auto;
+    grid-template-columns: 2.7rem minmax(0, 1fr);
   }
   .troop-card > img {
     width: 2.6rem;

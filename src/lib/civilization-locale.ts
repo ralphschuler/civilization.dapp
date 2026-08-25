@@ -241,6 +241,15 @@ const copy = {
     barracksTitle: "KASERNE",
     trainArmy: "Armee ausbilden",
     unitsReady: (amount: string) => `${amount} Einheiten bereit`,
+    trainingQuantity: "Menge",
+    trainingMaximum: (amount: string) => `Verfügbar: ${amount}`,
+    trainingTotalCost: "Gesamtkosten",
+    trainingAmountInvalid: "Gib eine ganze Menge ab 1 ein.",
+    trainingAmountUnavailable: (amount: string) =>
+      `Diese Menge ist nicht bezahlbar. Verfügbar: ${amount}.`,
+    trainOne: (troop: string) => `+1 ${troop} ausbilden`,
+    trainAmount: (amount: string, troop: string) =>
+      `${amount} ${troop} ausbilden`,
     attackAndReady: (attack: string, ready: string) =>
       `Angriff ${attack} · ${ready} bereit`,
     raidTitle: "ÜBERFALL",
@@ -668,6 +677,14 @@ const copy = {
     barracksTitle: "BARRACKS",
     trainArmy: "Train army",
     unitsReady: (amount: string) => `${amount} units ready`,
+    trainingQuantity: "Quantity",
+    trainingMaximum: (amount: string) => `Available: ${amount}`,
+    trainingTotalCost: "Total cost",
+    trainingAmountInvalid: "Enter a whole quantity of at least 1.",
+    trainingAmountUnavailable: (amount: string) =>
+      `This quantity is not affordable. Available: ${amount}.`,
+    trainOne: (troop: string) => `+1 ${troop}`,
+    trainAmount: (amount: string, troop: string) => `Train ${amount} ${troop}`,
     attackAndReady: (attack: string, ready: string) =>
       `Attack ${attack} · ${ready} ready`,
     raidTitle: "RAID",

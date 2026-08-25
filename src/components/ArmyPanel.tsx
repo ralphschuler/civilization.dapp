@@ -1,8 +1,14 @@
 "use client";
 
+import { useState } from "react";
 import { TROOP_ASSETS } from "../game-ui/constants.js";
 import { civilizationMessages } from "../lib/civilization-locale";
 import { marketPrefills } from "../world-game/market-intent.js";
+import {
+  maxTrainableAmount,
+  trainingCost,
+  validateTrainingAmount,
+} from "../world-game/training-quantity.js";
 
 type ResourceDefinition = { color?: string; short?: string; label: string };
 type Troop = { attack: number; cost: Record<string, number>; label: string };
@@ -22,7 +28,7 @@ export type ArmyPanelProps = {
   troopRequirements: (id: string) => Requirement[];
   busy: boolean;
   copy?: ReturnType<typeof civilizationMessages>;
-  onTrain: (id: string) => void;
+  onTrain: (id: string, amount: number) => void;
   onOpenMarket: (intent: {
     resource: string;
     amount: number;
@@ -53,6 +59,87 @@ function CostLine({
   );
 }
 
+function TrainingControl({
+  id,
+  troop,
+  resources,
+  resourceDefs,
+  format,
+  busy,
+  onTrain,
+  copy,
+}: {
+  id: string;
+  troop: Troop;
+  resources: Record<string, number>;
+  resourceDefs: Record<string, ResourceDefinition>;
+  format: (value: number) => string;
+  busy: boolean;
+  onTrain: (id: string, amount: number) => void;
+  copy: ReturnType<typeof civilizationMessages>;
+}) {
+  const [draft, setDraft] = useState("1");
+  const maximum = maxTrainableAmount(resources, troop.cost);
+  const amount = /^\d+$/.test(draft) ? Number(draft) : Number.NaN;
+  const validation = validateTrainingAmount(amount, maximum);
+  const total = validation.ok
+    ? trainingCost(troop.cost, validation.amount)
+    : null;
+  const error = !validation.ok
+    ? validation.reason === "invalid"
+      ? copy.trainingAmountInvalid
+      : copy.trainingAmountUnavailable(format(maximum))
+    : null;
+  const actionLabel = validation.ok
+    ? validation.amount === 1
+      ? copy.trainOne(troop.label)
+      : copy.trainAmount(String(validation.amount), troop.label)
+    : copy.trainAmount("0", troop.label);
+
+  return (
+    <div className="training-control">
+      <label htmlFor={`training-amount-${id}`}>{copy.trainingQuantity}</label>
+      <input
+        id={`training-amount-${id}`}
+        data-training-amount={id}
+        type="number"
+        inputMode="numeric"
+        min="1"
+        step="1"
+        value={draft}
+        onChange={(event) => setDraft(event.target.value)}
+        aria-describedby={`training-help-${id}`}
+        aria-invalid={Boolean(error)}
+        disabled={busy || maximum < 1}
+      />
+      <span id={`training-help-${id}`} className="training-help">
+        {copy.trainingMaximum(format(maximum))}
+      </span>
+      {total ? (
+        <span className="training-total" data-training-total={id}>
+          {copy.trainingTotalCost}:{" "}
+          <CostLine cost={total} resourceDefs={resourceDefs} format={format} />
+        </span>
+      ) : null}
+      {error ? (
+        <span className="training-error" role="alert">
+          {error}
+        </span>
+      ) : null}
+      <button
+        type="button"
+        className="primary-action training-submit"
+        data-train={id}
+        disabled={!validation.ok || busy}
+        onClick={() => validation.ok && onTrain(id, validation.amount)}
+        aria-label={actionLabel}
+      >
+        {actionLabel}
+      </button>
+    </div>
+  );
+}
+
 export function ArmyPanel(props: ArmyPanelProps) {
   const copy = props.copy || civilizationMessages();
   const readyTroops = Object.values(props.state.troops).reduce(
@@ -71,10 +158,8 @@ export function ArmyPanel(props: ArmyPanelProps) {
         {Object.entries(props.troops).map(([id, troop]) => {
           const asset = TROOP_ASSETS[id as keyof typeof TROOP_ASSETS];
           const requirements = props.troopRequirements(id);
-          const affordable = Object.keys(props.resourceDefs).every(
-            (resource) =>
-              props.state.resources[resource] >= (troop.cost[resource] ?? 0),
-          );
+          const maximum = maxTrainableAmount(props.state.resources, troop.cost);
+          const affordable = maximum >= 1;
           const locked = requirements.length > 0;
           const deficits = Object.fromEntries(
             Object.entries(props.resourceDefs)
@@ -163,15 +248,18 @@ export function ArmyPanel(props: ArmyPanelProps) {
                   </span>
                 ) : null}
               </div>
-              <button
-                type="button"
-                data-train={id}
-                disabled={locked || !affordable || props.busy}
-                onClick={() => props.onTrain(id)}
-                aria-label={`1 ${troop.label}`}
-              >
-                +1
-              </button>
+              {!locked ? (
+                <TrainingControl
+                  id={id}
+                  troop={troop}
+                  resources={props.state.resources}
+                  resourceDefs={props.resourceDefs}
+                  format={props.format}
+                  busy={props.busy}
+                  onTrain={props.onTrain}
+                  copy={copy}
+                />
+              ) : null}
             </article>
           );
         })}
