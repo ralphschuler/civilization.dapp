@@ -10,7 +10,10 @@ import {
 } from "./game.js";
 import { clearDemoState, saveDemoState } from "./demo/storage.js";
 import { costLine } from "./game-ui/helpers.js";
-import { marketPrefill } from "./world-game/market-intent.js";
+import {
+  createMarketOrderIntent,
+  marketPrefill,
+} from "./world-game/market-intent.js";
 
 export function createGameActions(runtime, services) {
   const {
@@ -255,28 +258,28 @@ export function createGameActions(runtime, services) {
       if (
         !quote ||
         quote.resource !== runtime.marketDraft.resource ||
-        quote.amount !== runtime.marketDraft.amount ||
-        (side !== "buy" && side !== "sell")
+        quote.amount !== runtime.marketDraft.amount
       ) {
         runtime.feedback = copy().feedback.marketQuoteRequired;
         render();
         return;
       }
+      const intent = createMarketOrderIntent(side, quote);
+      if (!intent) {
+        runtime.feedback = copy().feedback.marketQuoteRequired;
+        render();
+        return;
+      }
       return review(
-        side === "buy" ? "market_buy" : "market_sell",
-        {
-          resource: quote.resource,
-          amount: quote.amount,
-          limit: side === "buy" ? quote.buyGoldIn : quote.sellGoldOut,
-          deadline: quote.deadline,
-        },
-        side === "buy"
+        intent.type,
+        intent.payload,
+        intent.side === "buy"
           ? copy().feedback.marketBuyComplete
           : copy().feedback.marketSellComplete,
         [
-          `${side === "buy" ? "Buy" : "Sell"} ${quote.amount} ${copy().resourceNames[quote.resource]}`,
-          `Limit: ${String(side === "buy" ? quote.buyGoldIn : quote.sellGoldOut)} CGOLD`,
-          `Quote expires: ${new Date(quote.deadline * 1000).toLocaleTimeString()}`,
+          `${intent.side === "buy" ? "Buy" : "Sell"} ${intent.payload.amount} ${copy().resourceNames[intent.payload.resource]}`,
+          `Limit: ${String(intent.payload.limit)} CGOLD`,
+          `Quote expires: ${new Date(intent.payload.deadline * 1000).toLocaleTimeString()}`,
         ],
       );
     },

@@ -64,6 +64,7 @@ export function MarketPanel(props: MarketPanelProps) {
   const quoteMatchesDraft =
     quote?.resource === props.marketDraft.resource &&
     quote.amount === props.marketDraft.amount;
+  const canOrder = Boolean(quoteMatchesDraft) && !props.busy;
   const changeAmount = (value: string) =>
     props.onDraftChange({ amount: Number(value) });
 
@@ -162,7 +163,7 @@ export function MarketPanel(props: MarketPanelProps) {
               <button
                 type="button"
                 id="market-buy"
-                disabled={props.busy}
+                disabled={!canOrder}
                 onClick={() => props.onOrder("buy")}
               >
                 {copy.buyQuote}
@@ -170,7 +171,7 @@ export function MarketPanel(props: MarketPanelProps) {
               <button
                 type="button"
                 id="market-sell"
-                disabled={props.busy}
+                disabled={!canOrder}
                 onClick={() => props.onOrder("sell")}
               >
                 {copy.sellQuote}
