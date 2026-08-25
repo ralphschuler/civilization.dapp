@@ -84,14 +84,14 @@ test(
       assert.deepEqual(
         tables.rows.map(({ tablename }) => tablename),
         [
+          "chain_indexer_canonical_blocks",
+          "chain_indexer_checkpoints",
+          "chain_indexer_raw_events",
           "schema_migrations",
           "wallet_auth_challenges",
           "wallet_auth_metrics",
           "wallet_auth_rate_limits",
           "wallet_auth_sessions",
-          "chain_indexer_canonical_blocks",
-          "chain_indexer_checkpoints",
-          "chain_indexer_raw_events",
         ],
       );
       const indexes = await pool.query(
@@ -117,15 +117,15 @@ test(
   async () => {
     const migrations = await shippedMigrations();
     const broken = {
-      version: "008",
-      name: "008_broken.sql",
+      version: "009",
+      name: "009_broken.sql",
       checksum: "broken",
       sql: "CREATE TABLE rollback_probe (id integer); SELECT missing_migration_function();",
     };
     await inOwnedSchema(async (pool) => {
       await assert.rejects(
         runMigrations(pool, [...migrations, broken]),
-        /migration_failed:008/,
+        /migration_failed:009/,
       );
       assert.equal(
         (await pool.query("SELECT to_regclass('rollback_probe') AS table_name"))
@@ -135,7 +135,7 @@ test(
       assert.equal(
         (
           await pool.query(
-            "SELECT 1 FROM schema_migrations WHERE version = '008'",
+            "SELECT 1 FROM schema_migrations WHERE version = '009'",
           )
         ).rowCount,
         0,
