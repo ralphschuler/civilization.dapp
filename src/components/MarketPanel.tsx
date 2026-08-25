@@ -89,9 +89,13 @@ export function MarketPanel(props: MarketPanelProps) {
           </div>
         </div>
         <div className="gold-boundary">
-          <span>{copy.liquiditySpread}</span>
-          <b>{copy.marketExplanation}</b>
-          <small>{copy.marketDetail}</small>
+          <details className="market-liquidity-disclosure">
+            <summary>
+              <span>{copy.liquiditySpread}</span>
+              <b>{copy.marketExplanation}</b>
+            </summary>
+            <small>{copy.marketDetail}</small>
+          </details>
           {props.marketOrigin ? (
             <small className="market-origin" role="status">
               {copy.marketOrigin(

@@ -819,6 +819,52 @@ test("isolated mobile navigation story provides its aria-controls target", async
   assert.match(fixture, /<CommandNavigation[\s\S]*?mobile/);
 });
 
+test("world market keeps its quote behavior while liquidity detail is a native closed disclosure", async () => {
+  const [marketPanel, stories, css] = await Promise.all([
+    readFile(
+      new URL("../src/components/MarketPanel.tsx", import.meta.url),
+      "utf8",
+    ),
+    readFile(
+      new URL(
+        "../src/components/CivilizationUiAudit.stories.tsx",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+    readFile(new URL("../src/styles.css", import.meta.url), "utf8"),
+  ]);
+  const worldStart = marketPanel.indexOf('if (props.runtimeMode === "world")');
+  const demoStart = marketPanel.lastIndexOf("\n  return (");
+  const worldMarket = marketPanel.slice(worldStart, demoStart);
+
+  assert.match(
+    worldMarket,
+    /<details className="market-liquidity-disclosure">/,
+  );
+  assert.match(
+    worldMarket,
+    /<summary>[\s\S]*?copy\.liquiditySpread[\s\S]*?copy\.marketExplanation[\s\S]*?<\/summary>/,
+  );
+  assert.match(
+    worldMarket,
+    /<summary>[\s\S]*?<\/summary>[\s\S]*?<small>\{copy\.marketDetail\}<\/small>/,
+  );
+  assert.match(worldMarket, /className="market-origin" role="status"/);
+  assert.match(worldMarket, /id="market-amount"/);
+  assert.match(worldMarket, /id="market-quote"/);
+  assert.match(worldMarket, /onClick=\{props\.onQuote\}/);
+  assert.match(worldMarket, /onClick=\{\(\) => props\.onOrder\("buy"\)\}/);
+  assert.match(worldMarket, /onClick=\{\(\) => props\.onOrder\("sell"\)\}/);
+  assert.match(worldMarket, /props\.onDraftChange\(\{ resource \}\)/);
+  assert.match(
+    css,
+    /\.market-liquidity-disclosure summary\s*\{[\s\S]*?min-height:\s*2\.75rem/,
+  );
+  assert.match(css, /\.market-liquidity-disclosure summary:focus-visible/);
+  assert.match(stories, /export const WorldMarketMobile/);
+});
+
 test("parallel construction keeps job controls and the start composer visible", () => {
   const context = ({
     workshop,

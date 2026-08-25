@@ -68,6 +68,16 @@ const shots = [
     "ui-audit-civilization--bottom-navigation",
     { width: 390, height: 844 },
   ],
+  [
+    "mobile-world-market-320.png",
+    "ui-audit-civilization--world-market-mobile",
+    { width: 320, height: 844 },
+  ],
+  [
+    "mobile-world-market-390.png",
+    "ui-audit-civilization--world-market-mobile",
+    { width: 390, height: 844 },
+  ],
 ];
 for (const [name, id, viewport] of shots) {
   const page = await browser.newPage({ viewport });
@@ -105,6 +115,81 @@ for (const [name, id, viewport] of shots) {
       throw new Error("Map collect control is smaller than 44px");
     if (overlaps(layout.gather, layout.mobileNav))
       throw new Error("Map collect control is obstructed by bottom navigation");
+  }
+  if (id === "ui-audit-civilization--world-market-mobile") {
+    const layout = await page.evaluate(() => {
+      const rect = (selector) => {
+        const element = document.querySelector(selector);
+        if (!element) throw new Error(`Missing ${selector}`);
+        const { top, right, bottom, left, width, height } =
+          element.getBoundingClientRect();
+        return { top, right, bottom, left, width, height };
+      };
+      const details = document.querySelector(".market-liquidity-disclosure");
+      const summary = document.querySelector(
+        ".market-liquidity-disclosure summary",
+      );
+      if (!(details instanceof HTMLDetailsElement) || !summary)
+        throw new Error("Missing native market liquidity disclosure");
+      return {
+        closed: !details.open,
+        detailHidden:
+          !details.open && !details.querySelector("small")?.checkVisibility(),
+        summary: rect(".market-liquidity-disclosure summary"),
+        resourceCards: rect(".market-resource-cards"),
+        amount: rect("#market-amount"),
+        quote: rect("#market-quote"),
+        mobileNav: rect(".mobile-hud"),
+        scrollWidth: document.documentElement.scrollWidth,
+        viewportWidth: window.innerWidth,
+      };
+    });
+    const isVisible = (rect) => rect.top >= 0 && rect.bottom <= viewport.height;
+    const overlaps = (first, second) =>
+      first.left < second.right &&
+      first.right > second.left &&
+      first.top < second.bottom &&
+      first.bottom > second.top;
+    if (!layout.closed || !layout.detailHidden)
+      throw new Error("Market liquidity detail must be closed by default");
+    if (layout.summary.height < 44)
+      throw new Error("Market liquidity summary is smaller than 44px");
+    if (
+      ![
+        layout.summary,
+        layout.resourceCards,
+        layout.amount,
+        layout.quote,
+      ].every(isVisible)
+    )
+      throw new Error(
+        "Market summary or quote controls are not visible without opening",
+      );
+    if (layout.scrollWidth > layout.viewportWidth)
+      throw new Error("World market has horizontal overflow");
+    if (
+      [layout.summary, layout.resourceCards, layout.amount, layout.quote].some(
+        (rect) => overlaps(rect, layout.mobileNav),
+      )
+    )
+      throw new Error("World market controls collide with bottom navigation");
+    const summary = page.locator(".market-liquidity-disclosure summary");
+    await summary.focus();
+    await page.keyboard.press("Enter");
+    const opened = await page.evaluate(() => {
+      const details = document.querySelector(".market-liquidity-disclosure");
+      const detail = details?.querySelector("small");
+      return (
+        details instanceof HTMLDetailsElement &&
+        details.open &&
+        detail?.checkVisibility()
+      );
+    });
+    if (!opened)
+      throw new Error(
+        "Opening market disclosure did not expose fee/reserve detail",
+      );
+    await page.keyboard.press("Enter");
   }
   await page.screenshot({ path: join(output, name), fullPage: true });
   await page.close();
