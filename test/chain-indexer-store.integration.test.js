@@ -223,7 +223,7 @@ test(
 
       await storeFinalizedEvents(
         pool,
-        batch([block(20)], [event(20)], {
+        batch([block(20)], [event(20, { address: otherAddress })], {
           chainId: 2,
           contractAddress: otherAddress,
         }),
