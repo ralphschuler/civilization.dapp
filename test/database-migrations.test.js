@@ -50,6 +50,7 @@ test("the shipped migration files have a deterministic ascending order", async (
       ["005", "005_wallet_auth_sessions.sql"],
       ["006", "006_wallet_auth_abuse_controls.sql"],
       ["007", "007_wallet_auth_challenge_source_capacity.sql"],
+      ["008", "008_chain_indexer_foundation.sql"],
     ],
   );
   assert.ok(loaded.every(({ checksum }) => /^[a-f0-9]{64}$/.test(checksum)));
@@ -68,6 +69,32 @@ test("migration 003 remains immutable and migration 004 retires its ticket table
     await loadMigrations("migrations")
   ).find(({ version }) => version === "004");
   assert.match(removal.sql, /DROP TABLE IF EXISTS wallet_login_tickets/);
+});
+
+test("migration 008 creates explicit durable indexer keys and reorg lookup indexes", async () => {
+  const migration = await (
+    await loadMigrations("migrations")
+  ).find(({ version }) => version === "008");
+  assert.match(migration.sql, /CREATE TABLE chain_indexer_checkpoints/);
+  assert.match(migration.sql, /PRIMARY KEY \(chain_id, contract_address\)/);
+  assert.match(migration.sql, /CREATE TABLE chain_indexer_canonical_blocks/);
+  assert.match(
+    migration.sql,
+    /PRIMARY KEY \(chain_id, contract_address, block_number\),\s*UNIQUE \(chain_id, contract_address, block_hash\)/,
+  );
+  assert.match(migration.sql, /CREATE TABLE chain_indexer_raw_events/);
+  assert.match(
+    migration.sql,
+    /PRIMARY KEY \(chain_id, contract_address, transaction_hash, log_index\)/,
+  );
+  assert.match(
+    migration.sql,
+    /chain_indexer_raw_events_chain_block_order_idx[\s\S]*chain_id, contract_address, block_number/,
+  );
+  assert.match(
+    migration.sql,
+    /chain_indexer_raw_events_chain_block_hash_idx[\s\S]*chain_id, contract_address, block_hash/,
+  );
 });
 
 test("migrations run in order, are recorded, and skip already applied versions", async () => {

@@ -76,7 +76,7 @@ test(
       );
       assert.deepEqual(
         versions.rows.map(({ version }) => version),
-        ["001", "002", "003", "004", "005", "006", "007"],
+        ["001", "002", "003", "004", "005", "006", "007", "008"],
       );
       const tables = await pool.query(
         "SELECT tablename FROM pg_tables WHERE schemaname = current_schema() ORDER BY tablename",
@@ -89,6 +89,9 @@ test(
           "wallet_auth_metrics",
           "wallet_auth_rate_limits",
           "wallet_auth_sessions",
+          "chain_indexer_canonical_blocks",
+          "chain_indexer_checkpoints",
+          "chain_indexer_raw_events",
         ],
       );
       const indexes = await pool.query(
@@ -102,7 +105,7 @@ test(
       await runMigrations(pool, migrations);
       assert.equal(
         (await pool.query("SELECT version FROM schema_migrations")).rowCount,
-        7,
+        8,
       );
     });
   },
