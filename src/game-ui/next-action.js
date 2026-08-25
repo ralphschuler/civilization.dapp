@@ -32,3 +32,36 @@ export function deriveNextAction({
   if (affordable) return { kind: "upgrade" };
   return { kind: "resources" };
 }
+
+/**
+ * A read-only, focus-only interpretation of the next action. Keeping this
+ * separate from action handlers makes the entry guide safe to render from an
+ * on-chain projection: it names one existing control, but never invokes it.
+ */
+export function deriveEntryGuide({
+  state,
+  selectedBuilding,
+  buildings,
+  ...input
+}) {
+  if (
+    !state ||
+    !selectedBuilding ||
+    !Number.isFinite(state.buildings?.[selectedBuilding]) ||
+    !buildings?.[selectedBuilding]
+  ) {
+    return { kind: "unavailable", target: "none" };
+  }
+  const action = deriveNextAction(input);
+  if (action.kind === "collect") return { ...action, target: "collection" };
+  if (action.kind === "complete") return { ...action, target: "completion" };
+  if (action.kind === "requirements") {
+    return {
+      ...action,
+      target: "building",
+      buildingId: input.requirements?.[0]?.id || selectedBuilding,
+    };
+  }
+  if (action.kind === "capacity") return { ...action, target: "build-panel" };
+  return { ...action, target: "building", buildingId: selectedBuilding };
+}

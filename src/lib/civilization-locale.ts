@@ -136,6 +136,25 @@ const copy = {
     },
     buildDetail: "GEBÄUDEDETAIL",
     nextActionTitle: "NÄCHSTE AKTION",
+    entryGuideTitle: "DEIN NÄCHSTER SCHRITT",
+    entryGuideCollect:
+      "Feldressourcen sind bereit. Zeige die Sammelauswahl auf der Dorfkarte.",
+    entryGuideComplete:
+      "Ein Bau ist bereit. Zeige die vorhandene Abschlussauswahl.",
+    entryGuideUpgrade:
+      "Ein Ausbau ist verfügbar. Zeige das ausgewählte Gebäude auf der Dorfkarte.",
+    entryGuideRequirements:
+      "Zeige das Gebäude, das als Nächstes die Voraussetzung erfüllt.",
+    entryGuideCapacity:
+      "Alle Bauplätze sind belegt. Zeige den Bauplan mit dem aktuellen Status.",
+    entryGuideResources:
+      "Prüfe den Rohstoffbedarf des ausgewählten Gebäudes. Es wird kein Markt geöffnet.",
+    entryGuideMaxLevel:
+      "Das ausgewählte Gebäude ist vollständig ausgebaut. Zeige seine Auswahl auf der Dorfkarte.",
+    entryGuideUnavailable:
+      "Der Spielstand wird noch eindeutig geladen. Warte auf die Dorfansicht.",
+    entryGuideShow: "Zeigen",
+    entryGuideDismiss: "Einstiegshinweis nur für diese Sitzung schließen",
     nextActionCollect: "Sammle die Feldressourcen auf der Dorfkarte.",
     nextActionComplete: (building: string) =>
       `${building} kann jetzt abgeschlossen werden.`,
@@ -542,6 +561,25 @@ const copy = {
     },
     buildDetail: "BUILDING DETAILS",
     nextActionTitle: "NEXT ACTION",
+    entryGuideTitle: "YOUR NEXT STEP",
+    entryGuideCollect:
+      "Field resources are ready. Show the collection control on the village map.",
+    entryGuideComplete:
+      "A construction is ready. Show the existing completion control.",
+    entryGuideUpgrade:
+      "An upgrade is available. Show the selected building on the village map.",
+    entryGuideRequirements:
+      "Show the building that meets the next requirement.",
+    entryGuideCapacity:
+      "All construction slots are occupied. Show the build plan and its current status.",
+    entryGuideResources:
+      "Review the selected building’s resource need. No market will open.",
+    entryGuideMaxLevel:
+      "The selected building is fully upgraded. Show its selection on the village map.",
+    entryGuideUnavailable:
+      "The village state is not clear yet. Wait for the village view.",
+    entryGuideShow: "Show",
+    entryGuideDismiss: "Dismiss entry guide for this session only",
     nextActionCollect: "Collect field resources on the village map.",
     nextActionComplete: (building: string) =>
       `${building} can be completed now.`,

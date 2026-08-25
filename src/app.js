@@ -8,6 +8,7 @@ import { ArmyPanel } from "./components/ArmyPanel";
 import { MarketPanel } from "./components/MarketPanel";
 import { RaidPanel } from "./components/RaidPanel";
 import { CommandNavigation } from "./components/CommandNavigation";
+import { EntryGuide } from "./components/EntryGuide";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { WalletReviewDialog } from "./components/WalletReviewDialog";
 import { canRenderGameWorld } from "./world-gate.js";
@@ -25,6 +26,7 @@ import {
 } from "./game.js";
 import { loadDemoState, saveDemoState } from "./demo/storage.js";
 import { MAX_BUILDING_LEVEL } from "./game-ui/constants.js";
+import { deriveEntryGuide } from "./game-ui/next-action.js";
 import { loadCriticalAssets } from "./game-ui/assets.js";
 import { clock, remainingTime } from "./game-ui/helpers.js";
 import { buildPanel } from "./game-ui/views/build.js";
@@ -123,6 +125,8 @@ function createRuntime(options) {
     marketPanelRoot: null,
     raidPanelRoot: null,
     settingsDialogRoot: null,
+    entryGuideRoot: null,
+    entryGuideDismissed: false,
   };
 }
 
@@ -270,6 +274,101 @@ function createController(runtime) {
         tokens: TOKEN_REGISTRY,
         worldApp: runtime.worldApp,
         worldBadge: runtime.worldBadge,
+      }),
+    );
+  };
+  const entryGuideRecommendation = () => {
+    const selectedBuilding = runtime.selectedBuilding;
+    const level = runtime.state.buildings[selectedBuilding];
+    const requirements =
+      runtime.mode === "world"
+        ? runtime.adapter.getRequirements(runtime.state, selectedBuilding)
+        : getRequirements(runtime.state, selectedBuilding);
+    const cost =
+      runtime.mode === "world"
+        ? runtime.adapter.getBuildingCost(runtime.state, selectedBuilding)
+        : getBuildingCost(runtime.state, selectedBuilding);
+    const jobs =
+      runtime.state.constructions ||
+      (runtime.state.construction ? [runtime.state.construction] : []);
+    return deriveEntryGuide({
+      state: runtime.state,
+      selectedBuilding,
+      buildings: BUILDINGS,
+      collection: {
+        ...collection(),
+        unclaimed:
+          runtime.mode === "world"
+            ? runtime.adapter.projectState(runtime.state, performance.now())
+                .unclaimed
+            : runtime.state.unclaimed,
+      },
+      jobs,
+      remainingTime: remaining,
+      level,
+      maxLevel: MAX_BUILDING_LEVEL,
+      requirements,
+      affordable: Object.keys(RESOURCE_DEFS).every(
+        (id) => runtime.state.resources[id] >= (cost[id] || 0),
+      ),
+      atCapacity:
+        Number.isInteger(runtime.state.constructionOccupied) &&
+        Number.isInteger(runtime.state.constructionCapacity) &&
+        runtime.state.constructionOccupied >=
+          runtime.state.constructionCapacity,
+    });
+  };
+  const renderEntryGuide = () => {
+    const mount = runtime.root?.querySelector("[data-entry-guide-mount]");
+    if (!mount) return;
+    runtime.entryGuideRoot ??= createRoot(mount);
+    if (runtime.entryGuideDismissed) {
+      runtime.entryGuideRoot.render(null);
+      return;
+    }
+    runtime.entryGuideRoot.render(
+      createElement(EntryGuide, {
+        copy: civilizationMessages(runtime.locale),
+        recommendation: entryGuideRecommendation(),
+        onDismiss: () => {
+          runtime.entryGuideDismissed = true;
+          renderEntryGuide();
+        },
+        onRoute: (recommendation) => {
+          if (
+            recommendation.target === "building" &&
+            recommendation.buildingId
+          ) {
+            actions.selectBuilding(recommendation.buildingId);
+            requestAnimationFrame(() =>
+              runtime.root
+                ?.querySelector(
+                  `[data-map-building="${recommendation.buildingId}"]`,
+                )
+                ?.focus(),
+            );
+          } else if (recommendation.target === "collection") {
+            requestAnimationFrame(() =>
+              runtime.root?.querySelector("#gather")?.focus(),
+            );
+          } else if (recommendation.target === "completion") {
+            actions.selectPanel("build");
+            requestAnimationFrame(() =>
+              runtime.root
+                ?.querySelector('[data-next-action-button="complete"]')
+                ?.focus(),
+            );
+          } else if (recommendation.target === "build-panel") {
+            actions.selectPanel("build");
+            requestAnimationFrame(() =>
+              runtime.root
+                ?.querySelector(
+                  '[data-game-command-navigation="desktop"] [data-command-panel="build"]',
+                )
+                ?.focus(),
+            );
+          }
+        },
       }),
     );
   };
@@ -632,6 +731,8 @@ function createController(runtime) {
     runtime.raidPanelRoot = null;
     runtime.settingsDialogRoot?.unmount();
     runtime.settingsDialogRoot = null;
+    runtime.entryGuideRoot?.unmount();
+    runtime.entryGuideRoot = null;
     runtime.walletReviewDialogRoot?.unmount();
     runtime.walletReviewDialogRoot = null;
     runtime.root.innerHTML = gameShell({
@@ -660,6 +761,7 @@ function createController(runtime) {
       reducedMotion: runtime.reducedMotion,
     });
     renderHud();
+    renderEntryGuide();
     bindGameActions(runtime.root, actions);
     // All dynamic map content, including collection and map actions, belongs
     // to this single React root. Bindings intentionally run before it mounts.
@@ -762,6 +864,7 @@ function createController(runtime) {
     renderArmyPanel();
     renderMarketPanel();
     renderRaidPanel();
+    renderEntryGuide();
   };
   return { render, refreshWorld: world.refresh, refreshTickValues, actions };
 }
@@ -853,6 +956,7 @@ export function stopCivilizationApp() {
   runtime.mobileNavigationRoot = null;
   runtime.villageMapRoot = null;
   runtime.settingsDialogRoot = null;
+  runtime.entryGuideRoot = null;
   runtime.walletReviewDialogRoot = null;
   runtime.state = null;
 }

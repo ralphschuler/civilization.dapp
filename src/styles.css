@@ -306,6 +306,61 @@ button {
   gap: 1rem;
   align-items: start;
 }
+.entry-guide {
+  max-width: 112rem;
+  margin: 0.75rem auto 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid #d5bf5c9c;
+  border-radius: 0.85rem;
+  background: linear-gradient(135deg, #3b351b, #172216);
+}
+.entry-guide p {
+  margin: 0 0 0.16rem;
+  color: #f0d772;
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+}
+.entry-guide span {
+  color: #f4f0d8;
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+.entry-guide-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex: 0 0 auto;
+}
+.entry-guide-primary {
+  min-height: 2.5rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #d4bd5e;
+  border-radius: 0.6rem;
+  color: #271d0b;
+  background: #e1c865;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+.entry-guide-dismiss {
+  display: grid;
+  width: 2.5rem;
+  min-height: 2.5rem;
+  place-items: center;
+  border: 1px solid #9b9b6d75;
+  border-radius: 0.6rem;
+  color: #f4f0d8;
+  background: transparent;
+  font: inherit;
+  font-size: 1.25rem;
+  cursor: pointer;
+}
 .village-map,
 .command-panel,
 .command-tabs {
@@ -1273,6 +1328,21 @@ button {
   }
 }
 @media (max-width: 640px) {
+  .entry-guide {
+    margin-top: 0.55rem;
+    align-items: flex-start;
+    padding: 0.6rem;
+  }
+  .entry-guide span {
+    font-size: 0.72rem;
+  }
+  .entry-guide-actions {
+    flex-direction: column-reverse;
+  }
+  .entry-guide-primary,
+  .entry-guide-dismiss {
+    min-height: 2.75rem;
+  }
   .game-shell {
     padding: 0.6rem 0.6rem var(--mobile-nav-safe-space);
   }
