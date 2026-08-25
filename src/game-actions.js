@@ -14,6 +14,11 @@ import {
   createMarketOrderIntent,
   marketPrefill,
 } from "./world-game/market-intent.js";
+import {
+  maxTrainableAmount,
+  trainingCost,
+  validateTrainingAmount,
+} from "./world-game/training-quantity.js";
 
 export function createGameActions(runtime, services) {
   const {
@@ -186,18 +191,39 @@ export function createGameActions(runtime, services) {
       review("prestige", {}, copy().feedback.worldPrestige, [
         "Reset village for the next prestige",
       ]),
-    train(id) {
+    train(id, amount = 1) {
       if (!requireAccess()) return;
+      const troop = TROOPS[id];
+      const maximum = troop
+        ? maxTrainableAmount(runtime.state.resources, troop.cost)
+        : 0;
+      const validation = validateTrainingAmount(amount, maximum);
+      if (!troop || !validation.ok) {
+        runtime.feedback = copy().feedback.trainingUnavailable;
+        render();
+        return;
+      }
+      const required = trainingCost(troop.cost, validation.amount);
+      const costs = Object.entries(required)
+        .filter(([, value]) => value > 0)
+        .map(
+          ([resource, value]) =>
+            `${numberFormat(value)} ${resourceDefs()[resource].short}`,
+        )
+        .join(" · ");
       if (runtime.mode === "world") {
         return review(
           "train",
-          { troop: id, amount: 1 },
+          { troop: id, amount: validation.amount },
           copy().feedback.worldTrainingComplete(copy().troopNames[id]),
-          [`Train 1 ${copy().troopNames[id]}`],
+          [
+            `Train ${validation.amount} ${copy().troopNames[id]}`,
+            `${copy().trainingTotalCost}: ${costs}`,
+          ],
         );
       }
       return demo(
-        () => trainTroop(runtime.state, id),
+        () => trainTroop(runtime.state, id, validation.amount),
         () => copy().feedback.demoTrainingComplete(copy().troopNames[id]),
         copy().feedback.trainingUnavailable,
       );

@@ -95,3 +95,37 @@ test("World runtime opens review before dispatch and executes the frozen snapsho
   });
   assert.equal(runtime.review.state().status, "confirmed");
 });
+
+test("a rejected training receipt never replaces state with phantom troops", async () => {
+  const runtime = {
+    ready: true,
+    busy: false,
+    token: Symbol("runtime"),
+    state: { troops: { spear: 2 } },
+    worldStateEpoch: 0,
+    adapter: {
+      execute: async () => {
+        throw new Error("transaction_failed");
+      },
+    },
+  };
+  const world = createWorldRuntime({
+    runtime,
+    isCurrent: () => true,
+    render: () => {},
+    errorText: (error) => error.message,
+    hasAccess: () => true,
+    copy: () => ({
+      feedback: {
+        reviewRequired: "review",
+        reviewCancelled: "cancelled",
+        worldTransactionConfirmation: "confirming",
+        worldTransactionPending: "pending",
+      },
+    }),
+  });
+  world.requestAction("train", { troop: "spear", amount: 3 }, "done", []);
+  await world.confirmReview("done");
+  assert.deepEqual(runtime.state, { troops: { spear: 2 } });
+  assert.equal(runtime.review.state().status, "reverted");
+});

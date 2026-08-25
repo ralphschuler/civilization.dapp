@@ -1,11 +1,13 @@
 import { useRef, useState } from "react";
 import { BuildPanel, type BuildPanelProps } from "./BuildPanel";
+import { ArmyPanel, type ArmyPanelProps } from "./ArmyPanel";
 import { CommandNavigation, type CommandPanel } from "./CommandNavigation";
 import { GameShellHud } from "./GameShellHud";
 import { EntryGuide } from "./EntryGuide";
 import { MarketPanel, type MarketPanelProps } from "./MarketPanel";
 import { VillageMap } from "./VillageMap";
 import { WalletAccess } from "./WalletAccess";
+import { WalletReviewDialog } from "./WalletReviewDialog";
 import { WalletVillageRegistrationGate } from "./CivilizationClient/WalletVillageRegistrationGate";
 import { civilizationMessages } from "@/lib/civilization-locale";
 
@@ -92,6 +94,45 @@ const buildProps: BuildPanelProps = {
   onPrestige: () => undefined,
   onOpenMarket: () => undefined,
 };
+
+const armyProps: ArmyPanelProps = {
+  state: {
+    resources: { wood: 120, clay: 80, stone: 40, gold: 20 },
+    troops: { spear: 3, archer: 0, rider: 0 },
+  },
+  troops: {
+    spear: { label: "Spearman", attack: 12, cost: { wood: 20, clay: 10 } },
+    archer: { label: "Archer", attack: 18, cost: { wood: 25, clay: 15 } },
+    rider: {
+      label: "Rider",
+      attack: 30,
+      cost: { wood: 40, clay: 20, gold: 10 },
+    },
+  },
+  resourceDefs,
+  buildings,
+  assetResult: { failed: [] },
+  format,
+  troopRequirements: () => [],
+  busy: false,
+  copy,
+  onTrain: () => undefined,
+  onOpenMarket: () => undefined,
+};
+
+function ArmyTrainingFixture({
+  resources = armyProps.state.resources,
+}: {
+  resources?: Record<string, number>;
+}) {
+  return (
+    <main className="game-shell">
+      <section className="command-panel">
+        <ArmyPanel {...armyProps} state={{ ...armyProps.state, resources }} />
+      </section>
+    </main>
+  );
+}
 
 function EntryGuideFixture({
   recommendation,
@@ -521,6 +562,46 @@ export const BottomNavigation = {
         activePanel="build"
         copy={copy}
         onSelectPanel={() => undefined}
+      />
+    </main>
+  ),
+};
+
+export const ArmyTrainingMobilePlusOne = {
+  name: "Army training / Mobile +1 default",
+  parameters: { viewport: { defaultViewport: "mobile1" } },
+  render: () => <ArmyTrainingFixture />,
+};
+
+export const ArmyTrainingQuantityChoice = {
+  name: "Army training / Quantity choice and total cost",
+  parameters: { viewport: { defaultViewport: "mobile1" } },
+  render: () => <ArmyTrainingFixture />,
+};
+
+export const ArmyTrainingResourceLimit = {
+  name: "Army training / Resource limit",
+  parameters: { viewport: { defaultViewport: "mobile1" } },
+  render: () => (
+    <ArmyTrainingFixture
+      resources={{ wood: 39, clay: 19, stone: 0, gold: 0 }}
+    />
+  ),
+};
+
+export const ArmyTrainingReviewSummary = {
+  name: "Army training / Wallet review summary",
+  parameters: { viewport: { defaultViewport: "mobile1" } },
+  render: () => (
+    <main className="game-shell">
+      <WalletReviewDialog
+        copy={copy}
+        review={{
+          status: "reviewing",
+          intent: { details: ["Train 3 Spearman", "Total cost: 60 W · 30 C"] },
+        }}
+        onCancel={() => undefined}
+        onConfirm={() => undefined}
       />
     </main>
   ),

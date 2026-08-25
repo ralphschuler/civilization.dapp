@@ -98,6 +98,46 @@ const shots = [
     "ui-audit-civilization--world-market-mobile",
     { width: 390, height: 844 },
   ],
+  [
+    "mobile-army-training-plus-one-320.png",
+    "ui-audit-civilization--army-training-mobile-plus-one",
+    { width: 320, height: 844 },
+  ],
+  [
+    "mobile-army-training-plus-one-390.png",
+    "ui-audit-civilization--army-training-mobile-plus-one",
+    { width: 390, height: 844 },
+  ],
+  [
+    "mobile-army-training-quantity-320.png",
+    "ui-audit-civilization--army-training-quantity-choice",
+    { width: 320, height: 844 },
+  ],
+  [
+    "mobile-army-training-quantity-390.png",
+    "ui-audit-civilization--army-training-quantity-choice",
+    { width: 390, height: 844 },
+  ],
+  [
+    "mobile-army-training-resource-limit-320.png",
+    "ui-audit-civilization--army-training-resource-limit",
+    { width: 320, height: 844 },
+  ],
+  [
+    "mobile-army-training-resource-limit-390.png",
+    "ui-audit-civilization--army-training-resource-limit",
+    { width: 390, height: 844 },
+  ],
+  [
+    "mobile-army-training-review-320.png",
+    "ui-audit-civilization--army-training-review-summary",
+    { width: 320, height: 844 },
+  ],
+  [
+    "mobile-army-training-review-390.png",
+    "ui-audit-civilization--army-training-review-summary",
+    { width: 390, height: 844 },
+  ],
 ];
 for (const [name, id, viewport] of shots) {
   const page = await browser.newPage({ viewport });
@@ -105,6 +145,49 @@ for (const [name, id, viewport] of shots) {
   await page.goto(`http://127.0.0.1:6006/iframe.html?id=${id}&viewMode=story`, {
     waitUntil: "networkidle",
   });
+  await page.evaluate(() => window.scrollTo(0, 0));
+  if (id === "ui-audit-civilization--army-training-quantity-choice") {
+    await page.locator('[data-training-amount="spear"]').fill("3");
+    const total = await page
+      .locator('[data-training-total="spear"]')
+      .textContent();
+    if (!total?.includes("60 W") || !total.includes("30 C"))
+      throw new Error(
+        "Selected training quantity did not show multiplied costs",
+      );
+  }
+  if (id.startsWith("ui-audit-civilization--army-training-")) {
+    const layout = await page.evaluate(() => {
+      const rect = (element) => {
+        const { width, height } = element.getBoundingClientRect();
+        return { width, height };
+      };
+      return {
+        buttons: Array.from(
+          document.querySelectorAll(".training-submit"),
+          rect,
+        ),
+        inputs: Array.from(
+          document.querySelectorAll("[data-training-amount]"),
+          rect,
+        ),
+        scrollWidth: document.documentElement.scrollWidth,
+        viewportWidth: window.innerWidth,
+      };
+    });
+    if (layout.scrollWidth > layout.viewportWidth)
+      throw new Error("Mobile training flow has horizontal overflow");
+    if (id !== "ui-audit-civilization--army-training-review-summary") {
+      if (!layout.buttons.length || !layout.inputs.length)
+        throw new Error("Mobile training state is missing its controls");
+      if (
+        layout.buttons.some((button) => button.width < 44 || button.height < 44)
+      )
+        throw new Error("Training primary action is smaller than 44px");
+      if (layout.inputs.some((input) => input.height < 44))
+        throw new Error("Training quantity input is smaller than 44px");
+    }
+  }
   if (id === "ui-audit-civilization--mobile-collection-wayfinding") {
     const layout = await page.evaluate(() => {
       const rect = (selector) => {
