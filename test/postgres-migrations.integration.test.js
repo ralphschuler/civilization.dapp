@@ -76,7 +76,7 @@ test(
       );
       assert.deepEqual(
         versions.rows.map(({ version }) => version),
-        ["001", "002", "003", "004", "005", "006", "007", "008"],
+        ["001", "002", "003", "004", "005", "006", "007", "008", "009"],
       );
       const tables = await pool.query(
         "SELECT tablename FROM pg_tables WHERE schemaname = current_schema() ORDER BY tablename",
@@ -102,10 +102,29 @@ test(
           ({ indexname }) => indexname === "wallet_auth_challenges_expiry_idx",
         ),
       );
+      const raidHistoryIndexes = await pool.query(
+        "SELECT indexname, indexdef FROM pg_indexes WHERE schemaname = current_schema() AND indexname IN ('chain_indexer_raid_resolved_attacker_history_idx', 'chain_indexer_raid_resolved_defender_history_idx') ORDER BY indexname",
+      );
+      assert.deepEqual(
+        raidHistoryIndexes.rows.map(({ indexname }) => indexname),
+        [
+          "chain_indexer_raid_resolved_attacker_history_idx",
+          "chain_indexer_raid_resolved_defender_history_idx",
+        ],
+      );
+      assert.match(raidHistoryIndexes.rows[0].indexdef, /\(topics ->> 1\)/);
+      assert.match(raidHistoryIndexes.rows[1].indexdef, /\(topics ->> 2\)/);
+      assert.ok(
+        raidHistoryIndexes.rows.every(({ indexdef }) =>
+          indexdef.includes(
+            "af390e913745195551ff780aa23ddccc7690fcc6889ed8f3561f369430dcfc06",
+          ),
+        ),
+      );
       await runMigrations(pool, migrations);
       assert.equal(
         (await pool.query("SELECT version FROM schema_migrations")).rowCount,
-        8,
+        9,
       );
     });
   },
@@ -117,15 +136,15 @@ test(
   async () => {
     const migrations = await shippedMigrations();
     const broken = {
-      version: "009",
-      name: "009_broken.sql",
+      version: "010",
+      name: "010_broken.sql",
       checksum: "broken",
       sql: "CREATE TABLE rollback_probe (id integer); SELECT missing_migration_function();",
     };
     await inOwnedSchema(async (pool) => {
       await assert.rejects(
         runMigrations(pool, [...migrations, broken]),
-        /migration_failed:009/,
+        /migration_failed:010/,
       );
       assert.equal(
         (await pool.query("SELECT to_regclass('rollback_probe') AS table_name"))
@@ -135,7 +154,7 @@ test(
       assert.equal(
         (
           await pool.query(
-            "SELECT 1 FROM schema_migrations WHERE version = '009'",
+            "SELECT 1 FROM schema_migrations WHERE version = '010'",
           )
         ).rowCount,
         0,

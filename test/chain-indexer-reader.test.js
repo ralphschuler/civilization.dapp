@@ -228,3 +228,28 @@ test("reader refuses unsafe or non-advancing range configuration", () => {
     /startBlock/,
   );
 });
+
+test("reader advances across multiple batches with a valid zero rollback depth", async () => {
+  const batches = [];
+  const result = await replayFinalizedBlocks({
+    rpc: fakeRpc({ head: 20 }),
+    pool: { connect() {} },
+    config: { ...config, rollbackDepth: "0", maxBlockRange: "4" },
+    store: async (_pool, batch) => {
+      batches.push(batch);
+      return { checkpoint: batch.checkpoint };
+    },
+  });
+  assert.deepEqual(
+    batches.map((batch) => [
+      batch.blocks[0].blockNumber,
+      batch.checkpoint.blockNumber,
+    ]),
+    [
+      ["10", "13"],
+      ["13", "16"],
+      ["16", "18"],
+    ],
+  );
+  assert.equal(result.batches, 3);
+});

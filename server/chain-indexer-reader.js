@@ -244,7 +244,9 @@ export async function replayFinalizedBlocks({
             BigInt(currentCheckpoint.blockNumber) -
             BigInt(normalizedConfig.rollbackDepth)
           ).toString();
-    if (BigInt(nextFrom) >= BigInt(toBlock))
+    // Equality is valid for a zero-depth overlap: the next range begins at
+    // the preceding tip and still extends it by maxBlockRange - 1 blocks.
+    if (BigInt(nextFrom) > BigInt(toBlock))
       throw new Error("replay_range_not_advancing");
   }
   return {
