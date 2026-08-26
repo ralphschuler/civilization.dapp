@@ -82,10 +82,7 @@ test("a visible due notice vanishes on a fresh pending-but-not-due snapshot", ()
   const due = collectCompletionReadyNotices(identity, snapshot(), store);
   assert.equal(due.length, 1);
   assert.deepEqual(
-    retainCompletionReadyNotices(
-      due,
-      snapshot({ chainTimestamp: 999 }),
-    ),
+    retainCompletionReadyNotices(due, snapshot({ chainTimestamp: 999 })),
     [],
   );
   assert.deepEqual(
