@@ -51,9 +51,28 @@ test("the shipped migration files have a deterministic ascending order", async (
       ["006", "006_wallet_auth_abuse_controls.sql"],
       ["007", "007_wallet_auth_challenge_source_capacity.sql"],
       ["008", "008_chain_indexer_foundation.sql"],
+      ["009", "009_chain_indexer_raid_history_indexes.sql"],
     ],
   );
   assert.ok(loaded.every(({ checksum }) => /^[a-f0-9]{64}$/.test(checksum)));
+});
+
+test("migration 009 adds fixed RaidResolved participant keyset indexes", async () => {
+  const migration = (await loadMigrations("migrations")).find(
+    ({ version }) => version === "009",
+  );
+  assert.match(
+    migration.sql,
+    /raid_resolved_attacker_history_idx[\s\S]*topics->>1[\s\S]*block_number DESC/,
+  );
+  assert.match(
+    migration.sql,
+    /raid_resolved_defender_history_idx[\s\S]*topics->>2[\s\S]*transaction_hash DESC/,
+  );
+  assert.match(
+    migration.sql,
+    /af390e913745195551ff780aa23ddccc7690fcc6889ed8f3561f369430dcfc06/,
+  );
 });
 
 test("migration 003 remains immutable and migration 004 retires its ticket table", async () => {
@@ -234,6 +253,8 @@ test("schema readiness requires every expected version in order", async () => {
       { version: "005" },
       { version: "006" },
       { version: "007" },
+      { version: "008" },
+      { version: "009" },
     ]),
     true,
   );
@@ -255,7 +276,7 @@ test("schema readiness requires every expected version in order", async () => {
   assert.match(query.sql, /^SELECT version FROM schema_migrations/);
   assert.match(query.sql, /ORDER BY version ASC$/);
   assert.deepEqual(query.parameters, [
-    ["001", "002", "003", "004", "005", "006", "007"],
+    ["001", "002", "003", "004", "005", "006", "007", "008", "009"],
   ]);
 });
 
