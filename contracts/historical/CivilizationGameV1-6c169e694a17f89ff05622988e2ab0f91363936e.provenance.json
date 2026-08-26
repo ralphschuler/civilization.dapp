@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "kind": "civilization-historical-v1-source-only",
+  "commit": "6c169e694a17f89ff05622988e2ab0f91363936e",
+  "source": "contracts/historical/CivilizationGameV1-6c169e694a17f89ff05622988e2ab0f91363936e.sol",
+  "sourceSha256": "bd89afc9205ecfb1b1bc1b65bf96bdea0fe755f1ce5c1f66a668fbc96f37ef3f",
+  "storageSnapshot": "contracts/storage-layout-v1.snapshot.json",
+  "storageSnapshotSha256": "9fd43b3f9237f86569ba4c8a908da951403335bfd1fe4a2dcd03bec1f0eeeb96",
+  "evidence": "source-only; this fixture is not production proxy, implementation, deployment, or code-hash evidence"
+}

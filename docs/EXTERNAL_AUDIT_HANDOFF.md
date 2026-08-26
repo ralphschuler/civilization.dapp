@@ -8,18 +8,18 @@ has delivered a report and re-tested resolved findings.
 
 ## Candidate identity
 
-| Item | Value |
-| --- | --- |
-| Review commit | `777b3a9c45a17cb37bc510f1f8a60fc2f130e9d9` |
-| Source | `contracts/src/CivilizationGame.sol` |
-| Source SHA-256 | `3a101c77cd06060e476f03e5952dd1d633f4b215f6ae27499373d042ba2618c1` |
-| Compiler/profile | `solc 0.8.30`, optimizer runs `10`, `viaIR: true` |
-| Creation-code hash | `0x3c05ae7efa50a1d7bb0e90dddf32e3f113390753016bfd9e2cbdf0436991c144` |
-| Runtime-code hash | `0x9851c4cd00c4238ca1b021b7551da81a03d9ef02306e9815a2a4db0868510b75` |
-| Runtime size | `21,398` bytes of the `24,576` EIP-170 limit |
-| World Chain candidate | `0x698ad6b70b6ba8439f1345dbaf26bf1adb129162` |
+| Item                         | Value                                                                |
+| ---------------------------- | -------------------------------------------------------------------- |
+| Review commit                | `777b3a9c45a17cb37bc510f1f8a60fc2f130e9d9`                           |
+| Source                       | `contracts/src/CivilizationGame.sol`                                 |
+| Source SHA-256               | `3a101c77cd06060e476f03e5952dd1d633f4b215f6ae27499373d042ba2618c1`   |
+| Compiler/profile             | `solc 0.8.30`, optimizer runs `10`, `viaIR: true`                    |
+| Creation-code hash           | `0x3c05ae7efa50a1d7bb0e90dddf32e3f113390753016bfd9e2cbdf0436991c144` |
+| Runtime-code hash            | `0x9851c4cd00c4238ca1b021b7551da81a03d9ef02306e9815a2a4db0868510b75` |
+| Runtime size                 | `21,398` bytes of the `24,576` EIP-170 limit                         |
+| World Chain candidate        | `0x698ad6b70b6ba8439f1345dbaf26bf1adb129162`                         |
 | Candidate deploy transaction | `0x22cac99c370d2bff2778e4e543caf4d9e99ec02a6e9c83c2315a06da2a7a7c6e` |
-| Candidate deploy block | `33980912` |
+| Candidate deploy block       | `33980912`                                                           |
 
 The candidate's runtime bytecode was read back after deployment and matched
 the listed runtime-code hash. It is deployed code only; it has not been made
@@ -30,16 +30,16 @@ active through the production proxy.
 All addresses below are World Chain (`chainId` `480`). They were read from the
 EIP-1967 slots and read-only contract calls before preparing the operation.
 
-| Role | Address / value |
-| --- | --- |
-| Production proxy | `0x0E6689d0649Ad9037465d178231b10F18518D2b0` |
-| Current V1 implementation | `0x7330C22d7b61CCcDB7794435535aaB349D9aFF79` |
-| Current V1 runtime hash | `0x0a2ceb5853ae7ba5d020948baf97c08526f7d19ef990c3e3fc61c35ac794b12a` |
-| ProxyAdmin | `0x8351d16672bD54eAe8cd51Fc00E08aD8Adc4469D` |
-| ProxyAdmin / proxy timelock owner | `0x47CaD4ed6765e2aec7c569b2b1E7142D29d1530B` |
-| Timelock delay | `259200` seconds (72 hours) |
-| Timelock proposer Safe | `0x4338aa98a8C969CA0675A8B0DCC7Ed51F24aB886` |
-| Proposed operation ID | `0xd3e0191a1bec2b45694f02ca987cd7f0b5b2a2bff59f935f8867bbc3fa56cd3e` |
+| Role                              | Address / value                                                      |
+| --------------------------------- | -------------------------------------------------------------------- |
+| Production proxy                  | `0x0E6689d0649Ad9037465d178231b10F18518D2b0`                         |
+| Current V1 implementation         | `0x7330C22d7b61CCcDB7794435535aaB349D9aFF79`                         |
+| Current V1 runtime hash           | `0x0a2ceb5853ae7ba5d020948baf97c08526f7d19ef990c3e3fc61c35ac794b12a` |
+| ProxyAdmin                        | `0x8351d16672bD54eAe8cd51Fc00E08aD8Adc4469D`                         |
+| ProxyAdmin / proxy timelock owner | `0x47CaD4ed6765e2aec7c569b2b1E7142D29d1530B`                         |
+| Timelock delay                    | `259200` seconds (72 hours)                                          |
+| Timelock proposer Safe            | `0x4338aa98a8C969CA0675A8B0DCC7Ed51F24aB886`                         |
+| Proposed operation ID             | `0xd3e0191a1bec2b45694f02ca987cd7f0b5b2a2bff59f935f8867bbc3fa56cd3e` |
 
 The proposed operation is exactly one `ProxyAdmin.upgradeAndCall(proxy,
 candidate, "0x")`. It has no initializer payload, no market configuration,
@@ -89,11 +89,17 @@ the internal coverage and known residual risks are documented in
 [`SECURITY_ASSURANCE.md`](./SECURITY_ASSURANCE.md). This evidence is input to
 an audit, not a substitute for one.
 
-The V1-to-production-V2 EVM regression in
-`test/civilization-contract.test.js` proves a timelock-only upgrade preserves
-registered player state and legacy slot-zero construction, exposes V2 queue
-reads, and permits the first Workshop upgrade without CGOLD. It does not
-prove production state, Safe custody, economics, or an external review.
+The historical-source-only V1-to-candidate EVM regression in
+`test/civilization-contract.test.js` deploys the immutable local fixture from
+commit `6c169e694a17f89ff05622988e2ab0f91363936e` (SHA-256
+`bd89afc9205ecfb1b1bc1b65bf96bdea0fe755f1ce5c1f66a668fbc96f37ef3f`),
+then rehearses V1 → candidate → V1 → candidate through the timelock. It
+checks player/registration/pending-construction, ERC-20, and governance reads
+and confirms that legacy construction is candidate queue slot zero. The
+fixture and matching storage snapshot are source-only evidence: neither proves
+the production proxy, implementation, deployed bytecode, or any production
+code hash. A current trusted-RPC baseline, independent audit, Safe/governance
+review, and approved non-production rehearsal remain external gates.
 
 ## Required independent review
 

@@ -3,9 +3,11 @@
 // It compiles local source only; it never queries a chain and never represents
 // CivilizationGameV2Fixture as a deployed implementation.
 import { createHash } from "node:crypto";
+import { execFile } from "node:child_process";
 import { readFile, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 import solc from "solc";
 import { keccak256, stringToHex, toHex } from "viem";
 import {
@@ -14,6 +16,8 @@ import {
 } from "./solidity-release-profile.mjs";
 
 const require = createRequire(import.meta.url);
+const execFileAsync = promisify(execFile);
+const REPOSITORY_ROOT = fileURLToPath(new URL("../", import.meta.url));
 const V1_SNAPSHOT = new URL(
   "../contracts/abi-v1.compatibility.snapshot.json",
   import.meta.url,
@@ -26,6 +30,26 @@ const STORAGE_SNAPSHOT = new URL(
   "../contracts/storage-layout-v1.snapshot.json",
   import.meta.url,
 );
+const HISTORICAL_V1_SOURCE = new URL(
+  "../contracts/historical/CivilizationGameV1-6c169e694a17f89ff05622988e2ab0f91363936e.sol",
+  import.meta.url,
+);
+const HISTORICAL_V1_PROVENANCE = new URL(
+  "../contracts/historical/CivilizationGameV1-6c169e694a17f89ff05622988e2ab0f91363936e.provenance.json",
+  import.meta.url,
+);
+const CANDIDATE_SOURCE_PATH = "contracts/src/CivilizationGame.sol";
+export const HISTORICAL_V1_COMMIT = "6c169e694a17f89ff05622988e2ab0f91363936e";
+export const HISTORICAL_V1_GIT_SOURCE_PATH =
+  "contracts/src/CivilizationGame.sol";
+export const HISTORICAL_V1_STORAGE_SNAPSHOT_PATH =
+  "contracts/storage-layout-v1.snapshot.json";
+export const HISTORICAL_V1_SOURCE_SHA256 =
+  "bd89afc9205ecfb1b1bc1b65bf96bdea0fe755f1ce5c1f66a668fbc96f37ef3f";
+export const HISTORICAL_V1_STORAGE_SNAPSHOT_SHA256 =
+  "9fd43b3f9237f86569ba4c8a908da951403335bfd1fe4a2dcd03bec1f0eeeb96";
+const HISTORICAL_V1_SOURCE_PATH =
+  "contracts/historical/CivilizationGameV1-6c169e694a17f89ff05622988e2ab0f91363936e.sol";
 const BUDGET_FILE = new URL(
   "../contracts/v2-compatibility-budget.json",
   import.meta.url,
@@ -123,6 +147,49 @@ const V1_ERRORS = new Set([
 ]);
 
 const sha256 = (value) => createHash("sha256").update(value).digest("hex");
+
+// Deliberately use execFile with an argument vector: revision and path are
+// fixed constants, never shell syntax. A missing repository, revision, or path
+// is evidence failure, not a reason to fall back to checked-in fixtures.
+async function gitShow(object) {
+  try {
+    const { stdout } = await execFileAsync(
+      "git",
+      ["show", "--no-ext-diff", "--format=", object],
+      { cwd: REPOSITORY_ROOT, encoding: "buffer", maxBuffer: 16 * 1024 * 1024 },
+    );
+    return Buffer.isBuffer(stdout) ? stdout : Buffer.from(stdout);
+  } catch (error) {
+    throw new Error(`immutable historical Git object unavailable: ${object}`, {
+      cause: error,
+    });
+  }
+}
+
+export async function assertHistoricalV1GitBinding(
+  historicalSourceBytes,
+  storageSnapshotBytes,
+  showGitObject = gitShow,
+) {
+  const sourceObject = `${HISTORICAL_V1_COMMIT}:${HISTORICAL_V1_GIT_SOURCE_PATH}`;
+  const snapshotObject = `${HISTORICAL_V1_COMMIT}:${HISTORICAL_V1_STORAGE_SNAPSHOT_PATH}`;
+  const [gitSource, gitSnapshot] = await Promise.all([
+    showGitObject(sourceObject),
+    showGitObject(snapshotObject),
+  ]);
+  const fixtureSource = Buffer.from(historicalSourceBytes);
+  const fixtureSnapshot = Buffer.from(storageSnapshotBytes);
+  if (sha256(gitSource) !== HISTORICAL_V1_SOURCE_SHA256)
+    throw new Error("immutable historical Git source hash mismatch");
+  if (sha256(gitSnapshot) !== HISTORICAL_V1_STORAGE_SNAPSHOT_SHA256)
+    throw new Error("immutable historical Git storage snapshot hash mismatch");
+  if (!fixtureSource.equals(gitSource))
+    throw new Error("historical V1 fixture differs from immutable Git source");
+  if (!fixtureSnapshot.equals(gitSnapshot))
+    throw new Error(
+      "historical V1 storage snapshot differs from immutable Git object",
+    );
+}
 const canonicalType = (parameter) =>
   parameter.type.startsWith("tuple")
     ? `(${parameter.components.map(canonicalType).join(",")})${parameter.type.slice(5)}`
@@ -182,6 +249,25 @@ const STORAGE_NAMESPACE_BINDINGS = Object.freeze([
       }),
       Object.freeze({ name: "inventory", type: "mapping(uint8 => uint256)" }),
       Object.freeze({ name: "distributor", type: "address" }),
+    ]),
+  },
+  {
+    // Slot zero projects the legacy Player.construction value through this
+    // namespace. Freeze its binding and schema too, so a candidate cannot
+    // silently alter the V1-to-V2 construction bridge.
+    namespace: "civilization.game.construction-queue.v2",
+    struct: "ConstructionQueueStorage",
+    constant: "CONSTRUCTION_QUEUE_STORAGE_LOCATION",
+    accessor: "_constructionQueue",
+    // This namespace is historical and its deployed slot is not the canonical
+    // ERC-7201 derivation. Preserve that exact slot; correcting it would be a
+    // state migration and needs a separate approved rehearsal.
+    slot: "0x7df7cd2d39e6dc4e56d89fd1cb294d3b98e8c7d6075a0f280dc7ec5a2900b300",
+    fields: Object.freeze([
+      Object.freeze({
+        name: "queues",
+        type: "mapping(address => ConstructionQueue)",
+      }),
     ]),
   },
   {
@@ -332,7 +418,7 @@ export function assertStorageNamespaceBindings(ast, storage) {
       );
     const expectedSlot = binding.snapshotSlot
       ? storage?.slot
-      : erc7201(binding.namespace);
+      : binding.slot || erc7201(binding.namespace);
     if (constant.value?.value?.toLowerCase() !== expectedSlot?.toLowerCase())
       throw new Error(
         `storage namespace slot drift detected for ${binding.namespace}`,
@@ -509,20 +595,17 @@ async function compile() {
   // Compile only the production facade. Compiling unrelated contracts or the
   // test-only migration target would make this release-profile gate needlessly
   // expensive.
-  const files = ["CivilizationGame.sol"];
-  const sources = Object.fromEntries(
-    await Promise.all(
-      files.map(async (file) => [
-        `contracts/src/${file}`,
-        {
-          content: await readFile(
-            new URL(`../contracts/src/${file}`, import.meta.url),
-            "utf8",
-          ),
-        },
-      ]),
-    ),
-  );
+  const sources = {
+    [CANDIDATE_SOURCE_PATH]: {
+      content: await readFile(
+        new URL("../contracts/src/CivilizationGame.sol", import.meta.url),
+        "utf8",
+      ),
+    },
+    [HISTORICAL_V1_SOURCE_PATH]: {
+      content: await readFile(HISTORICAL_V1_SOURCE, "utf8"),
+    },
+  };
   const output = JSON.parse(
     solc.compile(
       JSON.stringify({
@@ -562,12 +645,12 @@ async function compile() {
   return output;
 }
 
-function snapshot(kind, abi, source) {
+function snapshot(kind, abi, source, sourcePath) {
   const normalized = normalizedAbi(abi);
   return {
     schemaVersion: 1,
     kind,
-    source: "contracts/src/CivilizationGame.sol",
+    source: sourcePath,
     sourceSha256: sha256(source),
     compiler: solc.version(),
     profile: SOLIDITY_RELEASE_PROFILE,
@@ -576,14 +659,55 @@ function snapshot(kind, abi, source) {
   };
 }
 
+export function assertHistoricalV1Provenance(
+  provenance,
+  historicalSource,
+  storageSnapshotBytes,
+  candidateSource,
+) {
+  if (
+    provenance?.schemaVersion !== 1 ||
+    provenance.kind !== "civilization-historical-v1-source-only" ||
+    provenance.commit !== HISTORICAL_V1_COMMIT ||
+    provenance.source !== HISTORICAL_V1_SOURCE_PATH ||
+    provenance.sourceSha256 !== HISTORICAL_V1_SOURCE_SHA256 ||
+    provenance.storageSnapshot !==
+      "contracts/storage-layout-v1.snapshot.json" ||
+    provenance.storageSnapshotSha256 !==
+      HISTORICAL_V1_STORAGE_SNAPSHOT_SHA256 ||
+    provenance.evidence !==
+      "source-only; this fixture is not production proxy, implementation, deployment, or code-hash evidence"
+  )
+    throw new Error("historical V1 provenance is missing or malformed");
+  if (sha256(historicalSource) !== HISTORICAL_V1_SOURCE_SHA256)
+    throw new Error("historical V1 source hash mismatch");
+  if (sha256(storageSnapshotBytes) !== HISTORICAL_V1_STORAGE_SNAPSHOT_SHA256)
+    throw new Error("historical V1 storage snapshot hash mismatch");
+  if (
+    historicalSource === candidateSource ||
+    provenance.sourceSha256 === sha256(candidateSource)
+  )
+    throw new Error("historical V1 source aliases the current candidate");
+}
+
 async function main() {
   const output = await compile();
-  const source = await readFile(
+  const candidateSource = await readFile(
     new URL("../contracts/src/CivilizationGame.sol", import.meta.url),
     "utf8",
   );
-  const game =
-    output.contracts["contracts/src/CivilizationGame.sol"].CivilizationGame;
+  const [historicalSourceBytes, storageBytes] = await Promise.all([
+    readFile(HISTORICAL_V1_SOURCE),
+    readFile(STORAGE_SNAPSHOT),
+  ]);
+  await assertHistoricalV1GitBinding(historicalSourceBytes, storageBytes);
+  const historicalSource = historicalSourceBytes.toString("utf8");
+  const provenance = JSON.parse(
+    await readFile(HISTORICAL_V1_PROVENANCE, "utf8"),
+  );
+  const game = output.contracts[CANDIDATE_SOURCE_PATH].CivilizationGame;
+  const historicalGame =
+    output.contracts[HISTORICAL_V1_SOURCE_PATH].CivilizationGame;
   const v1Abi = game.abi.filter(
     (entry) =>
       (entry.type === "function" &&
@@ -591,12 +715,32 @@ async function main() {
       (entry.type === "event" && V1_EVENTS.has(functionSignature(entry))) ||
       (entry.type === "error" && V1_ERRORS.has(functionSignature(entry))),
   );
-  const v1 = snapshot("civilization-proxy-abi/v1-compatibility", v1Abi, source);
+  const historicalV1Abi = historicalGame.abi.filter(
+    (entry) =>
+      (entry.type === "function" &&
+        V1_FUNCTIONS.has(functionSignature(entry))) ||
+      (entry.type === "event" && V1_EVENTS.has(functionSignature(entry))) ||
+      (entry.type === "error" && V1_ERRORS.has(functionSignature(entry))),
+  );
+  const v1 = snapshot(
+    "civilization-proxy-abi/v1-historical-source-only",
+    historicalV1Abi,
+    historicalSource,
+    HISTORICAL_V1_SOURCE_PATH,
+  );
   const v2 = snapshot(
     "civilization-proxy-abi/v2-source-candidate-not-deployed",
     game.abi,
-    source,
+    candidateSource,
+    CANDIDATE_SOURCE_PATH,
   );
+  if (
+    JSON.stringify(normalizedAbi(historicalV1Abi)) !==
+    JSON.stringify(normalizedAbi(v1Abi))
+  )
+    throw new Error(
+      "current candidate is missing or changes the historical V1 ABI",
+    );
 
   const writeSnapshots = process.argv[2] === "--write-snapshots";
   if (!writeSnapshots && process.argv.length > 2) {
@@ -617,17 +761,23 @@ async function main() {
       );
   }
 
-  const storage = JSON.parse(await readFile(STORAGE_SNAPSHOT, "utf8"));
+  const storage = JSON.parse(storageBytes.toString("utf8"));
+  assertHistoricalV1Provenance(
+    provenance,
+    historicalSource,
+    storageBytes,
+    candidateSource,
+  );
   if (storage.slot !== erc7201(storage.namespace))
     throw new Error(
       "V1 ERC-7201 storage snapshot has an invalid namespace slot",
     );
   assertV1StorageCompatibility(
-    output.sources["contracts/src/CivilizationGame.sol"].ast,
+    output.sources[HISTORICAL_V1_SOURCE_PATH].ast,
     storage,
   );
   assertStorageNamespaceBindings(
-    output.sources["contracts/src/CivilizationGame.sol"].ast,
+    output.sources[CANDIDATE_SOURCE_PATH].ast,
     storage,
   );
   // The construction queue namespace predates this plan. Its current slot is
@@ -661,9 +811,16 @@ async function main() {
         kind: "civilization-proxy-v2-compatibility/v1",
         network: "none (offline source verification)",
         deployedV2: false,
+        historicalV1: {
+          commit: HISTORICAL_V1_COMMIT,
+          sourceSha256: HISTORICAL_V1_SOURCE_SHA256,
+          storageSnapshotSha256: HISTORICAL_V1_STORAGE_SNAPSHOT_SHA256,
+          evidence: "source-only (not production proxy/code-hash evidence)",
+        },
+        candidateSourceSha256: sha256(candidateSource),
         v1AbiSha256: v1.abiSha256,
         v2CandidateAbiSha256: v2.abiSha256,
-        v1StorageSnapshotSha256: sha256(JSON.stringify(storage)),
+        v1StorageSnapshotSha256: HISTORICAL_V1_STORAGE_SNAPSHOT_SHA256,
         sizes,
         budgets: Object.fromEntries(
           Object.entries(budgets.budgets).map(([name, value]) => [
@@ -678,5 +835,8 @@ async function main() {
   );
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1])
+if (
+  process.argv[1] &&
+  process.argv[1].endsWith("verify-proxy-v2-compatibility.mjs")
+)
   await main();

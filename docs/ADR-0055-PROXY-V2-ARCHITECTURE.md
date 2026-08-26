@@ -23,6 +23,13 @@ because their dependencies have been audited.
 `pnpm verify:proxy:v2-compatibility` is the local evidence gate. It compiles
 the pinned local source, verifies the V1 ABI subset and frozen V1 namespace,
 checks additive namespaces, and enforces the checked-in EIP-170 size budgets.
+Before accepting the checked-in historical V1 fixture or storage snapshot, the
+gate reads their objects from Git commit
+`6c169e694a17f89ff05622988e2ab0f91363936e` and compares their exact bytes and
+fixed SHA-256 values. It fails closed when that checkout/object is unavailable;
+CI and reviewers therefore need Git metadata containing the pinned commit.
+This proves source and storage-snapshot provenance only, not a production
+proxy, implementation, deployment, or on-chain code hash.
 The V2 ABI snapshot is explicitly a source candidate, not a deployment record.
 
 ## Alternatives rejected
@@ -40,4 +47,3 @@ Every future capability needs its own namespace, compatibility evidence, size
 budget update, migration rehearsal and security review. A rollback restores an
 old implementation but cannot erase newly written namespaced state; later V2
 code must continue to read it safely.
-

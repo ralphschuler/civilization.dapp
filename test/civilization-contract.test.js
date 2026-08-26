@@ -29,6 +29,8 @@ import {
 
 const require = createRequire(import.meta.url);
 const sourceDir = new URL("../contracts/src/", import.meta.url);
+const historicalV1Source =
+  "contracts/historical/CivilizationGameV1-6c169e694a17f89ff05622988e2ab0f91363936e.sol";
 const deployer = `0x${"44".repeat(20)}`;
 const alice = `0x${"22".repeat(20)}`;
 const bob = `0x${"33".repeat(20)}`;
@@ -69,6 +71,15 @@ async function compile() {
       ]),
     ),
   );
+  sources[historicalV1Source] = {
+    content: await readFile(
+      new URL(
+        "../contracts/historical/CivilizationGameV1-6c169e694a17f89ff05622988e2ab0f91363936e.sol",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+  };
   for (const f of [
     "MockWorldToken.sol",
     "MockWorldIdVerifier.sol",
@@ -365,6 +376,97 @@ async function fixture(
   };
 }
 
+async function historicalMigrationFixture(at = 1_000n) {
+  await compile();
+  const vm = await createVM({ evmOpts: { allowUnlimitedContractSize: true } });
+  const v1 = await deploy(
+    vm,
+    artifact(historicalV1Source, "CivilizationGame"),
+    [],
+    at,
+  );
+  const verifier = await deploy(
+    vm,
+    artifact("test/fixtures/MockWorldIdVerifier.sol", "MockWorldIdVerifier"),
+    [],
+    at,
+  );
+  const token = await deploy(
+    vm,
+    artifact("test/fixtures/MockWorldToken.sol", "MockWorldToken"),
+    [],
+    at,
+  );
+  const timelock = await deploy(
+    vm,
+    artifact(
+      "@openzeppelin/contracts/governance/TimelockController.sol",
+      "TimelockController",
+    ),
+    [60n, [deployer], [deployer], deployer],
+    at,
+  );
+  const splitter = await deploy(
+    vm,
+    artifact(
+      "contracts/src/CivilizationRevenueSplitter.sol",
+      "CivilizationRevenueSplitter",
+    ),
+    [
+      token.address.toString(),
+      timelock.address.toString(),
+      [bob, carol],
+      [5000, 5000],
+    ],
+    at,
+  );
+  const data = encodeFunctionData({
+    abi: v1.abi,
+    functionName: "initialize",
+    args: [
+      init(
+        verifier.address.toString(),
+        token.address.toString(),
+        splitter.address.toString(),
+        timelock.address.toString(),
+      ),
+    ],
+  });
+  const proxy = await deploy(
+    vm,
+    artifact(
+      "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol",
+      "TransparentUpgradeableProxy",
+    ),
+    [v1.address.toString(), timelock.address.toString(), data],
+    at,
+  );
+  const raw = await vm.stateManager.getStorage(
+    proxy.address,
+    hexToBytes(
+      "0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103",
+    ),
+  );
+  return {
+    vm,
+    v1,
+    verifier,
+    token,
+    timelock,
+    splitter,
+    proxy,
+    game: { vm, address: proxy.address, abi: v1.abi },
+    admin: {
+      vm,
+      address: createAddressFromString(`0x${bytesToHex(raw).slice(-40)}`),
+      abi: artifact(
+        "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol",
+        "ProxyAdmin",
+      ).abi,
+    },
+  };
+}
+
 async function upgrade(f, implementation, at, salt = zero32()) {
   const data = encodeFunctionData({
     abi: f.admin.abi,
@@ -400,6 +502,42 @@ async function upgrade(f, implementation, at, salt = zero32()) {
       at + 60n,
     ),
   );
+}
+
+async function migrationPlayerStateSnapshot(game, at, players, spender) {
+  const playerState = [];
+  const previewPlayerState = [];
+  const constructionJobs = [];
+  const balances = [];
+  const allowances = [];
+  // ethereumjs-vm shares its state manager between calls, so keep this audit
+  // capture ordered and deterministic rather than issuing concurrent reads.
+  for (const player of players) {
+    playerState.push([player, await read(game, "playerState", [player], at)]);
+    previewPlayerState.push([
+      player,
+      await read(game, "previewPlayerState", [player], at),
+    ]);
+    constructionJobs.push([
+      player,
+      await read(game, "constructionJob", [player, 0], at),
+    ]);
+    balances.push([player, await read(game, "balanceOf", [player], at)]);
+    allowances.push([
+      player,
+      await read(game, "allowance", [player, spender], at),
+    ]);
+  }
+  return {
+    playerState,
+    previewPlayerState,
+    constructionJobs,
+    balances,
+    allowances,
+    totalSupply: await read(game, "totalSupply", [], at),
+    timelock: await read(game, "timelock", [], at),
+    revenueSplitter: await read(game, "revenueSplitter", [], at),
+  };
 }
 
 async function timelockCall(
@@ -1259,60 +1397,101 @@ test("completeUpgrade discards offline time beyond its shared 24-hour cap", asyn
   assert.equal(immediatePreview[0].stone, afterCompletion[4].stone);
 });
 
-test("V1 to V2 to V1 to V2 upgrades only through timelock and preserve proxy state", async () => {
-  const f = await fixture();
+test("historical V1 to current candidate to historical V1 to candidate preserves the shared proxy state", async () => {
+  const f = await historicalMigrationFixture();
   ok(await call(f.game, alice, "registerWallet", [], 1_000n));
   ok(await call(f.game, bob, "registerWallet", [], 1_000n));
   ok(await call(f.game, alice, "claim", [], 90_000n));
   ok(await call(f.game, alice, "upgrade", [0], 90_000n)); // reachable pending construction
-  const baseline = await read(f.game, "playerState", [alice], 90_000n);
   const allowance = await call(f.game, alice, "approve", [bob, 7n], 90_000n);
   ok(allowance);
-  const v2 = await deploy(
-    f.vm,
-    artifact(
-      "contracts/src/CivilizationGameV2Fixture.sol",
-      "CivilizationGameV2Fixture",
+  const players = [alice, bob, carol];
+  const baseline = {
+    playerState: await Promise.all(
+      players.map(async (player) => [
+        player,
+        await read(f.game, "playerState", [player], 90_000n),
+      ]),
     ),
+    previewPlayerState: await Promise.all(
+      players.map(async (player) => [
+        player,
+        await read(f.game, "previewPlayerState", [player], 90_000n),
+      ]),
+    ),
+    balances: await Promise.all(
+      players.map(async (player) => [
+        player,
+        await read(f.game, "balanceOf", [player], 90_000n),
+      ]),
+    ),
+    allowances: await Promise.all(
+      players.map(async (player) => [
+        player,
+        await read(f.game, "allowance", [player, bob], 90_000n),
+      ]),
+    ),
+    totalSupply: await read(f.game, "totalSupply", [], 90_000n),
+    timelock: await read(f.game, "timelock", [], 90_000n),
+    revenueSplitter: await read(f.game, "revenueSplitter", [], 90_000n),
+  };
+  const candidate = await deploy(
+    f.vm,
+    artifact("contracts/src/CivilizationGame.sol", "CivilizationGame"),
   );
   const proxyAddress = f.proxy.address.toString();
   const directAdmin = await call(
     f.admin,
     deployer,
     "upgradeAndCall",
-    [proxyAddress, v2.address.toString(), "0x"],
+    [proxyAddress, candidate.address.toString(), "0x"],
     90_001n,
   );
   assert.ok(
     directAdmin.execResult.exceptionError,
     "ProxyAdmin accepts only its timelock owner",
   );
-  await upgrade(f, v2, 90_001n, `0x${"01".padStart(64, "0")}`);
-  const gameV2 = { ...f.game, abi: v2.abi };
-  assert.equal(gameV2.address.toString(), proxyAddress);
-  assert.equal(await read(gameV2, "releaseVersion"), 2n);
-  ok(await call(gameV2, alice, "setV2Marker", [99n], 90_061n));
+  await upgrade(f, candidate, 90_001n, `0x${"01".padStart(64, "0")}`);
+  const gameV2 = { ...f.game, abi: candidate.abi };
   assert.deepEqual(
-    await read(gameV2, "playerState", [alice], 90_061n),
-    baseline,
-    "registered player/resources/pending construction survive",
+    await migrationPlayerStateSnapshot(gameV2, 90_000n, players, bob),
+    {
+      ...baseline,
+      constructionJobs: [
+        [alice, await read(gameV2, "constructionJob", [alice, 0], 90_000n)],
+        [bob, 0n],
+        [carol, 0n],
+      ],
+    },
+    "historical V1 player, registration, ERC-20, and governance state survives the current candidate",
   );
-  assert.equal(await read(gameV2, "allowance", [alice, bob]), 7n);
+  const legacyConstruction = baseline.playerState[0][1][8];
   assert.equal(
-    (await read(gameV2, "revenueSplitter")).toLowerCase(),
-    f.splitter.address.toString().toLowerCase(),
+    await read(gameV2, "constructionJob", [alice, 0], 90_000n),
+    1n |
+      (BigInt(legacyConstruction.building) << 8n) |
+      (BigInt(legacyConstruction.completesAt) << 16n),
+    "the historical Player.construction value is the candidate's V2 slot-zero queue job",
   );
   await upgrade(f, f.v1, 90_062n, `0x${"02".padStart(64, "0")}`);
   assert.equal(f.proxy.address.toString(), proxyAddress);
   assert.deepEqual(
-    await read(f.game, "playerState", [alice], 90_122n),
-    baseline,
+    await read(f.game, "playerState", [alice], 90_000n),
+    baseline.playerState[0][1],
+    "the historical pending player record survives rollback",
   );
-  await upgrade(f, v2, 90_123n, `0x${"03".padStart(64, "0")}`);
-  assert.equal(
-    await read(gameV2, "v2Marker"),
-    99n,
-    "separate V2 ERC-7201 namespace survives rollback",
+  await upgrade(f, candidate, 90_123n, `0x${"03".padStart(64, "0")}`);
+  assert.deepEqual(
+    await migrationPlayerStateSnapshot(gameV2, 90_000n, players, bob),
+    {
+      ...baseline,
+      constructionJobs: [
+        [alice, await read(gameV2, "constructionJob", [alice, 0], 90_000n)],
+        [bob, 0n],
+        [carol, 0n],
+      ],
+    },
+    "shared state and the slot-zero construction bridge survive historical rollback and candidate re-upgrade",
   );
 });
 

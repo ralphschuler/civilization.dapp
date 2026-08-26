@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "kind": "civilization-proxy-abi/v1-compatibility",
-  "source": "contracts/src/CivilizationGame.sol",
-  "sourceSha256": "3a101c77cd06060e476f03e5952dd1d633f4b215f6ae27499373d042ba2618c1",
+  "kind": "civilization-proxy-abi/v1-historical-source-only",
+  "source": "contracts/historical/CivilizationGameV1-6c169e694a17f89ff05622988e2ab0f91363936e.sol",
+  "sourceSha256": "bd89afc9205ecfb1b1bc1b65bf96bdea0fe755f1ce5c1f66a668fbc96f37ef3f",
   "compiler": "0.8.30+commit.73712a01.Emscripten.clang",
   "profile": {
     "optimizer": {
@@ -1700,4 +1700,3 @@
   ],
   "abiSha256": "0d03c2b88008cef30b8f33d828734ceafa316c2e5944e3e371479f2e3f82e011"
 }
-
