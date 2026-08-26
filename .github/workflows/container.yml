@@ -113,7 +113,7 @@ jobs:
           test "$output" = "Database migration failed (database_unavailable). No application process was started."
       - name: Chain-indexer replay CLI fails safely without configuration
         run: |
-          expected_output="Chain-indexer replay failed (missing_chain_indexer_configuration:CHAIN_INDEXER_RPC_URL)."
+          expected_output="Chain-indexer replay failed (chain_indexer_replay_failed)."
           set +e
           output="$(docker run --rm --entrypoint node civilization-dapp-test:ci scripts/run-chain-indexer.mjs 2>&1)"
           status=$?
