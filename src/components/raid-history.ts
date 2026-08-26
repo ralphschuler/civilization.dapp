@@ -113,7 +113,7 @@ export function mapStoredRaidHistory(
     availability: page.availability,
     coverage: { complete: (page.coverage as Record<string, boolean>).complete },
     reports,
-    nextCursor: page.nextCursor,
+    nextCursor: page.nextCursor as string | null,
   };
 }
 
