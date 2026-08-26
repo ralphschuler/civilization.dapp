@@ -1,10 +1,11 @@
-import { createReadStream, existsSync } from "node:fs";
+import { createReadStream, existsSync, mkdirSync } from "node:fs";
 import { createServer } from "node:http";
 import { extname, join, normalize } from "node:path";
 import { chromium } from "@playwright/test";
 
 const output = join(process.cwd(), "artefacts", "storybook-ui-audit");
 const root = join(output, "storybook-static");
+const visualReview = join(process.cwd(), "visual-review");
 const mime = {
   ".html": "text/html",
   ".js": "text/javascript",
@@ -26,11 +27,12 @@ const server = createServer((request, response) => {
   createReadStream(file).pipe(response);
 });
 await new Promise((resolve) => server.listen(6006, "127.0.0.1", resolve));
+mkdirSync(visualReview, { recursive: true });
 const browser = await chromium.launch({ headless: true });
 const footerMeasurements = [];
 const mobileAuditMeasurements = [];
 const resourceHeaderMeasurements = [];
-const shots = [
+const allShots = [
   [
     "desktop-village-build-overview.png",
     "ui-audit-civilization--village-build-overview",
@@ -221,7 +223,24 @@ const shots = [
     "ui-audit-civilization--army-training-review-summary",
     { width: 390, height: 844 },
   ],
+  [
+    "mobile-raid-history-loaded-390.png",
+    "ui-audit-civilization--raid-history-loaded",
+    { width: 390, height: 844 },
+  ],
+  [
+    "mobile-raid-history-updated-390.png",
+    "ui-audit-civilization--raid-history-updated-final-state",
+    { width: 390, height: 844 },
+  ],
 ];
+// The targeted command is deliberately static: the dynamic 409 story remains
+// available for behavior inspection but is never a visual-capture input.
+const shots = process.argv.includes("--raid-history")
+  ? allShots.filter(([, id]) =>
+      id.startsWith("ui-audit-civilization--raid-history-"),
+    )
+  : allShots;
 for (const [name, id, viewport] of shots) {
   const page = await browser.newPage({ viewport });
   let screenshotTaken = false;
@@ -234,6 +253,155 @@ for (const [name, id, viewport] of shots) {
       (zoom) => (document.body.style.zoom = zoom),
       viewport.zoom,
     );
+  if (id === "ui-audit-civilization--raid-history-loaded")
+    await page
+      .locator('.raid-history[data-raid-history-status="ready"]')
+      .waitFor();
+  if (id === "ui-audit-civilization--raid-history-updated-final-state")
+    await page
+      .locator(
+        '.raid-history[data-raid-history-status="ready"][data-raid-history-updated="true"]',
+      )
+      .waitFor();
+  if (
+    id === "ui-audit-civilization--raid-history-loaded" ||
+    id === "ui-audit-civilization--raid-history-updated-final-state"
+  ) {
+    await page.evaluate(async () => {
+      await document.fonts.ready;
+      const snapshot = () => {
+        const history = document.querySelector(".raid-history");
+        const sendRaid = document.querySelector("#send-raid");
+        const result = document.querySelector(".raid-result");
+        if (!history || !sendRaid || !result) return null;
+        const rect = (element) => {
+          const { width, height } = element.getBoundingClientRect();
+          return { width, height };
+        };
+        const reports = Array.from(
+          history.querySelectorAll(".raid-history-report"),
+          (report) => ({
+            ...rect(report),
+            clipped: report.scrollHeight > report.clientHeight + 1,
+          }),
+        );
+        const geometry = {
+          history: rect(history),
+          sendRaid: rect(sendRaid),
+          result: rect(result),
+          reports,
+          sendRaidText: sendRaid.textContent?.trim(),
+          resultText: result.textContent?.trim(),
+        };
+        const sensible =
+          geometry.history.width >= 280 &&
+          geometry.sendRaid.width >= 280 &&
+          geometry.sendRaid.height >= 44 &&
+          geometry.result.width >= 280 &&
+          geometry.result.height >= 44 &&
+          Boolean(geometry.sendRaidText) &&
+          Boolean(geometry.resultText) &&
+          reports.length > 0 &&
+          reports.every(
+            (report) =>
+              report.width >= 280 && report.height >= 44 && !report.clipped,
+          );
+        return sensible ? JSON.stringify(geometry) : null;
+      };
+      let stableFrames = 0;
+      let previous = null;
+      await new Promise((resolve, reject) => {
+        const deadline = performance.now() + 5_000;
+        const check = () => {
+          const current = snapshot();
+          stableFrames = current && current === previous ? stableFrames + 1 : 0;
+          previous = current;
+          if (stableFrames >= 10) return resolve(undefined);
+          if (performance.now() >= deadline)
+            return reject(
+              new Error(
+                "Raid history did not reach a stable, readable mobile layout",
+              ),
+            );
+          requestAnimationFrame(check);
+        };
+        requestAnimationFrame(check);
+      });
+    });
+    const layout = await page.evaluate(() => {
+      const history = document.querySelector(".raid-history");
+      const sendRaid = document.querySelector("#send-raid");
+      const result = document.querySelector(".raid-result");
+      if (!history || !sendRaid || !result)
+        throw new Error("Missing raid-history audit fixture");
+      const rect = (element) => {
+        const { width, height } = element.getBoundingClientRect();
+        return { width, height };
+      };
+      return {
+        scrollWidth: document.documentElement.scrollWidth,
+        viewportWidth: window.innerWidth,
+        actions: Array.from(history.querySelectorAll("button"), rect),
+        loadMoreActions: Array.from(
+          history.querySelectorAll(".raid-history-more"),
+          rect,
+        ),
+        sendRaid: rect(sendRaid),
+        result: rect(result),
+        reports: Array.from(
+          history.querySelectorAll(".raid-history-report"),
+          (report) => ({
+            ...rect(report),
+            clipped: report.scrollHeight > report.clientHeight + 1,
+          }),
+        ),
+        status: history.querySelector(".raid-history-status")?.textContent,
+      };
+    });
+    if (layout.scrollWidth > layout.viewportWidth)
+      throw new Error("Mobile raid history has horizontal overflow");
+    if (
+      id === "ui-audit-civilization--raid-history-loaded" &&
+      (layout.actions.length !== 1 || layout.loadMoreActions.length !== 1)
+    )
+      throw new Error(
+        "Loaded mobile raid history must expose one load-more action",
+      );
+    if (
+      layout.actions.some((action) => action.width < 44 || action.height < 44)
+    )
+      throw new Error("Raid history action is smaller than 44px");
+    if (
+      layout.sendRaid.width < 280 ||
+      layout.sendRaid.height < 44 ||
+      layout.result.width < 280 ||
+      layout.result.height < 44 ||
+      !layout.reports.length ||
+      layout.reports.some(
+        (report) => report.width < 280 || report.height < 44 || report.clipped,
+      )
+    )
+      throw new Error("Raid history mobile layout is collapsed or clipped");
+    if (
+      id === "ui-audit-civilization--raid-history-updated-final-state" &&
+      (!layout.status?.trim() || layout.loadMoreActions.length !== 0)
+    )
+      throw new Error(
+        "Updated raid history must visibly show the reset page after 409",
+      );
+    await page.evaluate(
+      () =>
+        new Promise((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(resolve)),
+        ),
+    );
+    const gameShell = page.locator(".game-shell");
+    const raidPanel = page.locator(".command-panel");
+    if ((await gameShell.count()) !== 1 || (await raidPanel.count()) !== 1)
+      throw new Error("Raid history audit fixture must expose one game shell");
+    await raidPanel.screenshot({ path: join(visualReview, name) });
+    screenshotTaken = true;
+  }
   if (id.includes("footer")) {
     const layout = await page.evaluate(() => {
       const rect = (element) => {

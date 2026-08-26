@@ -10,6 +10,7 @@
     "storybook": "storybook dev -p 6006",
     "build:storybook": "storybook build -o artefacts/storybook-ui-audit/storybook-static",
     "capture:storybook-audit": "node scripts/capture-storybook-audit.mjs",
+    "capture:raid-history-audit": "node scripts/capture-storybook-audit.mjs --raid-history",
     "start": "next start --hostname 0.0.0.0 --port 31057",
     "db:migrate": "node scripts/db-migrate.mjs",
     "test": "node --experimental-strip-types --test test/*.test.js test/*.test.ts",

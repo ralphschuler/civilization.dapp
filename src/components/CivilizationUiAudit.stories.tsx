@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { BuildPanel, type BuildPanelProps } from "./BuildPanel";
 import { ArmyPanel, type ArmyPanelProps } from "./ArmyPanel";
 import { CommandNavigation, type CommandPanel } from "./CommandNavigation";
@@ -12,6 +12,7 @@ import { VillageMap } from "./VillageMap";
 import { WalletAccess } from "./WalletAccess";
 import { WalletReviewDialog } from "./WalletReviewDialog";
 import { WalletVillageRegistrationGate } from "./CivilizationClient/WalletVillageRegistrationGate";
+import { RaidPanel } from "./RaidPanel";
 import { civilizationMessages } from "@/lib/civilization-locale";
 
 const copy = civilizationMessages("en-US");
@@ -55,6 +56,123 @@ const buildings = {
   barracks: { label: "Barracks", detail: "Trains troops for village defence." },
 };
 const format = (value: number) => new Intl.NumberFormat("en-US").format(value);
+const raidAuditReport = {
+  dedupeId: "raid-audit-1",
+  role: "attacker" as const,
+  attackerWon: true,
+  counterpartyLabel: "0x2222…2222",
+  attack: "42",
+  defense: "30",
+  resources: { wood: "12", clay: "0", stone: "2", gold: "0" },
+};
+const raidAuditEvent = {
+  kind: "raid_resolved",
+  role: "attacker",
+  counterparty: "0x2222222222222222222222222222222222222222",
+  attackerWon: true,
+  attack: "42",
+  defense: "30",
+  resources: { wood: "12", clay: "0", stone: "2", gold: "0" },
+  blockNumber: "123",
+  blockTimestamp: "2026-08-26T10:00:00.000Z",
+  transactionHash: `0x${"a".repeat(64)}`,
+  logIndex: 3,
+};
+
+function RaidHistoryStaticFixture({
+  history,
+}: {
+  history: {
+    reports: Array<typeof raidAuditReport>;
+    cursor: "more" | null;
+    status: "ready" | "empty";
+    updated: boolean;
+  };
+}) {
+  return (
+    <main className="game-shell">
+      <section className="command-panel">
+        <RaidPanel
+          state={{ troops: { spear: 3, archer: 0, rider: 0 } }}
+          runtimeMode="world"
+          busy={false}
+          troops={armyProps.troops}
+          resourceDefs={resourceDefs}
+          format={format}
+          remainingTime={() => 0}
+          raidDraft={{ army: {}, targetAddress: "", targetId: "" }}
+          selectedOpponent={null}
+          copy={copy}
+          onDraftChange={() => undefined}
+          onPickOpponent={() => undefined}
+          onSendRaid={() => undefined}
+          onResolveRaid={() => undefined}
+          raidHistoryPresentation={history}
+        />
+      </section>
+    </main>
+  );
+}
+
+/** Exercises the real controller's cursor-409 reset; it is never screenshot-captured. */
+function RaidHistoryCheckpointResetBehaviorFixture({
+  responses,
+}: {
+  responses: Array<{ body?: unknown; status?: number }>;
+}) {
+  const shell = useRef<HTMLElement>(null);
+  const responseIndex = useRef(0);
+  const [mounted, setMounted] = useState(false);
+  const [checkpointExercised, setCheckpointExercised] = useState(false);
+  const requestRaidHistory = useCallback<typeof fetch>(async () => {
+    const response =
+      responses[Math.min(responseIndex.current, responses.length - 1)];
+    responseIndex.current += 1;
+    return new Response(JSON.stringify(response.body ?? {}), {
+      status: response.status ?? 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  }, [responses]);
+  useEffect(() => {
+    const mount = window.setTimeout(() => setMounted(true), 0);
+    return () => window.clearTimeout(mount);
+  }, []);
+  useEffect(() => {
+    if (checkpointExercised || !mounted) return;
+    const trigger = window.setInterval(() => {
+      const more =
+        shell.current?.querySelector<HTMLButtonElement>(".raid-history-more");
+      if (!more) return;
+      more.click();
+      setCheckpointExercised(true);
+    }, 10);
+    return () => window.clearInterval(trigger);
+  }, [checkpointExercised, mounted]);
+  if (!mounted) return null;
+  return (
+    <main className="game-shell" ref={shell}>
+      <section className="command-panel">
+        <RaidPanel
+          state={{ troops: { spear: 3, archer: 0, rider: 0 } }}
+          runtimeMode="world"
+          busy={false}
+          troops={armyProps.troops}
+          resourceDefs={resourceDefs}
+          format={format}
+          remainingTime={() => 0}
+          raidDraft={{ army: {}, targetAddress: "", targetId: "" }}
+          selectedOpponent={null}
+          copy={copy}
+          onDraftChange={() => undefined}
+          onPickOpponent={() => undefined}
+          onSendRaid={() => undefined}
+          onResolveRaid={() => undefined}
+          requestRaidHistory={requestRaidHistory}
+        />
+      </section>
+    </main>
+  );
+}
 const buildProps: BuildPanelProps = {
   state: {
     resources: { wood: 1240, clay: 860, stone: 430, gold: 92 },
@@ -882,4 +1000,59 @@ function WorldMarketAuditFixture() {
 export const WorldMarketMobile = {
   name: "World market / Mobile liquidity disclosure",
   render: () => <WorldMarketAuditFixture />,
+};
+
+export const RaidHistoryLoaded = {
+  name: "Raid history / Loaded finalized reports (static 390px audit)",
+  render: () => (
+    <RaidHistoryStaticFixture
+      history={{
+        reports: [raidAuditReport],
+        cursor: "more",
+        status: "ready",
+        updated: false,
+      }}
+    />
+  ),
+};
+
+export const RaidHistoryUpdatedFinalState = {
+  name: "Raid history / Updated final state (static 390px audit)",
+  render: () => (
+    <RaidHistoryStaticFixture
+      history={{
+        reports: [raidAuditReport],
+        cursor: null,
+        status: "ready",
+        updated: true,
+      }}
+    />
+  ),
+};
+
+export const RaidHistoryCheckpointResetBehavior = {
+  name: "Raid history / Changed checkpoint reset behavior",
+  render: () => (
+    <RaidHistoryCheckpointResetBehaviorFixture
+      responses={[
+        {
+          body: {
+            availability: "stored_finalized_events",
+            coverage: { complete: false },
+            events: [raidAuditEvent],
+            nextCursor: "opaque-cursor",
+          },
+        },
+        { status: 409 },
+        {
+          body: {
+            availability: "stored_finalized_events",
+            coverage: { complete: false },
+            events: [raidAuditEvent],
+            nextCursor: null,
+          },
+        },
+      ]}
+    />
+  ),
 };

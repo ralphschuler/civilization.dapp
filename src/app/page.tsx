@@ -2,6 +2,7 @@ import { WalletAccess } from "@/components/WalletAccess";
 import { WalletAccessE2eHarness } from "@/components/WalletAccess/WalletAccessE2eHarness";
 import { BuildPanelE2eHarness } from "@/components/BuildPanelE2eHarness";
 import { EntryGuideE2eHarness } from "@/components/EntryGuideE2eHarness";
+import { RaidHistoryE2eHarness } from "@/components/RaidHistoryE2eHarness";
 import { runtimeConfiguration } from "@/lib/runtime-config";
 import { walletAccessE2eModeEnabled } from "@/lib/wallet-access-e2e-mode";
 import { civilizationMessages } from "@/lib/civilization-locale";
@@ -13,11 +14,14 @@ export default async function Home({
     buildPanelE2e?: string;
     entryGuideE2e?: string;
     feedbackE2e?: string;
+    raidHistoryE2e?: string;
   }>;
 }) {
   if (walletAccessE2eModeEnabled()) {
-    const { buildPanelE2e, entryGuideE2e, feedbackE2e } = await searchParams;
+    const { buildPanelE2e, entryGuideE2e, feedbackE2e, raidHistoryE2e } =
+      await searchParams;
     if (entryGuideE2e === "mobile-focus") return <EntryGuideE2eHarness />;
+    if (raidHistoryE2e === "reports") return <RaidHistoryE2eHarness />;
     if (
       buildPanelE2e === "one-job" ||
       buildPanelE2e === "two-jobs" ||
