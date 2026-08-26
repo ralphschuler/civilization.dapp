@@ -616,7 +616,7 @@ test("imperative shell provides stable React mounts for HUD and village map", ()
   assert.match(world, /<div data-game-village-map><\/div>/);
 });
 
-test("mobile HUD keeps all four resources in one bounded row", async () => {
+test("mobile HUD keeps all four resources in one bounded row at normal mobile widths", async () => {
   const css = await readFile(
     new URL("../src/styles.css", import.meta.url),
     "utf8",
@@ -651,10 +651,6 @@ test("mobile HUD keeps all four resources in one bounded row", async () => {
     /\.resource-values\s*\{[\s\S]*?grid-column: 2[\s\S]*?width: 100%[\s\S]*?min-width: 0/,
   );
   assert.match(mobile, /\.resource-production\s*\{[\s\S]*?grid-column: 1\/-1/);
-  assert.doesNotMatch(
-    css,
-    /grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/,
-  );
   assert.match(
     css,
     /\.collect-button\s*\{[\s\S]*?max-width: calc\(100% - 3\.2rem\)/,
@@ -1705,4 +1701,33 @@ test("mobile command navigation focuses and reveals the existing command panel",
   );
   assert.match(audit, /headingHitIsHud/);
   assert.match(audit, /headingHitIsNav/);
+});
+
+test("resource header audit protects the narrow two-by-two layout without changing normal mobile widths", async () => {
+  const [css, audit] = await Promise.all([
+    readFile(new URL("../src/styles.css", import.meta.url), "utf8"),
+    readFile(
+      new URL("../scripts/capture-storybook-audit.mjs", import.meta.url),
+      "utf8",
+    ),
+  ]);
+  assert.match(
+    css,
+    /@media \(max-width: 220px\)\s*\{[\s\S]*?\.resource-hud\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/,
+  );
+  for (const width of [195, 320, 390])
+    assert.match(
+      audit,
+      new RegExp(
+        `mobile-resource-header-${width}\\.png[\\s\\S]*?width: ${width}, height: ${width === 195 ? 422 : 844}`,
+      ),
+    );
+  assert.match(audit, /Narrow resource header must use a two-by-two grid/);
+  assert.match(
+    audit,
+    /Normal-width resource header must keep one row of four resources/,
+  );
+  assert.match(audit, /extends outside its tile/);
+  assert.match(audit, /Resource header has horizontal overflow/);
+  assert.match(audit, /Resource settings control is smaller than 44px/);
 });

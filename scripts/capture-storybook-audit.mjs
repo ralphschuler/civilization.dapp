@@ -29,6 +29,7 @@ await new Promise((resolve) => server.listen(6006, "127.0.0.1", resolve));
 const browser = await chromium.launch({ headless: true });
 const footerMeasurements = [];
 const mobileAuditMeasurements = [];
+const resourceHeaderMeasurements = [];
 const shots = [
   [
     "desktop-village-build-overview.png",
@@ -89,6 +90,16 @@ const shots = [
     "mobile-collection-wayfinding-390.png",
     "ui-audit-civilization--mobile-collection-wayfinding",
     { width: 390, height: 844 },
+  ],
+  [
+    "mobile-resource-header-195.png",
+    "ui-audit-civilization--resource-status-header",
+    { width: 195, height: 422 },
+  ],
+  [
+    "mobile-resource-header-320.png",
+    "ui-audit-civilization--resource-status-header",
+    { width: 320, height: 844 },
   ],
   [
     "mobile-resource-header-390.png",
@@ -329,6 +340,102 @@ for (const [name, id, viewport] of shots) {
       throw new Error("Bottom navigation control is smaller than 44px");
     await page.screenshot({ path: join(output, name) });
     screenshotTaken = true;
+  }
+  if (id === "ui-audit-civilization--resource-status-header") {
+    const layout = await page.evaluate(() => {
+      const rect = (element) => {
+        const { top, right, bottom, left, width, height } =
+          element.getBoundingClientRect();
+        return { top, right, bottom, left, width, height };
+      };
+      const hud = document.querySelector(".resource-hud");
+      const settings = document.querySelector(".resource-settings");
+      if (!hud || !settings) throw new Error("Missing resource header fixture");
+      return {
+        resources: Array.from(
+          hud.querySelectorAll(".resource"),
+          (resource) => ({
+            id: resource.getAttribute("data-resource"),
+            rect: rect(resource),
+            content: Array.from(
+              resource.querySelectorAll(
+                "img, .asset-icon-fallback, .resource-values, .resource-values *, .resource-production, .resource-production *",
+              ),
+              (element) => ({
+                name: element.className || element.tagName,
+                rect: rect(element),
+                visible: element.checkVisibility(),
+              }),
+            ),
+          }),
+        ),
+        settings: rect(settings),
+        scrollWidth: document.documentElement.scrollWidth,
+        viewportWidth: window.innerWidth,
+      };
+    });
+    const distinctPositions = (values) =>
+      values.reduce(
+        (positions, value) =>
+          positions.some((position) => Math.abs(position - value) < 1)
+            ? positions
+            : [...positions, value],
+        [],
+      );
+    const rows = distinctPositions(
+      layout.resources.map(({ rect }) => rect.top),
+    );
+    const columns = distinctPositions(
+      layout.resources.map(({ rect }) => rect.left),
+    );
+    if (layout.resources.length !== 4)
+      throw new Error("Resource header must show four resources");
+    if (layout.scrollWidth > layout.viewportWidth)
+      throw new Error("Resource header has horizontal overflow");
+    if (layout.settings.width < 44 || layout.settings.height < 44)
+      throw new Error("Resource settings control is smaller than 44px");
+    for (const resource of layout.resources) {
+      for (const content of resource.content) {
+        if (
+          content.visible &&
+          (content.rect.left < resource.rect.left - 0.5 ||
+            content.rect.right > resource.rect.right + 0.5 ||
+            content.rect.top < resource.rect.top - 0.5 ||
+            content.rect.bottom > resource.rect.bottom + 0.5)
+        )
+          throw new Error(
+            `Resource ${resource.id} ${content.name} extends outside its tile`,
+          );
+      }
+    }
+    if (viewport.width <= 220) {
+      if (rows.length !== 2 || columns.length !== 2)
+        throw new Error("Narrow resource header must use a two-by-two grid");
+      if (
+        rows.some(
+          (row) =>
+            layout.resources.filter(({ rect }) => Math.abs(rect.top - row) < 1)
+              .length !== 2,
+        )
+      )
+        throw new Error(
+          "Narrow resource header rows must each contain two resources",
+        );
+    } else if (rows.length !== 1 || columns.length !== 4) {
+      throw new Error(
+        "Normal-width resource header must keep one row of four resources",
+      );
+    }
+    resourceHeaderMeasurements.push({
+      name,
+      viewport,
+      rows: rows.length,
+      columns: columns.length,
+      resources: layout.resources.map(({ id, rect }) => ({ id, rect })),
+      settings: layout.settings,
+      scrollWidth: layout.scrollWidth,
+      viewportWidth: layout.viewportWidth,
+    });
   }
   if (id === "ui-audit-civilization--army-training-quantity-choice") {
     await page.locator('[data-training-amount="spear"]').fill("3");
@@ -726,3 +833,5 @@ console.log("Footer audit measurements:");
 console.log(JSON.stringify(footerMeasurements));
 console.log("Mobile audit measurements:");
 console.log(JSON.stringify(mobileAuditMeasurements));
+console.log("Resource header audit measurements:");
+console.log(JSON.stringify(resourceHeaderMeasurements));
