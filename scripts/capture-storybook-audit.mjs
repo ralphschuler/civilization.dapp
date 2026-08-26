@@ -149,6 +149,16 @@ const allShots = [
     { width: 390, height: 844 },
   ],
   [
+    "mobile-village-appearance-dusk-settings-320.png",
+    "ui-audit-civilization--village-appearance-dusk-settings",
+    { width: 320, height: 844 },
+  ],
+  [
+    "mobile-village-appearance-dusk-settings-390.png",
+    "ui-audit-civilization--village-appearance-dusk-settings",
+    { width: 390, height: 844 },
+  ],
+  [
     "mobile-bottom-navigation-390.png",
     "ui-audit-civilization--bottom-navigation",
     { width: 390, height: 844 },
@@ -533,6 +543,43 @@ for (const [name, id, viewport] of shots) {
       throw new Error("Stable GameShellFrame is missing its mobile landmarks");
     if (layout.scrollWidth > layout.viewportWidth)
       throw new Error("Stable GameShellFrame has horizontal overflow");
+  }
+  if (id === "ui-audit-civilization--village-appearance-dusk-settings") {
+    const layout = await page.evaluate(() => {
+      const dialog = document.querySelector(".settings-dialog");
+      const select = document.querySelector("#village-appearance");
+      const actions = Array.from(
+        document.querySelectorAll(".settings-appearance-actions button"),
+      );
+      if (
+        !dialog ||
+        !(select instanceof HTMLSelectElement) ||
+        actions.length !== 2
+      )
+        throw new Error("Missing village appearance settings audit fixture");
+      const rect = (element) => {
+        const { width, height } = element.getBoundingClientRect();
+        return { width, height };
+      };
+      return {
+        dialog: rect(dialog),
+        select: rect(select),
+        actions: actions.map(rect),
+        scrollWidth: document.documentElement.scrollWidth,
+        viewportWidth: window.innerWidth,
+      };
+    });
+    if (layout.scrollWidth > layout.viewportWidth)
+      throw new Error("Village appearance settings have horizontal overflow");
+    if (
+      layout.dialog.width <= 0 ||
+      layout.select.width <= 0 ||
+      layout.select.height < 44 ||
+      layout.actions.some((action) => action.width <= 0 || action.height < 44)
+    )
+      throw new Error(
+        "Village appearance select or Apply/Reset action is not a readable 44px target",
+      );
   }
   if (id === "ui-audit-civilization--resource-status-header") {
     const layout = await page.evaluate(() => {

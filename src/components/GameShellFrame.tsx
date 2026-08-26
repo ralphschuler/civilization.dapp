@@ -25,6 +25,7 @@ import {
 
 export type GameShellFrameProps = {
   activePanel: CommandPanel;
+  appearance?: "classic" | "dusk";
   army: ArmyPanelProps;
   build: BuildPanelProps;
   completionReady: CompletionReadyNoticeProps | null;
@@ -54,6 +55,7 @@ export function GameShellFrame(props: GameShellFrameProps) {
   return (
     <section
       className={`game-shell village-shell ${props.reducedMotion ? "motion-reduced" : ""}`}
+      data-village-appearance={props.appearance || "classic"}
     >
       <div data-game-shell-hud>
         <GameShellHud {...props.hud} />

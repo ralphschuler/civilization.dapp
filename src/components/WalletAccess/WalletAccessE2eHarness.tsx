@@ -14,6 +14,7 @@ import {
   walletAccessMessages,
 } from "@/lib/wallet-access-locale";
 import { verifyWalletForDirectGame } from "@/lib/direct-wallet-game-flow";
+import { createInitialState } from "@/game";
 import { WalletAccess, type WalletAccessAttempt } from "./index";
 
 type Scenario =
@@ -33,10 +34,12 @@ type Screen = "login" | "checking" | "gate" | "status-unavailable" | "game";
 const TEST_WALLET_ADDRESS = "0x0000000000000000000000000000000000000001";
 
 function E2eGameRoot({
+  appearanceE2e,
   initialFeedback,
   locale,
   onLocaleChange,
 }: {
+  appearanceE2e: boolean;
   initialFeedback?: string;
   locale: WalletAccessLocale;
   onLocaleChange: (locale: WalletAccessLocale) => void;
@@ -56,10 +59,33 @@ function E2eGameRoot({
     if (!root.current) return;
     startCivilizationApp({
       root: root.current,
-      runtimeMode: "demo",
+      runtimeMode: appearanceE2e ? "world" : "demo",
       worldAppInstalled: false,
       worldAccessConfirmed: true,
       worldWalletAddress: TEST_WALLET_ADDRESS,
+      worldAdapter: appearanceE2e
+        ? {
+            contractAddress: TEST_WALLET_ADDRESS,
+            claimEligibility: () => true,
+            getCapacity: () => 500,
+            getBuildingCost: () => ({}),
+            getConstructionCapacity: () => 1,
+            getProduction: () => ({ wood: 0, clay: 0, stone: 0, gold: 0 }),
+            getRequirements: () => [],
+            getRequirementsForLevel: () => [],
+            getTroopRequirements: () => [],
+            projectState: (state: ReturnType<typeof createInitialState>) =>
+              state,
+            projectUpgradeImpact: () => null,
+            readState: async () => ({
+              ...createInitialState(),
+              constructionCapacity: 1,
+              constructionOccupied: 0,
+              constructions: [],
+              prestigeCount: 0,
+            }),
+          }
+        : undefined,
       initialFeedback: initialFeedbackRef.current,
       locale: localeRef.current,
       onLocaleChange: (nextLocale) => onLocaleChangeRef.current(nextLocale),
@@ -67,7 +93,7 @@ function E2eGameRoot({
     });
     root.current.focus();
     return () => stopCivilizationApp();
-  }, []);
+  }, [appearanceE2e]);
 
   return (
     <div
@@ -87,8 +113,10 @@ function E2eGameRoot({
  * fetch, SIWE, a wallet provider, or an RPC endpoint.
  */
 export function WalletAccessE2eHarness({
+  appearanceE2e = false,
   initialFeedback,
 }: {
+  appearanceE2e?: boolean;
   initialFeedback?: string;
 }) {
   const [scenario, setScenario] = useState<Scenario>("registered");
@@ -239,6 +267,7 @@ export function WalletAccessE2eHarness({
       {screen === "game" ? (
         <E2eGameRoot
           key={gameVersion}
+          appearanceE2e={appearanceE2e}
           initialFeedback={initialFeedback}
           locale={locale}
           onLocaleChange={(nextLocale) => {

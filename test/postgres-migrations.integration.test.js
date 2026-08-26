@@ -76,7 +76,7 @@ test(
       );
       assert.deepEqual(
         versions.rows.map(({ version }) => version),
-        ["001", "002", "003", "004", "005", "006", "007", "008", "009"],
+        ["001", "002", "003", "004", "005", "006", "007", "008", "009", "010"],
       );
       const tables = await pool.query(
         "SELECT tablename FROM pg_tables WHERE schemaname = current_schema() ORDER BY tablename",
@@ -88,6 +88,7 @@ test(
           "chain_indexer_checkpoints",
           "chain_indexer_raw_events",
           "schema_migrations",
+          "village_appearance_preferences",
           "wallet_auth_challenges",
           "wallet_auth_metrics",
           "wallet_auth_rate_limits",

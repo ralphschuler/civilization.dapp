@@ -310,6 +310,225 @@ test("settings language persists without leaving the running game", async ({
     .toBe("en-US");
 });
 
+test("appearance preview applies and resets through only the explicitly mocked private route", async ({
+  page,
+}) => {
+  const requestBodies: unknown[] = [];
+  const methods: string[] = [];
+  let putCall = 0;
+  await page.route("**/api/village-appearance", async (route) => {
+    const request = route.request();
+    methods.push(request.method());
+    if (request.method() === "GET") {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ appearance: "classic" }),
+      });
+      return;
+    }
+    requestBodies.push(request.postDataJSON());
+    putCall += 1;
+    await route.fulfill({
+      status: putCall === 3 ? 503 : 200,
+      contentType: "application/json",
+      body: JSON.stringify(
+        putCall === 1
+          ? { appearance: "dusk" }
+          : putCall === 2
+            ? { appearance: "classic" }
+            : { appearance: "classic", error: "appearance_unavailable" },
+      ),
+    });
+  });
+  await page.route("**/api/history/raids?*", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ events: [], nextCursor: null }),
+    });
+  });
+  await page.goto("/?appearanceE2e=world");
+  await enterGame(page, "registered");
+  const shell = page.locator(".game-shell");
+  await expect(shell).toHaveAttribute("data-village-appearance", "classic");
+  await page.getByRole("button", { name: "Einstellungen" }).click();
+  const dialog = page.getByRole("dialog", { name: "Einstellungen" });
+  const appearance = dialog.locator("#village-appearance");
+  const apply = dialog.getByRole("button", { name: "Anwenden" });
+  const reset = dialog.getByRole("button", {
+    name: "Auf klassisch zurücksetzen",
+  });
+  await expect(appearance).toHaveAccessibleName(/Dorflayout/);
+  await appearance.focus();
+  await appearance.selectOption("dusk");
+  await expect(appearance).toHaveValue("dusk");
+  await expect(shell).toHaveAttribute("data-village-appearance", "dusk");
+  await apply.focus();
+  await page.keyboard.press("Enter");
+  await expect(dialog.getByRole("status")).toContainText("gespeichert");
+  await reset.focus();
+  await page.keyboard.press("Enter");
+  await expect(shell).toHaveAttribute("data-village-appearance", "classic");
+  await expect(dialog.getByRole("status")).toContainText("gespeichert");
+
+  await appearance.selectOption("dusk");
+  await apply.click();
+  await expect(shell).toHaveAttribute("data-village-appearance", "classic");
+  await expect(dialog.getByRole("status")).toContainText(
+    "Klassisch bleibt aktiv",
+  );
+  expect(methods.filter((method) => method === "GET").length).toBeGreaterThan(
+    0,
+  );
+  expect(methods.filter((method) => method === "PUT")).toEqual([
+    "PUT",
+    "PUT",
+    "PUT",
+  ]);
+  expect(requestBodies).toEqual([
+    { appearance: "dusk" },
+    { appearance: "classic" },
+    { appearance: "dusk" },
+  ]);
+
+  for (const width of [320, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    expect(
+      await page
+        .locator("html")
+        .evaluate((node) => node.scrollWidth <= window.innerWidth),
+    ).toBe(true);
+    for (const target of [appearance, apply, reset]) {
+      const box = await target.boundingBox();
+      expect(box?.height).toBeGreaterThanOrEqual(44);
+    }
+  }
+});
+
+test("Dusk uses classic terrain and tokens when higher contrast is requested", async ({
+  page,
+}) => {
+  await page.emulateMedia({ contrast: "more" });
+  const supportsMoreContrast = await page.evaluate(
+    () => matchMedia("(prefers-contrast: more)").matches,
+  );
+  test.skip(
+    !supportsMoreContrast,
+    "The current browser does not support prefers-contrast media emulation.",
+  );
+
+  await page.route("**/api/village-appearance", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ appearance: "classic" }),
+    });
+  });
+  await page.route("**/api/history/raids?*", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ events: [], nextCursor: null }),
+    });
+  });
+  await page.goto("/?appearanceE2e=world");
+  await enterGame(page, "registered");
+
+  const shell = page.locator(".game-shell");
+  await page.getByRole("button", { name: "Einstellungen" }).click();
+  await page
+    .getByRole("dialog", { name: "Einstellungen" })
+    .locator("#village-appearance")
+    .selectOption("dusk");
+  await expect(shell).toHaveAttribute("data-village-appearance", "dusk");
+  await expect(page.locator(".village-map-terrain img")).toHaveCSS(
+    "filter",
+    "none",
+  );
+  expect(
+    await shell.evaluate((node) => {
+      const styles = getComputedStyle(node);
+      return {
+        frame: styles.getPropertyValue("--village-frame-base").trim(),
+        shellA: styles.getPropertyValue("--village-shell-a").trim(),
+        shellB: styles.getPropertyValue("--village-shell-b").trim(),
+        wash: styles.getPropertyValue("--village-map-wash").trim(),
+      };
+    }),
+  ).toEqual({
+    frame: "#172516",
+    shellA: "#49632b",
+    shellB: "#2b3d28",
+    wash: "transparent",
+  });
+});
+
+test("Dusk removes its terrain filter and uses the Canvas fallback in forced colors", async ({
+  page,
+}) => {
+  await page.emulateMedia({ forcedColors: "active" });
+  const supportsForcedColors = await page.evaluate(
+    () => matchMedia("(forced-colors: active)").matches,
+  );
+  test.skip(
+    !supportsForcedColors,
+    "The current browser does not support forced-colors media emulation.",
+  );
+
+  await page.route("**/api/village-appearance", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ appearance: "classic" }),
+    });
+  });
+  await page.route("**/api/history/raids?*", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ events: [], nextCursor: null }),
+    });
+  });
+  await page.goto("/?appearanceE2e=world");
+  await enterGame(page, "registered");
+
+  await page.getByRole("button", { name: "Einstellungen" }).click();
+  await page
+    .getByRole("dialog", { name: "Einstellungen" })
+    .locator("#village-appearance")
+    .selectOption("dusk");
+
+  const shell = page.locator(".game-shell");
+  const terrain = page.locator(".village-map-terrain");
+  const terrainImage = terrain.locator("img");
+  await expect(shell).toHaveAttribute("data-village-appearance", "dusk");
+  await expect(terrainImage).toHaveCSS("filter", "none");
+  const forcedColorFallback = await terrain.evaluate((node) => {
+    const canvasProbe = document.createElement("div");
+    canvasProbe.style.background = "Canvas";
+    document.body.append(canvasProbe);
+    const canvas = getComputedStyle(canvasProbe).backgroundColor;
+    canvasProbe.remove();
+
+    const shellStyles = getComputedStyle(
+      document.querySelector(".game-shell")!,
+    );
+    const terrainStyles = getComputedStyle(node);
+    const imageStyles = getComputedStyle(node.querySelector("img")!);
+    return {
+      shellBackground: shellStyles.backgroundColor,
+      terrainBackground: terrainStyles.backgroundColor,
+      imageBackground: imageStyles.backgroundColor,
+      shellBackgroundImage: shellStyles.backgroundImage,
+      terrainImageBackgroundImage: imageStyles.backgroundImage,
+      canvas,
+    };
+  });
+  expect(forcedColorFallback).toEqual({
+    shellBackground: forcedColorFallback.canvas,
+    terrainBackground: forcedColorFallback.canvas,
+    imageBackground: forcedColorFallback.canvas,
+    shellBackgroundImage: "none",
+    terrainImageBackgroundImage: "none",
+    canvas: forcedColorFallback.canvas,
+  });
+});
+
 test("an in-progress on-chain read cannot offer village creation", async ({
   page,
 }) => {

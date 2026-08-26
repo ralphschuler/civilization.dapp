@@ -37,6 +37,10 @@ import {
   civilizationMessages,
   formatCivilizationNumber,
 } from "./lib/civilization-locale.ts";
+import {
+  DEFAULT_VILLAGE_APPEARANCE,
+  resolveVillageAppearance,
+} from "./lib/village-appearance.js";
 
 let activeRuntime = null;
 
@@ -86,6 +90,9 @@ function createRuntime(options) {
     onFrameChange: options.onFrameChange,
     retryGate: null,
     settingsOpen: false,
+    villageAppearance: DEFAULT_VILLAGE_APPEARANCE,
+    appearancePending: false,
+    appearanceStatus: "",
     completionNotices: [],
     completionNotificationsEnabled: completionNotificationsEnabled({
       walletAddress,
@@ -500,6 +507,10 @@ function createController(runtime) {
   };
   const frame = () => {
     const copy = civilizationMessages(runtime.locale);
+    // A failed static asset never leaves a partially themed village behind.
+    const displayedAppearance = runtime.assetResult.failed.length
+      ? DEFAULT_VILLAGE_APPEARANCE
+      : runtime.villageAppearance;
     const context = panelContext();
     const displayState =
       runtime.mode === "world"
@@ -565,6 +576,7 @@ function createController(runtime) {
         runtimeMode: runtime.mode,
         selectedBuilding: runtime.selectedBuilding,
         activePanel: runtime.activePanel,
+        appearance: displayedAppearance,
       },
       desktopNavigation: {
         activePanel: runtime.activePanel,
@@ -623,6 +635,12 @@ function createController(runtime) {
             copy,
             locale: runtime.locale,
             onChangeLocale: actions.changeLocale,
+            appearance: runtime.villageAppearance,
+            appearancePending: runtime.appearancePending,
+            appearanceStatus: runtime.appearanceStatus,
+            onApplyAppearance: actions.applyAppearance,
+            onChangeAppearance: actions.changeAppearance,
+            onResetAppearance: actions.resetAppearance,
             onClose: actions.closeSettings,
             onLogout: actions.logout,
             onSetCompletionNotifications: actions.setCompletionNotifications,
@@ -647,6 +665,7 @@ function createController(runtime) {
           }
         : null,
       reducedMotion: runtime.reducedMotion,
+      appearance: displayedAppearance,
     });
   };
   const render = () => {
@@ -750,6 +769,50 @@ function createController(runtime) {
         runtime.completionNotices = [];
       render();
     },
+    changeAppearance: (appearance) => {
+      runtime.villageAppearance = resolveVillageAppearance(appearance);
+      runtime.appearanceStatus = "";
+      render();
+    },
+    applyAppearance: async () => {
+      if (runtime.appearancePending || runtime.mode !== "world") return;
+      runtime.appearancePending = true;
+      runtime.appearanceStatus = "";
+      render();
+      try {
+        const response = await fetch("/api/village-appearance", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ appearance: runtime.villageAppearance }),
+          cache: "no-store",
+        });
+        const payload = await response.json().catch(() => null);
+        if (
+          !response.ok ||
+          !payload ||
+          !["classic", "dusk"].includes(payload.appearance)
+        )
+          throw new Error("appearance_unavailable");
+        runtime.villageAppearance = resolveVillageAppearance(
+          payload.appearance,
+        );
+        runtime.appearanceStatus = civilizationMessages(
+          runtime.locale,
+        ).appearanceSaved;
+      } catch {
+        runtime.villageAppearance = DEFAULT_VILLAGE_APPEARANCE;
+        runtime.appearanceStatus = civilizationMessages(
+          runtime.locale,
+        ).appearanceUnavailable;
+      } finally {
+        runtime.appearancePending = false;
+        if (isCurrent(runtime.token)) render();
+      }
+    },
+    resetAppearance: async () => {
+      runtime.villageAppearance = DEFAULT_VILLAGE_APPEARANCE;
+      await actions.applyAppearance();
+    },
     logout: () => runtime.onLogout?.(),
   });
 
@@ -781,6 +844,23 @@ export function startCivilizationApp(options) {
   activeRuntime = runtime;
   const controller = createController(runtime);
   controller.render();
+  // The browser never supplies an address: this private read is bound to the
+  // existing HttpOnly WalletAuth session. Any bad response remains classic.
+  if (runtime.mode === "world") {
+    void fetch("/api/village-appearance", { cache: "no-store" })
+      .then(async (response) => {
+        const payload = await response.json().catch(() => null);
+        return response.ok
+          ? resolveVillageAppearance(payload?.appearance)
+          : DEFAULT_VILLAGE_APPEARANCE;
+      })
+      .catch(() => DEFAULT_VILLAGE_APPEARANCE)
+      .then((appearance) => {
+        if (!isRuntimeCurrent(runtime)) return;
+        runtime.villageAppearance = appearance;
+        controller.render();
+      });
+  }
   loadCriticalAssets().then((assetResult) => {
     if (!isRuntimeCurrent(runtime)) return;
     runtime.assetState = "ready";

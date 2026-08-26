@@ -1351,3 +1351,61 @@ test("resource header audit protects the narrow two-by-two layout without changi
   assert.match(audit, /Resource header has horizontal overflow/);
   assert.match(audit, /Resource settings control is smaller than 44px/);
 });
+
+test("dusk appearance keeps a classic high-contrast fallback and static mobile audit", async () => {
+  const [css, audit, stories] = await Promise.all([
+    readFile(new URL("../src/styles.css", import.meta.url), "utf8"),
+    readFile(
+      new URL("../scripts/capture-storybook-audit.mjs", import.meta.url),
+      "utf8",
+    ),
+    readFile(
+      new URL(
+        "../src/components/CivilizationUiAudit.stories.tsx",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+  ]);
+  assert.match(stories, /export const VillageAppearanceDuskSettings/);
+  const defaultDuskTokens = css.indexOf(
+    '[data-village-appearance="dusk"] {\n  --village-frame-base: #211a2a;',
+  );
+  const defaultDuskTerrain = css.indexOf(
+    '.village-map[data-village-appearance="dusk"] .village-map-terrain img {\n  filter: sepia(',
+  );
+  const highContrastFallback = css.indexOf(
+    "@media (prefers-contrast: more) {\n  /* Dusk is decorative.",
+  );
+  const forcedColorsFallback = css.indexOf(
+    "@media (forced-colors: active) {",
+    highContrastFallback,
+  );
+  assert.ok(defaultDuskTokens >= 0, "default Dusk tokens are present");
+  assert.ok(defaultDuskTerrain >= 0, "default Dusk terrain filter is present");
+  assert.ok(
+    highContrastFallback > defaultDuskTokens &&
+      highContrastFallback > defaultDuskTerrain,
+    "high-contrast Dusk fallback follows every default Dusk declaration",
+  );
+  assert.ok(
+    forcedColorsFallback > defaultDuskTerrain,
+    "forced-colors Dusk fallback follows the default terrain filter",
+  );
+  const highContrastBlock = css.slice(
+    highContrastFallback,
+    forcedColorsFallback,
+  );
+  assert.match(highContrastBlock, /--village-frame-base:\s*#172516/);
+  assert.match(highContrastBlock, /filter:\s*none/);
+  assert.doesNotMatch(highContrastBlock, /!important/);
+  for (const width of [320, 390])
+    assert.match(
+      audit,
+      new RegExp(
+        `mobile-village-appearance-dusk-settings-${width}\\.png[\\s\\S]*?width: ${width}, height: 844`,
+      ),
+    );
+  assert.match(audit, /Village appearance settings have horizontal overflow/);
+  assert.match(audit, /readable 44px target/);
+});
