@@ -218,7 +218,12 @@ export async function replayFinalizedBlocks({
       chainId: normalizedConfig.chainId,
       contractAddress: normalizedConfig.contractAddress,
       blocks: batch.blocks,
-      logs: batch.logs,
+      // Logs have been validated in their canonical form above. The store is
+      // intentionally the raw-RPC boundary and normalizes `address` itself.
+      logs: batch.logs.map(({ contractAddress, ...log }) => ({
+        ...log,
+        address: contractAddress,
+      })),
       checkpoint: batch.blocks.at(-1),
       maxRollbackDepth: normalizedConfig.rollbackDepth,
     });

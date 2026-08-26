@@ -97,6 +97,17 @@ test("reader replays only complete finalized proxy-filtered batches with bounded
     "identical RPC duplicates are normalized",
   );
   assert.deepEqual(
+    batches[0].logs.map(({ address: logAddress, contractAddress }) => [
+      logAddress,
+      contractAddress,
+    ]),
+    [
+      [address, undefined],
+      [address, undefined],
+    ],
+    "reader adapts canonical logs to the store's RPC-shaped input boundary",
+  );
+  assert.deepEqual(
     rpc.calls.logs.map(({ fromBlock, toBlock, address: requestedAddress }) => [
       fromBlock,
       toBlock,
