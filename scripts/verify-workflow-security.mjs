@@ -25,6 +25,14 @@ const requirements = [
     /publish:[\s\S]*?permissions:\n      contents: read\n      packages: write\n    steps:/,
   ],
   [
+    "publish manual master delivery is explicitly opt-in",
+    /workflow_dispatch:\n    inputs:\n      publish_master:\n        description: Publish the verified master image\n        required: true\n        default: false\n        type: boolean\n  push:/,
+  ],
+  [
+    "publish permits manual delivery only from master with explicit opt-in",
+    /publish:\n    if: github\.event_name == 'push' \|\| \(github\.event_name == 'workflow_dispatch' && github\.ref == 'refs\/heads\/master' && inputs\.publish_master == true\)\n    needs: verify/,
+  ],
+  [
     "pages global contents is read-only",
     /permissions:\n  contents: read\n\nconcurrency:/,
   ],
