@@ -19,16 +19,11 @@ import {
   resetCriticalAssetCacheForTest,
 } from "../src/game-ui/assets.js";
 import { MAP_BUILDING_ANCHORS } from "../src/game-ui/map-coordinates.js";
-import { gameShell } from "../src/game-ui/views/shell.js";
-import { buildPanel } from "../src/game-ui/views/build.js";
-import { marketPanel } from "../src/game-ui/views/market.js";
-import { armyPanel } from "../src/game-ui/views/army.js";
-import { raidPanel } from "../src/game-ui/views/raid.js";
 import { createWorldRuntime } from "../src/game-world-runtime.js";
 import { createGameActions } from "../src/game-actions.js";
 import { createInitialState } from "../src/game.js";
 import { civilizationMessages } from "../src/lib/civilization-locale.ts";
-import { readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 
 test("critical assets preload maps, buildings, and resources without blocking controls", async () => {
   resetCriticalAssetCacheForTest();
@@ -97,22 +92,54 @@ test("GameFooter keeps reset demo-only and renders dynamic values as React child
   assert.doesNotMatch(footer, /dangerouslySetInnerHTML|innerHTML/);
 });
 
-test("footer shell mount and lifecycle leave reset exclusively to React", async () => {
-  const [app, bindings, shell] = await Promise.all([
+test("GameShellFrame keeps the footer mount stable and reset exclusively in React", async () => {
+  const [app, frame] = await Promise.all([
     readFile(new URL("../src/app.js", import.meta.url), "utf8"),
-    readFile(new URL("../src/game-ui/bindings.js", import.meta.url), "utf8"),
-    readFile(new URL("../src/game-ui/views/shell.js", import.meta.url), "utf8"),
+    readFile(
+      new URL("../src/components/GameShellFrame.tsx", import.meta.url),
+      "utf8",
+    ),
   ]);
-  assert.match(shell, /<div data-game-footer><\/div>/);
-  assert.match(gameShell(), /<div data-game-footer><\/div>/);
+  assert.match(frame, /<div data-game-footer>/);
+  assert.match(frame, /<GameFooter \{\.\.\.props\.footer\} \/>/);
+  assert.match(app, /runtime\.onFrameChange\(frame\(\)\)/);
   assert.doesNotMatch(
-    shell,
-    /<footer class="game-footer"|id="reset"|demoFooter|worldFooter/,
+    app,
+    /createRoot|shellRoot|replaceChildren|root\.innerHTML|gameShell\(/,
   );
-  assert.doesNotMatch(bindings, /#reset|actions\.reset/);
-  assert.match(app, /const renderFooter = \(\) =>/);
-  assert.match(app, /runtime\.footerRoot\?\.unmount\(\)/);
-  assert.match(app, /renderFooter\(\);/);
+});
+
+test("GameShellFrame is the sole typed game shell and legacy renderers are absent", async () => {
+  const [app, frame] = await Promise.all([
+    readFile(new URL("../src/app.js", import.meta.url), "utf8"),
+    readFile(
+      new URL("../src/components/GameShellFrame.tsx", import.meta.url),
+      "utf8",
+    ),
+  ]);
+  assert.match(
+    app,
+    /import \{ GameShellFrame \} from "\.\/components\/GameShellFrame"/,
+  );
+  assert.match(app, /createElement\(GameShellFrame/);
+  assert.doesNotMatch(
+    app,
+    /game-ui\/(?:bindings|views\/(?:build|army|market|raid))/,
+  );
+  assert.doesNotMatch(frame, /innerHTML|dangerouslySetInnerHTML/);
+  await Promise.all(
+    [
+      "../src/game-ui/bindings.js",
+      "../src/game-ui/views/build.js",
+      "../src/game-ui/views/army.js",
+      "../src/game-ui/views/market.js",
+      "../src/game-ui/views/raid.js",
+    ].map((file) =>
+      assert.rejects(access(new URL(file, import.meta.url)), {
+        code: "ENOENT",
+      }),
+    ),
+  );
 });
 
 test("resource HUD helpers abbreviate large values and preserve rate semantics", () => {
@@ -165,141 +192,92 @@ test("demo storage migrates legacy loot fields without accepting incomplete snap
   assert.equal(records.has(STORAGE_KEY), false);
 });
 
-test("shell rendering receives explicit state and no controller callbacks", () => {
-  const state = {
-    resources: { wood: 1, clay: 1, stone: 1, gold: 0 },
-    unclaimed: { wood: 0, clay: 0, stone: 0, gold: 0 },
-    buildings: {
-      townhall: 1,
-      timber: 1,
-      claypit: 1,
-      quarry: 1,
-      warehouse: 1,
-      workshop: 1,
-      goldmine: 1,
-      barracks: 1,
-    },
-    raids: 0,
-  };
-  const resourceDefs = {
-    wood: { color: "wood", label: "Holz" },
-    clay: { color: "clay", label: "Lehm" },
-    stone: { color: "stone", label: "Stein" },
-    gold: { color: "gold", label: "Gold" },
-  };
-  const tokens = {
-    wood: { symbol: "HOLZ" },
-    clay: { symbol: "LEHM" },
-    stone: { symbol: "STEIN" },
-    gold: { symbol: "CGOLD" },
-  };
-  const buildings = Object.fromEntries(
-    Object.keys(state.buildings).map((id) => [id, { label: id }]),
+test("GameShellFrame defines every stable shell landmark without HTML interpolation", async () => {
+  const frame = await readFile(
+    new URL("../src/components/GameShellFrame.tsx", import.meta.url),
+    "utf8",
   );
-  const html = gameShell({
-    state,
-    runtimeMode: "demo",
-    worldApp: { installed: false },
-    worldBadge: "DEMO · LOKAL",
-    feedback: "bereit",
-    activePanel: "build",
-    selectedBuilding: "townhall",
-    panel: "<p>panel</p>",
-    production: { wood: 1, clay: 1, stone: 1, gold: 0 },
-    capacity: 100,
-    displayState: state,
-    collection: { locked: false, detail: "FELD" },
-    readyToClaim: 0,
-    resourceDefs,
-    tokens,
-    format: String,
-    resourceFormat: String,
-    buildings,
-    busy: false,
-    locale: "en-US",
-    copy: civilizationMessages("en-US"),
-    walletAddress: "0x0000000000000000000000000000000000000001",
-    settingsOpen: true,
-    reducedMotion: true,
-  });
+  for (const landmark of [
+    "data-game-shell-hud",
+    "data-entry-guide-mount",
+    "data-game-village-map",
+    'data-game-command-navigation-mount="desktop"',
+    'id="game-command-panel"',
+    "data-game-build-panel",
+    "data-game-army-panel",
+    "data-game-market-panel",
+    "data-game-raid-panel",
+    "data-game-footer",
+    'data-game-command-navigation-mount="mobile"',
+    "data-game-settings-dialog",
+    "data-wallet-review-dialog",
+  ])
+    assert.match(frame, new RegExp(landmark));
+  assert.match(frame, /hidden=\{props\.activePanel !== "build"\}/);
+  assert.doesNotMatch(frame, /innerHTML|dangerouslySetInnerHTML/);
+});
+
+test("GameShellFrame keeps panel mounts stable through switches and retains mobile focus behavior", async () => {
+  const [app, frame, audit] = await Promise.all([
+    readFile(new URL("../src/app.js", import.meta.url), "utf8"),
+    readFile(
+      new URL("../src/components/GameShellFrame.tsx", import.meta.url),
+      "utf8",
+    ),
+    readFile(
+      new URL("../scripts/capture-storybook-audit.mjs", import.meta.url),
+      "utf8",
+    ),
+  ]);
+  for (const panel of ["build", "army", "market", "raid"])
+    assert.match(frame, new RegExp(`data-game-${panel}-panel hidden=`));
+  assert.match(app, /const focusCommandPanel = \(\) =>/);
   assert.match(
-    html,
-    /<div data-game-command-navigation-mount="desktop"><\/div>/,
+    app,
+    /selectedNavigation === "mobile"[\s\S]*?focusCommandPanel\(\)/,
   );
+  assert.doesNotMatch(app, /root\.innerHTML/);
   assert.match(
-    html,
-    /<div data-game-command-navigation-mount="mobile"><\/div>/,
+    audit,
+    /mobile-stable-game-shell-frame-195\.png[\s\S]*?width: 195, height: 422/,
   );
-  assert.doesNotMatch(html, /command-tabs|mobile-hud|data-command-panel/);
-  assert.match(html, /id="game-command-panel"/);
-  assert.match(html, /<p>panel<\/p>/);
-  assert.match(html, /data-game-village-map/);
-  assert.match(html, /<div data-game-village-map><\/div>/);
-  assert.match(html, /<div data-game-shell-hud><\/div>/);
-  assert.match(html, /<div data-game-settings-dialog><\/div>/);
-  assert.doesNotMatch(html, /settings-wallet-address/);
-  assert.doesNotMatch(html, /data-reduced-motion/);
-  assert.match(html, /motion-reduced/);
+  assert.match(audit, /Stable GameShellFrame has horizontal overflow/);
 });
 
 test("village-map dynamic feedback is React-owned rather than shell interpolation", async () => {
-  const state = createInitialState();
-  const feedback =
-    '<img src=x onerror="globalThis.pwned=1"> "quoted" & Käse 🏰';
-  const html = gameShell({
-    state,
-    runtimeMode: "demo",
-    worldApp: { installed: false },
-    worldBadge: "DEMO · LOKAL",
-    feedback,
-    activePanel: "build",
-    selectedBuilding: "townhall",
-    panel: "",
-    production: { wood: 0, clay: 0, stone: 0, gold: 0 },
-    capacity: 100,
-    displayState: state,
-    collection: { locked: false, detail: "FELD" },
-    readyToClaim: 0,
-    resourceDefs: {},
-    tokens: {},
-    format: String,
-    resourceFormat: String,
-    buildings: Object.fromEntries(
-      BUILDING_IDS.map((id) => [id, { label: id }]),
-    ),
-    busy: false,
-    copy: civilizationMessages("en-US"),
-  });
-
   const map = await readFile(
     new URL("../src/components/VillageMap.tsx", import.meta.url),
     "utf8",
   );
   assert.match(map, /className="map-feedback" aria-live="polite"/);
   assert.match(map, /\{props\.feedback\}/);
-  assert.doesNotMatch(html, /map-feedback|<img src=x onerror=/);
+  assert.doesNotMatch(map, /innerHTML|dangerouslySetInnerHTML/);
 });
 
 test("typed game navigation mounts both layouts, calls the runtime action, and preserves accessible active controls", async () => {
-  const [app, bindings, component, css, shell] = await Promise.all([
+  const [app, component, css, frame] = await Promise.all([
     readFile(new URL("../src/app.js", import.meta.url), "utf8"),
-    readFile(new URL("../src/game-ui/bindings.js", import.meta.url), "utf8"),
     readFile(
       new URL("../src/components/CommandNavigation.tsx", import.meta.url),
       "utf8",
     ),
     readFile(new URL("../src/styles.css", import.meta.url), "utf8"),
-    readFile(new URL("../src/game-ui/views/shell.js", import.meta.url), "utf8"),
+    readFile(
+      new URL("../src/components/GameShellFrame.tsx", import.meta.url),
+      "utf8",
+    ),
   ]);
 
-  assert.match(shell, /data-game-command-navigation-mount="desktop"/);
-  assert.match(shell, /data-game-command-navigation-mount="mobile"/);
-  assert.doesNotMatch(shell, /function tabs/);
-  assert.match(app, /import \{ CommandNavigation \}/);
-  assert.match(app, /desktopNavigationRoot/);
-  assert.match(app, /mobileNavigationRoot/);
-  assert.match(app, /createElement\(CommandNavigation/);
-  assert.match(app, /onSelectPanel: \(panel, selectedNavigation\) =>/);
+  assert.match(frame, /data-game-command-navigation-mount="desktop"/);
+  assert.match(frame, /data-game-command-navigation-mount="mobile"/);
+  assert.match(
+    frame,
+    /<CommandNavigation \{\.\.\.props\.desktopNavigation\} \/>/,
+  );
+  assert.match(
+    app,
+    /const selectPanelFromNavigation = \(panel, selectedNavigation\) =>/,
+  );
   assert.match(app, /actions\.selectPanel\(panel\)/);
   assert.match(app, /data-game-command-navigation="\$\{selectedNavigation\}"/);
   assert.match(component, /export type CommandNavigationProps/);
@@ -313,12 +291,8 @@ test("typed game navigation mounts both layouts, calls the runtime action, and p
   assert.match(component, /copy\.buildShort/);
   assert.match(component, /copy\.armyShort/);
   assert.doesNotMatch(component, /role="tab"/);
-  assert.doesNotMatch(bindings, /data-command-panel/);
-  assert.doesNotMatch(bindings, /data-panel/);
-  assert.doesNotMatch(bindings, /data-map-(?:panel|building)/);
   assert.match(app, /onSelectMarket: \(\) => actions\.selectPanel\("market"\)/);
-  assert.match(app, /let mapFocusTarget/);
-  assert.match(app, /renderVillageMap\(mapFocusTarget\)/);
+  assert.match(app, /villageMap:/);
   assert.match(css, /\.game-shell button\s*\{\s*min-height:\s*2\.75rem/);
   assert.match(
     css,
@@ -329,42 +303,6 @@ test("typed game navigation mounts both layouts, calls the runtime action, and p
 });
 
 test("failed resource and building sprites retain visible accessible fallbacks", async () => {
-  const state = {
-    resources: { wood: 1 },
-    unclaimed: { wood: 0 },
-    buildings: Object.fromEntries(BUILDING_IDS.map((id) => [id, 1])),
-    raids: 0,
-  };
-  const html = gameShell({
-    state,
-    runtimeMode: "demo",
-    worldApp: { installed: false },
-    worldBadge: "DEMO · LOKAL",
-    feedback: "bereit",
-    activePanel: "build",
-    selectedBuilding: "townhall",
-    panel: "",
-    production: { wood: 0 },
-    capacity: 100,
-    displayState: state,
-    collection: { locked: false, detail: "FELD" },
-    readyToClaim: 0,
-    resourceDefs: { wood: { color: "wood", label: "Holz" } },
-    tokens: { wood: { symbol: "HOLZ" } },
-    format: String,
-    resourceFormat: String,
-    buildings: Object.fromEntries(
-      BUILDING_IDS.map((id) => [id, { label: id }]),
-    ),
-    busy: false,
-    copy: civilizationMessages("de-DE"),
-    assetResult: {
-      failed: [
-        "/assets/village-v2/resources/wood.png",
-        "/assets/village-v2/buildings/townhall.png",
-      ],
-    },
-  });
   const map = await readFile(
     new URL("../src/components/VillageMap.tsx", import.meta.url),
     "utf8",
@@ -373,114 +311,17 @@ test("failed resource and building sprites retain visible accessible fallbacks",
   assert.match(map, /buildingAssetUnavailable/);
   assert.match(map, /asset-building-fallback" role="status"/);
   assert.match(map, /onError=/);
-  assert.match(html, /<div data-game-village-map><\/div>/);
 });
 
-test("imperative shell provides stable locale-independent navigation mounts", () => {
-  const state = {
-    resources: { wood: 0, clay: 0, stone: 0, gold: 0 },
-    unclaimed: { wood: 0, clay: 0, stone: 0, gold: 0 },
-    buildings: Object.fromEntries(BUILDING_IDS.map((id) => [id, 1])),
-    raids: 0,
-  };
-  const html = gameShell({
-    state,
-    runtimeMode: "demo",
-    worldApp: { installed: false },
-    worldBadge: "DEMO · LOCAL",
-    feedback: "",
-    activePanel: "build",
-    selectedBuilding: "townhall",
-    panel: "",
-    production: {},
-    capacity: 100,
-    displayState: state,
-    collection: { locked: false, detail: "FIELD" },
-    readyToClaim: 1234.5,
-    resourceDefs: {},
-    tokens: {},
-    format: String,
-    resourceFormat: (value) => new Intl.NumberFormat("en-US").format(value),
-    buildings: Object.fromEntries(
-      BUILDING_IDS.map((id) => [id, { label: id }]),
-    ),
-    busy: false,
-    locale: "en-US",
-    copy: civilizationMessages("en-US"),
-  });
-  assert.match(html, /data-game-command-navigation-mount="desktop"/);
-  assert.match(html, /data-game-command-navigation-mount="mobile"/);
-  assert.match(html, /data-game-shell-hud/);
-  assert.match(html, /data-game-village-map/);
-});
-
-test("market panel is a stable React mount point", () => {
-  assert.equal(marketPanel(), "<div data-game-market-panel></div>");
-});
-
-test("raid panel is a stable React mount point", () => {
-  assert.equal(raidPanel(), "<div data-game-raid-panel></div>");
-});
-
-test("all imperative game panels render catalog copy for German and English", () => {
-  const state = {
-    resources: { wood: 100, clay: 100, stone: 100, gold: 10 },
-    buildings: { townhall: 1, barracks: 1 },
-    troops: { spear: 2 },
-    targets: [],
-    raids: 0,
-    lastRaid: null,
-  };
-  const panelContext = (locale) => ({
-    state,
-    runtimeMode: "demo",
-    busy: false,
-    copy: civilizationMessages(locale),
-    selectedBuilding: "townhall",
-    buildings: {
-      townhall: {
-        label: civilizationMessages(locale).buildingNames.townhall,
-        detail: civilizationMessages(locale).buildingDetails.townhall,
-      },
-    },
-    troops: {
-      spear: {
-        label: civilizationMessages(locale).troopNames.spear,
-        attack: 10,
-        cost: { wood: 1 },
-      },
-    },
-    resourceDefs: {
-      wood: {
-        label: civilizationMessages(locale).resourceNames.wood,
-        color: "wood",
-      },
-    },
-    tokens: {
-      wood: {
-        name: civilizationMessages(locale).resourceNames.wood,
-        symbol: "WOOD",
-        externalSettlement: false,
-      },
-    },
-    format: (value) => new Intl.NumberFormat(locale).format(value),
-    remainingTime: () => 0,
-    requirements: () => [],
-    buildingCost: () => ({ wood: 1 }),
-    buildDuration: () => 0,
-    nextBuildingProduction: () => ({}),
-    troopRequirements: () => [],
-  });
-  const german = panelContext("de-DE");
-  const english = panelContext("en-US");
-  assert.equal(buildPanel(german), "<div data-game-build-panel></div>");
-  assert.equal(buildPanel(english), "<div data-game-build-panel></div>");
-  assert.equal(armyPanel(german), "<div data-game-army-panel></div>");
-  assert.equal(armyPanel(english), "<div data-game-army-panel></div>");
-  assert.equal(raidPanel(german), "<div data-game-raid-panel></div>");
-  assert.equal(raidPanel(english), "<div data-game-raid-panel></div>");
-  assert.equal(marketPanel(german), "<div data-game-market-panel></div>");
-  assert.equal(marketPanel(english), "<div data-game-market-panel></div>");
+test("GameShellFrame provides stable locale-independent navigation mounts", async () => {
+  const frame = await readFile(
+    new URL("../src/components/GameShellFrame.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(frame, /data-game-command-navigation-mount="desktop"/);
+  assert.match(frame, /data-game-command-navigation-mount="mobile"/);
+  assert.match(frame, /data-game-shell-hud/);
+  assert.match(frame, /data-game-village-map/);
 });
 
 test("English values retain English number formatting", () => {
@@ -530,6 +371,7 @@ test("map buildings use normalized bottom-centre anchors across renders and atla
     ),
     busy: false,
   };
+  void context;
   const map = await readFile(
     new URL("../src/components/VillageMap.tsx", import.meta.url),
     "utf8",
@@ -538,7 +380,6 @@ test("map buildings use normalized bottom-centre anchors across renders and atla
   assert.match(map, /data-map-anchor="bottom-center"/);
   assert.match(map, /--map-anchor-x-desktop/);
   assert.match(map, /--map-anchor-y-mobile/);
-  assert.doesNotMatch(gameShell(context), /map-building|data-map-anchor/);
 
   const css = await readFile(
     new URL("../src/styles.css", import.meta.url),
@@ -555,65 +396,14 @@ test("map buildings use normalized bottom-centre anchors across renders and atla
   assert.doesNotMatch(css, /--ground-anchor/);
 });
 
-test("imperative shell provides stable React mounts for HUD and village map", () => {
-  const state = {
-    resources: { wood: 2_410_426_546, clay: 1, stone: 1, gold: 0 },
-    unclaimed: { wood: 4, clay: 0, stone: 0, gold: 0 },
-    buildings: {
-      townhall: 1,
-      timber: 1,
-      claypit: 1,
-      quarry: 1,
-      warehouse: 1,
-      workshop: 1,
-      goldmine: 0,
-      barracks: 1,
-    },
-    raids: 0,
-  };
-  const common = {
-    copy: civilizationMessages("de-DE"),
-    state,
-    worldApp: { installed: false },
-    worldBadge: "DEMO · LOKAL",
-    feedback: "bereit",
-    activePanel: "build",
-    selectedBuilding: "townhall",
-    panel: "",
-    capacity: 100,
-    displayState: state,
-    collection: { locked: false, detail: "FELD" },
-    readyToClaim: 4,
-    resourceDefs: {
-      wood: { color: "wood", label: "Holz" },
-      gold: { color: "gold", label: "Gold" },
-    },
-    tokens: { wood: { symbol: "HOLZ" }, gold: { symbol: "CGOLD" } },
-    format: String,
-    resourceFormat: String,
-    buildings: Object.fromEntries(
-      Object.keys(state.buildings).map((id) => [id, { label: id }]),
-    ),
-    busy: false,
-  };
-  const demo = gameShell({
-    ...common,
-    runtimeMode: "demo",
-    production: { wood: 35_100, gold: 0 },
-  });
-  const world = gameShell({
-    ...common,
-    runtimeMode: "world",
-    production: { wood: 35_100, gold: 0 },
-  });
-
-  assert.match(demo, /<div data-game-shell-hud><\/div>/);
-  assert.match(demo, /<div data-game-village-map><\/div>/);
-  assert.doesNotMatch(demo, /data-resource="wood"/);
-  assert.doesNotMatch(demo, /data-resource-field|Feldbestand/);
-  assert.doesNotMatch(demo, /data-collection-resource|data-ready-to-claim/);
-  assert.match(world, /<div data-game-shell-hud><\/div>/);
-  assert.match(world, /<div data-game-village-map><\/div>/);
+test("GameShellFrame provides stable React mounts for HUD and village map", async () => {
+  const frame = await readFile(
+    new URL("../src/components/GameShellFrame.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(frame, /<GameShellHud \{\.\.\.props\.hud\} \/>/);
+  assert.match(frame, /<VillageMap \{\.\.\.props\.villageMap\} \/>/);
+  assert.doesNotMatch(frame, /innerHTML|dangerouslySetInnerHTML/);
 });
 
 test("mobile HUD keeps all four resources in one bounded row at normal mobile widths", async () => {
@@ -926,156 +716,55 @@ test("world market keeps its quote behavior while liquidity detail is a native c
   assert.match(stories, /export const WorldMarketMobile/);
 });
 
-test("parallel construction keeps job controls and the start composer visible", () => {
-  const context = ({
-    workshop,
-    constructions,
-    selectedBuilding = "timber",
-  }) => ({
-    state: {
-      resources: { wood: 999, clay: 999, stone: 999, gold: 999 },
-      buildings: { timber: 1, workshop },
-      constructions,
-      construction: constructions[0],
-      constructionOccupied: constructions.length,
-      constructionCapacity: workshop >= 21 ? 3 : 2,
-    },
-    selectedBuilding,
-    buildings: {
-      timber: { label: "Holzfäller", detail: "Erzeugt Holz.", produces: {} },
-      quarry: { label: "Steinbruch", detail: "Erzeugt Stein.", produces: {} },
-    },
-    requirements: () => [],
-    buildingCost: () => ({ wood: 1, clay: 1, stone: 1, gold: 0 }),
-    runtimeMode: "world",
-    resourceDefs: { wood: {}, clay: {}, stone: {}, gold: {} },
-    format: String,
-    buildDuration: () => 3_600,
-    nextBuildingProduction: () => ({}),
-    remainingTime: () => 3_600,
-    busy: false,
-  });
-  const workshop11 = buildPanel(
-    context({
-      workshop: 11,
-      constructions: [
-        { pending: true, buildingId: "quarry", completesAt: 1, slot: 0 },
-      ],
-    }),
-  );
-  assert.equal(workshop11, "<div data-game-build-panel></div>");
-
-  const workshop21 = buildPanel(
-    context({
-      workshop: 21,
-      constructions: [
-        { pending: true, buildingId: "quarry", completesAt: 1, slot: 0 },
-        { pending: true, buildingId: "timber", completesAt: 1, slot: 1 },
-      ],
-    }),
-  );
-  assert.equal(workshop21, "<div data-game-build-panel></div>");
-});
-
-test("full construction capacity disables only a new start and states the exact occupancy", () => {
-  const panel = buildPanel({
-    state: {
-      resources: { wood: 999, clay: 999, stone: 999, gold: 999 },
-      buildings: { timber: 1, workshop: 11 },
-      constructions: [
-        { pending: true, buildingId: "timber", completesAt: 1, slot: 0 },
-        { pending: true, buildingId: "timber", completesAt: 1, slot: 1 },
-      ],
-      constructionOccupied: 2,
-      constructionCapacity: 2,
-    },
-    selectedBuilding: "timber",
-    buildings: { timber: { label: "Holzfäller", detail: "", produces: {} } },
-    requirements: () => [],
-    buildingCost: () => ({ wood: 1, clay: 1, stone: 1, gold: 0 }),
-    runtimeMode: "world",
-    resourceDefs: { wood: {}, clay: {}, stone: {}, gold: {} },
-    format: String,
-    buildDuration: () => 3_600,
-    nextBuildingProduction: () => ({}),
-    remainingTime: () => 0,
-    busy: false,
-  });
-  assert.equal(panel, "<div data-game-build-panel></div>");
-});
-
-test("app lifecycle keeps React island controls out of imperative bindings and rerenders them on ticks", async () => {
-  const [
-    app,
-    armyPanel,
-    collectionStatus,
-    marketPanel,
-    raidPanel,
-    bindings,
-    villageMap,
-  ] = await Promise.all([
-    readFile(new URL("../src/app.js", import.meta.url), "utf8"),
-    readFile(
-      new URL("../src/components/ArmyPanel.tsx", import.meta.url),
-      "utf8",
-    ),
-    readFile(
-      new URL("../src/components/CollectionStatus.tsx", import.meta.url),
-      "utf8",
-    ),
-    readFile(
-      new URL("../src/components/MarketPanel.tsx", import.meta.url),
-      "utf8",
-    ),
-    readFile(
-      new URL("../src/components/RaidPanel.tsx", import.meta.url),
-      "utf8",
-    ),
-    readFile(new URL("../src/game-ui/bindings.js", import.meta.url), "utf8"),
-    readFile(
-      new URL("../src/components/VillageMap.tsx", import.meta.url),
-      "utf8",
-    ),
-  ]);
+test("app lifecycle keeps GameShellFrame typed and refreshes World exactly once per polling interval", async () => {
+  const [app, armyPanel, collectionStatus, marketPanel, raidPanel, villageMap] =
+    await Promise.all([
+      readFile(new URL("../src/app.js", import.meta.url), "utf8"),
+      readFile(
+        new URL("../src/components/ArmyPanel.tsx", import.meta.url),
+        "utf8",
+      ),
+      readFile(
+        new URL("../src/components/CollectionStatus.tsx", import.meta.url),
+        "utf8",
+      ),
+      readFile(
+        new URL("../src/components/MarketPanel.tsx", import.meta.url),
+        "utf8",
+      ),
+      readFile(
+        new URL("../src/components/RaidPanel.tsx", import.meta.url),
+        "utf8",
+      ),
+      readFile(
+        new URL("../src/components/VillageMap.tsx", import.meta.url),
+        "utf8",
+      ),
+    ]);
   assert.match(app, /export function startCivilizationApp/);
   assert.match(app, /export function stopCivilizationApp/);
   assert.match(app, /clearInterval\(runtime\.timer\)/);
   assert.match(app, /refreshTicks: 0/);
-  assert.match(app, /runtime\.refreshTicks >= 30/);
+  const periodicRefresh = app.slice(
+    app.indexOf("if (runtime.refreshTicks >= 30)"),
+    app.indexOf("return;", app.indexOf("if (runtime.refreshTicks >= 30)")),
+  );
+  assert.match(periodicRefresh, /runtime\.refreshTicks = 0/);
+  assert.equal(
+    (
+      periodicRefresh.match(/controller\.refreshWorld\(\{ quiet: true \}\)/g) ||
+      []
+    ).length,
+    1,
+  );
   assert.match(app, /game-ui/);
   assert.doesNotMatch(app, /isConnected/);
-  assert.match(bindings, /export function bindGameActions/);
-  assert.ok(
-    app.indexOf("bindGameActions(runtime.root, actions)") <
-      app.indexOf("renderVillageMap(mapFocusTarget);"),
-  );
-  assert.ok(
-    app.indexOf("bindGameActions(runtime.root, actions)") <
-      app.indexOf("renderBuildPanel();"),
-  );
-  assert.ok(
-    app.indexOf("bindGameActions(runtime.root, actions)") <
-      app.indexOf("renderArmyPanel();"),
-  );
-  assert.ok(
-    app.indexOf("bindGameActions(runtime.root, actions)") <
-      app.indexOf("renderMarketPanel();"),
-  );
-  assert.ok(
-    app.indexOf("bindGameActions(runtime.root, actions)") <
-      app.indexOf("renderRaidPanel();"),
-  );
-  assert.doesNotMatch(bindings, /data-train/);
-  assert.doesNotMatch(bindings, /#gather/);
   assert.doesNotMatch(
-    bindings,
-    /market-(?:swap|quote|buy|sell|resource|amount)/,
+    app,
+    /bindGameActions|root\.innerHTML|game-ui\/bindings|game-ui\/views\//,
   );
-  assert.doesNotMatch(bindings, /(?:send|resolve)-raid|pick-raid-contact/);
-  assert.doesNotMatch(bindings, /data-map-(?:building|panel)/);
-  assert.match(app, /villageMapRoot\?\.unmount\(\)/);
-  assert.match(app, /renderVillageMap\(\);/);
-  assert.match(app, /createElement\(VillageMap/);
+  assert.match(app, /createElement\(GameShellFrame/);
+  assert.match(app, /runtime\.onFrameChange\(frame\(\)\)/);
   assert.match(collectionStatus, /export type CollectionStatusProps/);
   assert.match(app, /onGather: actions\.gather/);
   assert.match(
@@ -1106,10 +795,12 @@ test("app lifecycle keeps React island controls out of imperative bindings and r
 });
 
 test("settings dialog is a typed React island with runtime-owned actions and keyboard lifecycle", async () => {
-  const [app, shell, bindings, settings, hud] = await Promise.all([
+  const [app, frame, settings, hud] = await Promise.all([
     readFile(new URL("../src/app.js", import.meta.url), "utf8"),
-    readFile(new URL("../src/game-ui/views/shell.js", import.meta.url), "utf8"),
-    readFile(new URL("../src/game-ui/bindings.js", import.meta.url), "utf8"),
+    readFile(
+      new URL("../src/components/GameShellFrame.tsx", import.meta.url),
+      "utf8",
+    ),
     readFile(
       new URL("../src/components/SettingsDialog.tsx", import.meta.url),
       "utf8",
@@ -1120,21 +811,11 @@ test("settings dialog is a typed React island with runtime-owned actions and key
     ),
   ]);
 
-  assert.match(shell, /<div data-game-settings-dialog><\/div>/);
-  assert.doesNotMatch(shell, /function settingsDialog/);
-  assert.match(app, /import \{ SettingsDialog \}/);
-  assert.match(app, /settingsDialogRoot/);
-  assert.match(app, /createElement\(SettingsDialog/);
+  assert.match(frame, /data-game-settings-dialog/);
+  assert.match(frame, /<SettingsDialog \{\.\.\.props\.settings\} \/>/);
   assert.match(app, /onChangeLocale: actions\.changeLocale/);
   assert.match(app, /onSetReducedMotion: actions\.setReducedMotion/);
   assert.match(app, /onLogout: actions\.logout/);
-  assert.ok(
-    app.indexOf("bindGameActions(runtime.root, actions)") <
-      app.indexOf("renderSettingsDialog();"),
-  );
-  assert.doesNotMatch(bindings, /data-(?:open|close)-settings/);
-  assert.doesNotMatch(bindings, /data-(?:copy-wallet|reduced-motion|logout)/);
-  assert.doesNotMatch(bindings, /civilization-locale/);
   assert.match(settings, /export type SettingsDialogProps/);
   assert.match(settings, /navigator\.clipboard\?\.writeText/);
   assert.match(settings, /event\.key === "Escape"/);
@@ -1155,21 +836,20 @@ test("settings dialog is a typed React island with runtime-owned actions and key
 });
 
 test("wallet review dialog is a typed React island with frozen runtime actions and modal keyboard access", async () => {
-  const [app, shell, bindings, dialog] = await Promise.all([
+  const [app, frame, dialog] = await Promise.all([
     readFile(new URL("../src/app.js", import.meta.url), "utf8"),
-    readFile(new URL("../src/game-ui/views/shell.js", import.meta.url), "utf8"),
-    readFile(new URL("../src/game-ui/bindings.js", import.meta.url), "utf8"),
+    readFile(
+      new URL("../src/components/GameShellFrame.tsx", import.meta.url),
+      "utf8",
+    ),
     readFile(
       new URL("../src/components/WalletReviewDialog.tsx", import.meta.url),
       "utf8",
     ),
   ]);
 
-  assert.match(shell, /<div data-wallet-review-dialog><\/div>/);
-  assert.doesNotMatch(shell, /function walletReviewDialog/);
-  assert.match(app, /import \{ WalletReviewDialog \}/);
-  assert.match(app, /walletReviewDialogRoot/);
-  assert.match(app, /createElement\(WalletReviewDialog/);
+  assert.match(frame, /data-wallet-review-dialog/);
+  assert.match(frame, /<WalletReviewDialog \{\.\.\.props\.walletReview\} \/>/);
   assert.match(app, /onCancel: cancelWalletReview/);
   assert.match(app, /onConfirm: actions\.confirmReview/);
   assert.match(app, /requestAnimationFrame\(\(\) =>/);
@@ -1183,11 +863,6 @@ test("wallet review dialog is a typed React island with frozen runtime actions a
     /data-game-command-navigation="desktop"\] \[data-command-panel="\$\{runtime\.activePanel\}"/,
   );
   assert.doesNotMatch(cancelWalletReview, /command-tabs|data-panel=/);
-  assert.ok(
-    app.indexOf("bindGameActions(runtime.root, actions)") <
-      app.indexOf("renderWalletReviewDialog();"),
-  );
-  assert.doesNotMatch(bindings, /data-(?:confirm|cancel)-wallet-review/);
   assert.match(dialog, /export type WalletReviewDialogProps/);
   assert.match(dialog, /event\.key === "Escape"/);
   assert.match(dialog, /event\.key !== "Tab"/);
@@ -1559,61 +1234,6 @@ test("old mount callbacks cannot update the replacement runtime", async () => {
   assert.equal(runtime.durations.get("townhall:2"), null);
 });
 
-test("boost UI is clickable at exactly one hour and explains guarded states", () => {
-  const context = (remainingSeconds, busy = false) => ({
-    state: {
-      construction: {
-        pending: true,
-        buildingId: "timber",
-        completesAt: 10_000_000,
-        slot: 0,
-      },
-      buildings: { timber: 1 },
-    },
-    buildings: { timber: { label: "Holzfäller" } },
-    busy,
-    remainingTime: () => remainingSeconds,
-  });
-  const valid = buildPanel({
-    ...context(3_600),
-    selectedBuilding: "timber",
-    requirements: () => [],
-    buildingCost: () => ({}),
-    runtimeMode: "world",
-    resourceDefs: {},
-    format: String,
-    buildDuration: () => null,
-    nextBuildingProduction: () => ({}),
-  });
-  assert.equal(valid, "<div data-game-build-panel></div>");
-
-  const tooShort = buildPanel({
-    ...context(3_599),
-    selectedBuilding: "timber",
-    requirements: () => [],
-    buildingCost: () => ({}),
-    runtimeMode: "world",
-    resourceDefs: {},
-    format: String,
-    buildDuration: () => null,
-    nextBuildingProduction: () => ({}),
-  });
-  assert.equal(tooShort, "<div data-game-build-panel></div>");
-
-  const pending = buildPanel({
-    ...context(4_000, true),
-    selectedBuilding: "timber",
-    requirements: () => [],
-    buildingCost: () => ({}),
-    runtimeMode: "world",
-    resourceDefs: {},
-    format: String,
-    buildDuration: () => null,
-    nextBuildingProduction: () => ({}),
-  });
-  assert.equal(pending, "<div data-game-build-panel></div>");
-});
-
 test("entry guide primary routes dismiss the current session before every focus-only handoff", async () => {
   const [app, stories] = await Promise.all([
     readFile(new URL("../src/app.js", import.meta.url), "utf8"),
@@ -1626,12 +1246,12 @@ test("entry guide primary routes dismiss the current session before every focus-
     ),
   ]);
   const routeStart = app.indexOf("onRoute: (recommendation) => {");
-  const routeEnd = app.indexOf("\n        },\n      }),", routeStart);
+  const routeEnd = app.indexOf("\n      },\n    };", routeStart);
   const route = app.slice(routeStart, routeEnd);
 
   assert.match(
     app,
-    /const dismissEntryGuide = \(\) => \{[\s\S]*?entryGuideDismissed = true;[\s\S]*?renderEntryGuide\(\);/,
+    /const dismissEntryGuide = \(\) => \{[\s\S]*?entryGuideDismissed = true;[\s\S]*?render\(\);/,
   );
   assert.match(app, /onDismiss: dismissEntryGuide/);
   assert.match(

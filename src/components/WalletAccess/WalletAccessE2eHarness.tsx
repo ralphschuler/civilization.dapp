@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { startCivilizationApp, stopCivilizationApp } from "@/app";
 import { WalletVillageRegistrationGate } from "@/components/CivilizationClient/WalletVillageRegistrationGate";
 import {
@@ -36,6 +42,7 @@ function E2eGameRoot({
   onLocaleChange: (locale: WalletAccessLocale) => void;
 }) {
   const root = useRef<HTMLDivElement>(null);
+  const [frame, setFrame] = useState<ReactNode>(null);
   const initialFeedbackRef = useRef(initialFeedback);
   const localeRef = useRef(locale);
   const onLocaleChangeRef = useRef(onLocaleChange);
@@ -56,6 +63,7 @@ function E2eGameRoot({
       initialFeedback: initialFeedbackRef.current,
       locale: localeRef.current,
       onLocaleChange: (nextLocale) => onLocaleChangeRef.current(nextLocale),
+      onFrameChange: setFrame,
     });
     root.current.focus();
     return () => stopCivilizationApp();
@@ -67,7 +75,9 @@ function E2eGameRoot({
       tabIndex={-1}
       data-testid="civilization-game-root"
       aria-label="Civilization game"
-    />
+    >
+      {frame}
+    </div>
   );
 }
 
@@ -86,6 +96,7 @@ export function WalletAccessE2eHarness({
   const [screen, setScreen] = useState<Screen>("login");
   const [registering, setRegistering] = useState(false);
   const [registrationStatus, setRegistrationStatus] = useState("");
+  const [gameVersion, setGameVersion] = useState(0);
   const copy = walletAccessMessages(locale);
 
   useEffect(() => {
@@ -227,6 +238,7 @@ export function WalletAccessE2eHarness({
       ) : null}
       {screen === "game" ? (
         <E2eGameRoot
+          key={gameVersion}
           initialFeedback={initialFeedback}
           locale={locale}
           onLocaleChange={(nextLocale) => {
@@ -236,6 +248,13 @@ export function WalletAccessE2eHarness({
         />
       ) : null}
       <aside className="wallet-access-e2e-controls" aria-label="E2E controls">
+        <button
+          type="button"
+          data-testid="civilization-game-remount"
+          onClick={() => setGameVersion((version) => version + 1)}
+        >
+          Remount game
+        </button>
         <label htmlFor="wallet-access-e2e-scenario">Test scenario</label>
         <select
           id="wallet-access-e2e-scenario"

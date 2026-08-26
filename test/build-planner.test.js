@@ -1,7 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { planBuildingDependencies } from "../src/world-game/build-planner.js";
-import { buildPanel } from "../src/game-ui/views/build.js";
 import {
   getContractBuildingCost,
   getContractConstructionCapacity,
@@ -102,39 +101,4 @@ test("planner reports resource deficits without reserving or dispatching later s
   assert.equal(result.ok, true);
   assert.equal(result.next, null);
   assert.deepEqual(result.steps[0].deficits, { wood: 52, clay: 30, stone: 22 });
-});
-
-test("planner UI renders one review-bound next-step control, never a batch action", () => {
-  const state = baseState();
-  const result = plan(state, { id: "workshop", level: 1 });
-  const buildings = Object.fromEntries(
-    [
-      "townhall",
-      "timber",
-      "claypit",
-      "quarry",
-      "warehouse",
-      "workshop",
-      "goldmine",
-      "barracks",
-    ].map((id) => [id, { label: id, detail: id, produces: {} }]),
-  );
-  const html = buildPanel({
-    state,
-    selectedBuilding: "workshop",
-    buildings,
-    requirements: () => [{ id: "townhall", level: 2 }],
-    buildingCost: (id) => getContractBuildingCost(state, id),
-    runtimeMode: "world",
-    resourceDefs: Object.fromEntries(
-      ["wood", "clay", "stone", "gold"].map((id) => [id, { label: id }]),
-    ),
-    format: String,
-    buildDuration: (_id, level) => level * 120,
-    nextBuildingProduction: () => ({}),
-    remainingTime: () => 0,
-    busy: false,
-    buildingPlan: () => result,
-  });
-  assert.equal(html, "<div data-game-build-panel></div>");
 });
