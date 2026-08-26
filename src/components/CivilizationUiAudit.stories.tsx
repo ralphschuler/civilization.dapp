@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { BuildPanel, type BuildPanelProps } from "./BuildPanel";
 import { ArmyPanel, type ArmyPanelProps } from "./ArmyPanel";
 import { CommandNavigation, type CommandPanel } from "./CommandNavigation";
+import { CompletionReadyNotice } from "./CompletionReadyNotice";
 import { GameShellHud } from "./GameShellHud";
 import { GameShellFrame } from "./GameShellFrame";
 import { GameFooter } from "./GameFooter";
@@ -171,6 +172,7 @@ function StableGameShellFrameFixture() {
         },
         onGather: () => undefined,
       }}
+      completionReady={null}
       desktopNavigation={{
         activePanel,
         copy,
@@ -670,6 +672,19 @@ export const ConstructionReady = {
           remainingTime={() => 0}
         />
       </section>
+    </main>
+  ),
+};
+export const CompletionReadyNoticeVisible = {
+  name: "Completion notice / Multiple constructions ready",
+  render: () => (
+    <main className="game-shell">
+      <CompletionReadyNotice
+        copy={copy}
+        notices={[{ buildingId: "timber" }, { buildingId: "quarry" }]}
+        buildingNames={copy.buildingNames}
+        onOpenCompletion={() => undefined}
+      />
     </main>
   ),
 };

@@ -3,6 +3,10 @@
 import { ArmyPanel, type ArmyPanelProps } from "./ArmyPanel";
 import { BuildPanel, type BuildPanelProps } from "./BuildPanel";
 import {
+  CompletionReadyNotice,
+  type CompletionReadyNoticeProps,
+} from "./CompletionReadyNotice";
+import {
   CommandNavigation,
   type CommandNavigationProps,
   type CommandPanel,
@@ -23,6 +27,7 @@ export type GameShellFrameProps = {
   activePanel: CommandPanel;
   army: ArmyPanelProps;
   build: BuildPanelProps;
+  completionReady: CompletionReadyNoticeProps | null;
   desktopNavigation: Omit<CommandNavigationProps, "mobile">;
   entryGuide: {
     copy: Parameters<typeof EntryGuide>[0]["copy"];
@@ -55,6 +60,11 @@ export function GameShellFrame(props: GameShellFrameProps) {
       </div>
       <div data-entry-guide-mount>
         {props.entryGuide ? <EntryGuide {...props.entryGuide} /> : null}
+      </div>
+      <div data-completion-ready-notice>
+        {props.completionReady ? (
+          <CompletionReadyNotice {...props.completionReady} />
+        ) : null}
       </div>
       <main className="command-layout">
         <div data-game-village-map>

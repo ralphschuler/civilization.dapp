@@ -243,7 +243,15 @@ test("settings dialog traps focus, closes by Escape, and keeps motion preference
   await expect(dialog.getByRole("button", { name: "Schließen" })).toBeFocused();
   await page.keyboard.press("Shift+Tab");
   await expect(dialog.getByRole("button", { name: "Abmelden" })).toBeFocused();
-  await dialog.getByRole("checkbox").check();
+  const reducedMotion = dialog.getByRole("checkbox", {
+    name: "Animationen in Civilization reduzieren.",
+  });
+  const completionNotices = dialog.getByRole("checkbox", {
+    name: "Hinweis anzeigen, wenn ein laufender Ausbau laut Chain-Zeit abgeschlossen werden kann.",
+  });
+  await expect(completionNotices).toBeVisible();
+  await expect(completionNotices).not.toBeChecked();
+  await reducedMotion.check();
   await expect(page.locator(".game-shell")).toHaveClass(/motion-reduced/);
   await expect
     .poll(() =>

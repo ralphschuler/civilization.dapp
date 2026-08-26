@@ -248,6 +248,7 @@ export function createWorldGameAdapter({
     return { state: await readState(), pending: false, userOpHash };
   };
   const adapter = {
+    contractAddress: game,
     getBuildingCost: getContractBuildingCost,
     getRequirements: getContractRequirements,
     getRequirementsForLevel: getContractRequirementsForLevel,
