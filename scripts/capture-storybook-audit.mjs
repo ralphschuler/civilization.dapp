@@ -142,6 +142,11 @@ const shots = [
     { width: 390, height: 844 },
   ],
   [
+    "mobile-completion-ready-notice-390.png",
+    "ui-audit-civilization--completion-ready-notice-visible",
+    { width: 390, height: 844 },
+  ],
+  [
     "mobile-bottom-navigation-390.png",
     "ui-audit-civilization--bottom-navigation",
     { width: 390, height: 844 },
@@ -456,6 +461,20 @@ for (const [name, id, viewport] of shots) {
       scrollWidth: layout.scrollWidth,
       viewportWidth: layout.viewportWidth,
     });
+  }
+  if (id === "ui-audit-civilization--completion-ready-notice-visible") {
+    const notice = page.locator(".completion-ready-notice");
+    const button = notice.getByRole("button", { name: "Open build plan" });
+    if ((await notice.count()) !== 1 || (await button.count()) !== 1)
+      throw new Error("Completion notice audit fixture is incomplete");
+    const box = await button.boundingBox();
+    if (!box || box.height < 44)
+      throw new Error("Completion notice action is smaller than 44px");
+    await button.click();
+    if (!(await notice.isVisible()))
+      throw new Error(
+        "Inert completion notice action unexpectedly changed the fixture",
+      );
   }
   if (id === "ui-audit-civilization--army-training-quantity-choice") {
     await page.locator('[data-training-amount="spear"]').fill("3");

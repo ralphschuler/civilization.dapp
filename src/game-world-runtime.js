@@ -7,6 +7,7 @@ export function createWorldRuntime({
   errorText,
   hasAccess,
   copy,
+  onReadSnapshot = () => {},
 }) {
   runtime.review ||= createWalletReview();
   async function dispatchReviewedAction(intent, successMessage) {
@@ -23,6 +24,7 @@ export function createWorldRuntime({
 
       runtime.worldStateEpoch += 1;
       runtime.state = result.state;
+      onReadSnapshot(result.state);
       if (
         intent.type === "market_buy" &&
         !result.pending &&
@@ -86,6 +88,7 @@ export function createWorldRuntime({
 
       runtime.worldStateEpoch += 1;
       runtime.state = result?.state || runtime.state;
+      if (result?.state) onReadSnapshot(result.state);
       runtime.feedback = result?.pending
         ? copy().feedback.pendingTransactionStillPending
         : copy().feedback.pendingTransactionConfirmed;
@@ -117,6 +120,7 @@ export function createWorldRuntime({
       if (!isCurrent(token) || requestEpoch !== runtime.worldStateEpoch) return;
 
       runtime.state = nextState;
+      onReadSnapshot(nextState);
       const review = runtime.review.state();
       if (review.status === "reviewing" && review.intent?.type === "upgrade") {
         runtime.review.invalidate("world_state_changed");

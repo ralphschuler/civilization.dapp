@@ -40,6 +40,13 @@ const copy = {
     logoutFailed: "Abmeldung fehlgeschlagen. Bitte erneut versuchen.",
     motion: "Bewegung reduzieren",
     motionDescription: "Animationen in Civilization reduzieren.",
+    completionNotifications: "Bauabschluss-Hinweise",
+    completionNotificationsDescription:
+      "Hinweis anzeigen, wenn ein laufender Ausbau laut Chain-Zeit abgeschlossen werden kann.",
+    completionReadyTitle: "BAU BEREIT",
+    completionReady: (building: string) =>
+      `${building} kann jetzt abgeschlossen werden.`,
+    completionReadyAction: "Bauplan öffnen",
     loginTitle: "Baue dein Reich. Zug um Zug.",
     loginIntro:
       "Civilization bringt deine Strategie direkt in die World App – bereit, wenn du es bist.",
@@ -481,6 +488,12 @@ const copy = {
     logoutFailed: "Logout failed. Please try again.",
     motion: "Reduce motion",
     motionDescription: "Reduce animations in Civilization.",
+    completionNotifications: "Construction completion notices",
+    completionNotificationsDescription:
+      "Show a notice when an in-progress upgrade can be completed according to chain time.",
+    completionReadyTitle: "CONSTRUCTION READY",
+    completionReady: (building: string) => `${building} can be completed now.`,
+    completionReadyAction: "Open build plan",
     loginTitle: "Build your realm. Turn by turn.",
     loginIntro:
       "Civilization brings your strategy straight to World App — ready when you are.",

@@ -12,6 +12,8 @@ type SettingsCopy = Pick<
   | "addressCopied"
   | "addressCopyFailed"
   | "connectedWallet"
+  | "completionNotifications"
+  | "completionNotificationsDescription"
   | "copyAddress"
   | "english"
   | "german"
@@ -32,7 +34,9 @@ export type SettingsDialogProps = {
   onChangeLocale: (locale: CivilizationLocale) => void;
   onClose: () => void;
   onLogout: () => Promise<void> | void;
+  onSetCompletionNotifications: (enabled: boolean) => void;
   onSetReducedMotion: (enabled: boolean) => void;
+  completionNotificationsEnabled: boolean;
   reducedMotion: boolean;
   walletAddress: string | null;
 };
@@ -168,6 +172,23 @@ export function SettingsDialog(props: SettingsDialogProps) {
                 }
               />
               <span>{props.copy.motionDescription}</span>
+            </label>
+          </section>
+          <section aria-labelledby="settings-completion-notifications-title">
+            <h3 id="settings-completion-notifications-title">
+              {props.copy.completionNotifications}
+            </h3>
+            <label className="settings-toggle">
+              <input
+                type="checkbox"
+                checked={props.completionNotificationsEnabled}
+                onChange={(event) =>
+                  props.onSetCompletionNotifications(
+                    event.currentTarget.checked,
+                  )
+                }
+              />
+              <span>{props.copy.completionNotificationsDescription}</span>
             </label>
           </section>
           <section aria-labelledby="settings-session-title">

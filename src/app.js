@@ -26,6 +26,12 @@ import {
 import { createGameActions } from "./game-actions.js";
 import { createWorldRuntime } from "./game-world-runtime.js";
 import { createWalletReview } from "./world-game/review.js";
+import {
+  collectCompletionReadyNotices,
+  completionNotificationsEnabled,
+  retainCompletionReadyNotices,
+  setCompletionNotificationsEnabled,
+} from "./world-game/completion-notifications.js";
 import { planBuildingDependencies } from "./world-game/build-planner.js";
 import {
   civilizationMessages,
@@ -80,6 +86,11 @@ function createRuntime(options) {
     onFrameChange: options.onFrameChange,
     retryGate: null,
     settingsOpen: false,
+    completionNotices: [],
+    completionNotificationsEnabled: completionNotificationsEnabled({
+      walletAddress,
+      contractAddress: options.worldAdapter?.contractAddress,
+    }),
     reducedMotion:
       typeof window !== "undefined" &&
       window.localStorage.getItem("civilization-reduced-motion") === "true",
@@ -200,6 +211,22 @@ function createController(runtime) {
   };
 
   let world;
+  const updateCompletionNotices = (snapshot) => {
+    if (runtime.mode !== "world") return;
+    const identity = {
+      walletAddress: runtime.walletAddress,
+      contractAddress: runtime.adapter?.contractAddress,
+    };
+    runtime.completionNotices = retainCompletionReadyNotices(
+      runtime.completionNotices,
+      snapshot,
+    );
+    const fresh = collectCompletionReadyNotices(identity, snapshot);
+    const visible = new Set(runtime.completionNotices.map(({ key }) => key));
+    runtime.completionNotices.push(
+      ...fresh.filter((notice) => !visible.has(notice.key)),
+    );
+  };
   const focusCommandPanel = () => {
     const commandPanel = runtime.root?.querySelector("#game-command-panel");
     if (!(commandPanel instanceof HTMLElement)) return;
@@ -497,6 +524,21 @@ function createController(runtime) {
         worldBadge: runtime.worldBadge,
       },
       entryGuide: entryGuide(),
+      completionReady: runtime.completionNotices.length
+        ? {
+            copy,
+            notices: runtime.completionNotices,
+            buildingNames: copy.buildingNames,
+            onOpenCompletion: () => {
+              actions.selectPanel("build");
+              requestAnimationFrame(() =>
+                runtime.root
+                  ?.querySelector('[data-next-action-button="complete"]')
+                  ?.focus(),
+              );
+            },
+          }
+        : null,
       villageMap: {
         assetResult: runtime.assetResult,
         assetsLoading: runtime.assetState === "loading",
@@ -583,7 +625,10 @@ function createController(runtime) {
             onChangeLocale: actions.changeLocale,
             onClose: actions.closeSettings,
             onLogout: actions.logout,
+            onSetCompletionNotifications: actions.setCompletionNotifications,
             onSetReducedMotion: actions.setReducedMotion,
+            completionNotificationsEnabled:
+              runtime.completionNotificationsEnabled,
             reducedMotion: runtime.reducedMotion,
             walletAddress: runtime.walletAddress,
           }
@@ -635,6 +680,7 @@ function createController(runtime) {
     errorText: (error) => errorText(error, runtime.locale),
     copy: () => civilizationMessages(runtime.locale),
     hasAccess: () => hasAccess(runtime),
+    onReadSnapshot: updateCompletionNotices,
   });
   runtime.retryGate = createGateRetryHandle(world.refresh);
   const actions = createGameActions(runtime, {
@@ -689,6 +735,19 @@ function createController(runtime) {
         "civilization-reduced-motion",
         String(enabled),
       );
+      render();
+    },
+    setCompletionNotifications: (enabled) => {
+      runtime.completionNotificationsEnabled =
+        setCompletionNotificationsEnabled(
+          {
+            walletAddress: runtime.walletAddress,
+            contractAddress: runtime.adapter?.contractAddress,
+          },
+          enabled,
+        );
+      if (!runtime.completionNotificationsEnabled)
+        runtime.completionNotices = [];
       render();
     },
     logout: () => runtime.onLogout?.(),
