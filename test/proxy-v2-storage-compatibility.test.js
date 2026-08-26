@@ -4,6 +4,8 @@ import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import solc from "solc";
 import {
+  assertHistoricalV1GitBinding,
+  assertHistoricalV1Provenance,
   assertStorageNamespaceBindings,
   assertV1StorageCompatibility,
 } from "../scripts/verify-proxy-v2-compatibility.mjs";
@@ -15,6 +17,14 @@ const sourceUrl = new URL(
 );
 const snapshotUrl = new URL(
   "../contracts/storage-layout-v1.snapshot.json",
+  import.meta.url,
+);
+const historicalSourceUrl = new URL(
+  "../contracts/historical/CivilizationGameV1-6c169e694a17f89ff05622988e2ab0f91363936e.sol",
+  import.meta.url,
+);
+const provenanceUrl = new URL(
+  "../contracts/historical/CivilizationGameV1-6c169e694a17f89ff05622988e2ab0f91363936e.provenance.json",
   import.meta.url,
 );
 
@@ -80,6 +90,72 @@ test("namespace verifier accepts the current source", async () => {
   );
 });
 
+test("historical V1 provenance binds immutable source and snapshot and rejects candidate aliasing", async () => {
+  const [historical, candidate, snapshot, provenance] = await Promise.all([
+    readFile(historicalSourceUrl, "utf8"),
+    readFile(sourceUrl, "utf8"),
+    readFile(snapshotUrl, "utf8"),
+    readFile(provenanceUrl, "utf8").then(JSON.parse),
+  ]);
+  assert.doesNotThrow(() =>
+    assertHistoricalV1Provenance(provenance, historical, snapshot, candidate),
+  );
+  assert.throws(
+    () =>
+      assertHistoricalV1Provenance(provenance, candidate, snapshot, candidate),
+    /historical V1 source hash mismatch|aliases the current candidate/,
+  );
+});
+
+test("historical V1 Git binding rejects altered immutable objects and unavailable Git evidence", async () => {
+  const [historical, snapshot] = await Promise.all([
+    readFile(historicalSourceUrl),
+    readFile(snapshotUrl),
+  ]);
+  const objects = new Map([
+    [
+      "6c169e694a17f89ff05622988e2ab0f91363936e:contracts/src/CivilizationGame.sol",
+      historical,
+    ],
+    [
+      "6c169e694a17f89ff05622988e2ab0f91363936e:contracts/storage-layout-v1.snapshot.json",
+      snapshot,
+    ],
+  ]);
+  await assert.doesNotReject(() =>
+    assertHistoricalV1GitBinding(historical, snapshot, async (object) =>
+      objects.get(object),
+    ),
+  );
+  await assert.rejects(
+    () =>
+      assertHistoricalV1GitBinding(
+        Buffer.concat([historical, Buffer.from("\nfixture drift")]),
+        snapshot,
+        async (object) => objects.get(object),
+      ),
+    /fixture differs from immutable Git source/,
+  );
+  objects.set(
+    "6c169e694a17f89ff05622988e2ab0f91363936e:contracts/src/CivilizationGame.sol",
+    Buffer.from("altered immutable object"),
+  );
+  await assert.rejects(
+    () =>
+      assertHistoricalV1GitBinding(historical, snapshot, async (object) =>
+        objects.get(object),
+      ),
+    /immutable historical Git source hash mismatch/,
+  );
+  await assert.rejects(
+    () =>
+      assertHistoricalV1GitBinding(historical, snapshot, async () => {
+        throw new Error("no Git object");
+      }),
+    /no Git object/,
+  );
+});
+
 test("namespace verifier rejects protected V2/V3 storage schema drift", async () => {
   const { source, snapshot } = await fixture();
   const cases = [
@@ -106,6 +182,24 @@ test("namespace verifier rejects protected V2/V3 storage schema drift", async ()
         "        mapping(uint8 => uint256) inventory;\n        mapping(uint8 => uint256) priceWeiPerUnit;",
       ),
       "civilization.game.market.v2",
+    ],
+    [
+      "ConstructionQueueStorage append",
+      source.replace(
+        "        mapping(address => ConstructionQueue) queues;\n    }\n    /// @custom:storage-location erc7201:civilization.game.buyback.v3",
+        "        mapping(address => ConstructionQueue) queues;\n        uint256 forbiddenQueueField;\n    }\n    /// @custom:storage-location erc7201:civilization.game.buyback.v3",
+      ),
+      "civilization.game.construction-queue.v2",
+    ],
+    [
+      "ConstructionQueueStorage field rename",
+      source
+        .replace(/\.queues/g, ".queueByPlayer")
+        .replace(
+          "mapping(address => ConstructionQueue) queues;",
+          "mapping(address => ConstructionQueue) queueByPlayer;",
+        ),
+      "civilization.game.construction-queue.v2",
     ],
     [
       "BuybackStorage type mutation",
@@ -229,6 +323,10 @@ test("namespace verifier rejects post-assignment slot overwrites", async () => {
   const cases = [
     ["GAME_STORAGE_LOCATION", "civilization.game.storage.v1"],
     ["MARKET_STORAGE_LOCATION", "civilization.game.market.v2"],
+    [
+      "CONSTRUCTION_QUEUE_STORAGE_LOCATION",
+      "civilization.game.construction-queue.v2",
+    ],
     ["BUYBACK_STORAGE_LOCATION", "civilization.game.buyback.v3"],
   ];
 
@@ -305,6 +403,10 @@ test("namespace verifier rejects direct protected-slot stores", async () => {
   const cases = [
     ["GAME_STORAGE_LOCATION", "civilization.game.storage.v1"],
     ["MARKET_STORAGE_LOCATION", "civilization.game.market.v2"],
+    [
+      "CONSTRUCTION_QUEUE_STORAGE_LOCATION",
+      "civilization.game.construction-queue.v2",
+    ],
     ["BUYBACK_STORAGE_LOCATION", "civilization.game.buyback.v3"],
   ];
 

@@ -9,13 +9,22 @@ repository establishes a production V2 implementation address or code hash.
    implementation, admin, timelock owner, code hashes and chain ID.
 2. Run `pnpm verify:proxy:v2-compatibility`, `pnpm test`, and `pnpm check` on
    the exact review commit. The compatibility report must say
-   `deployedV2: false`; it is source evidence only.
+   `deployedV2: false`; its historical V1 fixture is pinned to commit
+   `6c169e694a17f89ff05622988e2ab0f91363936e`. The checkout must retain that
+   Git object: the gate reads `contracts/src/CivilizationGame.sol` and the V1
+   storage snapshot from it and fails if either object or its fixed SHA-256
+   binding is unavailable. This remains source/storage evidence only, never
+   production proxy or code-hash evidence.
 3. Independently compare the candidate runtime bytecode/hash after deployment
    to the reviewed artifact. Do not substitute a source hash for chain evidence.
 4. Confirm no V1 selector, event, error, storage field, or ERC-7201 V1 slot
    changed. V2 state must be in a distinct namespace; no layout-gap shortcut.
    A pre-existing namespace is not moved or recomputed by this plan: changing
    one requires a current on-chain state baseline and a dedicated rehearsal.
+   The local gate also freezes the current V2 construction-queue namespace
+   schema and canonical accessor, because it projects legacy
+   `Player.construction` into slot zero. This is source evidence only; retain
+   a trusted-RPC player-state baseline for the actual proxy separately.
 
 ## Rehearsal
 
@@ -29,7 +38,15 @@ allowances, pending construction and governance configuration. Prove:
 - initializer locking prevents implementation initialization.
 
 The repository's OZ proxy/timelock test is the minimum local rehearsal; it is
-not evidence about production state or governance membership.
+not evidence about production state or governance membership. It deploys the
+pinned historical V1 source, upgrades to the actual current `CivilizationGame`
+candidate (not a marker fixture), rolls back, and re-upgrades. Its fixed-time
+read snapshot covers registered, pending-construction, and unregistered
+players, including `playerState`, `previewPlayerState`, legacy slot-zero
+construction, balances, allowances, total supply, timelock, and splitter
+configuration. Retain the trusted-RPC baseline, independent audit,
+governance/Safe review, and approved non-production rehearsal as separate
+external gates.
 
 ## Budgets and audit gates
 
