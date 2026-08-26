@@ -163,12 +163,11 @@ export function evaluateRaidEligibility(input) {
     BigInt(attacker.strength) * 10_000n <=
       BigInt(target.strength) *
         BigInt(rules.strength.maximumAttackerToTargetRatioBps);
-  const repeatRaidCooldownApplies =
-    directedRaids.some(
-      // A cooldown is expired at exact elapsed duration, so its lower
-      // boundary is exclusive.
-      (event) => event.occurredAtMs > nowMs - rules.repeatRaidCooldownMs,
-    );
+  const repeatRaidCooldownApplies = directedRaids.some(
+    // A cooldown is expired at exact elapsed duration, so its lower
+    // boundary is exclusive.
+    (event) => event.occurredAtMs > nowMs - rules.repeatRaidCooldownMs,
+  );
   const reciprocalPatternApplies =
     pairRaids.length >= rules.reciprocalPairRaidLimit &&
     directedRaids.length > 0 &&
