@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import test from "node:test";
 import pg from "pg";
+import { replayFinalizedBlocks } from "../server/chain-indexer-reader.js";
 import { storeFinalizedEvents } from "../server/chain-indexer-store.js";
 import { loadMigrations, runMigrations } from "../scripts/lib/migrations.mjs";
 
@@ -232,6 +233,92 @@ test(
         (await state(pool, "2", otherAddress)).checkpoint[0].block_number,
         "20",
         "scope is isolated",
+      );
+    });
+  },
+);
+
+test(
+  "reader and migration-008 store deterministically replay a backfill and replacement chain",
+  integration,
+  async () => {
+    await inOwnedSchema(async (pool) => {
+      const config = {
+        chainId: "1",
+        contractAddress: address,
+        startBlock: "10",
+        confirmations: "1",
+        rollbackDepth: "2",
+        maxBlockRange: "4",
+      };
+      const initialBlocks = new Map(
+        [10, 11, 12].map((number) => [String(number), block(number)]),
+      );
+      const makeRpc = (blocks) => ({
+        async getChainId() {
+          return "0x1";
+        },
+        async getBlockNumber() {
+          return "0xd";
+        },
+        async getBlock(number) {
+          return blocks.get(String(number)) ?? null;
+        },
+        async getLogs({ fromBlock, toBlock }) {
+          return [...blocks.values()]
+            .filter(
+              (entry) =>
+                BigInt(entry.blockNumber) >= BigInt(fromBlock) &&
+                BigInt(entry.blockNumber) <= BigInt(toBlock),
+            )
+            .map((entry) =>
+              event(Number(entry.blockNumber), { blockHash: entry.blockHash }),
+            );
+        },
+      });
+      await replayFinalizedBlocks({
+        rpc: makeRpc(initialBlocks),
+        pool,
+        config,
+      });
+      const initial = await state(pool);
+      await replayFinalizedBlocks({
+        rpc: makeRpc(initialBlocks),
+        pool,
+        config,
+        checkpoint: { blockNumber: "12", blockHash: hash(12) },
+      });
+      assert.deepEqual(
+        await state(pool),
+        initial,
+        "identical reader replay is idempotent",
+      );
+
+      const replacementEleven = block(11, hash(211), hash(10));
+      const replacementTwelve = block(
+        12,
+        hash(212),
+        replacementEleven.blockHash,
+      );
+      const replacement = new Map([
+        ["10", block(10)],
+        ["11", replacementEleven],
+        ["12", replacementTwelve],
+      ]);
+      await replayFinalizedBlocks({
+        rpc: makeRpc(replacement),
+        pool,
+        config,
+        checkpoint: { blockNumber: "12", blockHash: hash(12) },
+      });
+      const final = await state(pool);
+      assert.deepEqual(
+        final.blocks.map((row) => row.block_hash),
+        [hash(10), hash(211), hash(212)],
+      );
+      assert.deepEqual(
+        final.events.map((row) => row.block_hash),
+        [hash(10), hash(211), hash(212)],
       );
     });
   },
