@@ -2,6 +2,12 @@ name: Verify and publish Civilization DApp container
 
 on:
   workflow_dispatch:
+    inputs:
+      publish_master:
+        description: Publish the verified master image
+        required: true
+        default: false
+        type: boolean
   push:
     branches: [master, develop]
   pull_request:
@@ -124,7 +130,7 @@ jobs:
           fi
 
   publish:
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/master' && inputs.publish_master == true)
     needs: verify
     runs-on: ubuntu-latest
     permissions:
