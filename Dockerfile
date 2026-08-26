@@ -7,6 +7,7 @@ RUN pnpm install --frozen-lockfile
 COPY public ./public
 COPY server ./server
 COPY scripts/db-migrate.mjs ./scripts/db-migrate.mjs
+COPY scripts/run-chain-indexer.mjs ./scripts/run-chain-indexer.mjs
 COPY scripts/release-worldchain-gate.mjs ./scripts/release-worldchain-gate.mjs
 COPY scripts/verify-worldchain-proxy.mjs ./scripts/verify-worldchain-proxy.mjs
 COPY scripts/lib/migrations.mjs ./scripts/lib/migrations.mjs
@@ -37,6 +38,9 @@ COPY --from=build --chown=node:node /app/scripts/db-migrate.mjs ./scripts/db-mig
 COPY --from=build --chown=node:node /app/scripts/release-worldchain-gate.mjs ./scripts/release-worldchain-gate.mjs
 COPY --from=build --chown=node:node /app/scripts/verify-worldchain-proxy.mjs ./scripts/verify-worldchain-proxy.mjs
 COPY --from=build --chown=node:node /app/scripts/lib/migrations.mjs ./scripts/lib/migrations.mjs
+# The finalized-replay CLI is opt-in: it is available only when an operator
+# explicitly overrides the image command with this script.
+COPY --from=build --chown=node:node /app/scripts/run-chain-indexer.mjs ./scripts/run-chain-indexer.mjs
 COPY --from=build --chown=node:node /app/migrations ./migrations
 COPY --from=build --chown=node:node /app/src/lib/database.mjs ./src/lib/database.mjs
 COPY --from=build --chown=node:node /app/src/lib/database-connect.mjs ./src/lib/database-connect.mjs
@@ -44,6 +48,9 @@ COPY --from=build --chown=node:node /app/src/lib/runtime-config.ts ./src/lib/run
 COPY --from=build --chown=node:node /app/src/world-chain.js ./src/world-chain.js
 COPY --from=build --chown=node:node /app/server/contract-runtime-status.js ./server/contract-runtime-status.js
 COPY --from=build --chown=node:node /app/server/production-release-gate.js ./server/production-release-gate.js
+COPY --from=build --chown=node:node /app/server/chain-indexer-core.js ./server/chain-indexer-core.js
+COPY --from=build --chown=node:node /app/server/chain-indexer-store.js ./server/chain-indexer-store.js
+COPY --from=build --chown=node:node /app/server/chain-indexer-reader.js ./server/chain-indexer-reader.js
 USER node
 EXPOSE 31057
 HEALTHCHECK --interval=30s --timeout=3s --start-period=15s --retries=3 CMD node -e "fetch('http://127.0.0.1:31057/api/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"

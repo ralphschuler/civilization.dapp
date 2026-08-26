@@ -1,6 +1,7 @@
 name: Verify and publish Civilization DApp container
 
 on:
+  workflow_dispatch:
   push:
     branches: [master, develop]
   pull_request:
@@ -110,6 +111,17 @@ jobs:
           set -e
           test "$status" -eq 1
           test "$output" = "Database migration failed (database_unavailable). No application process was started."
+      - name: Chain-indexer replay CLI fails safely without configuration
+        run: |
+          expected_output="Chain-indexer replay failed (chain_indexer_replay_failed)."
+          set +e
+          output="$(docker run --rm --entrypoint node civilization-dapp-test:ci scripts/run-chain-indexer.mjs 2>&1)"
+          status=$?
+          set -e
+          if [ "$status" -ne 1 ] || [ "$output" != "$expected_output" ]; then
+            printf '%s' "$output" >&2
+            exit 1
+          fi
 
   publish:
     if: github.event_name == 'push'
