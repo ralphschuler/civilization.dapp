@@ -125,7 +125,7 @@ test(
       await runMigrations(pool, migrations);
       assert.equal(
         (await pool.query("SELECT version FROM schema_migrations")).rowCount,
-        9,
+        10,
       );
     });
   },
@@ -158,7 +158,7 @@ test(
             "SELECT 1 FROM schema_migrations WHERE version = '010'",
           )
         ).rowCount,
-        0,
+        1,
       );
     });
   },
