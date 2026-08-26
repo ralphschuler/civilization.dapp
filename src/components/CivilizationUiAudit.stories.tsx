@@ -3,6 +3,7 @@ import { BuildPanel, type BuildPanelProps } from "./BuildPanel";
 import { ArmyPanel, type ArmyPanelProps } from "./ArmyPanel";
 import { CommandNavigation, type CommandPanel } from "./CommandNavigation";
 import { GameShellHud } from "./GameShellHud";
+import { GameShellFrame } from "./GameShellFrame";
 import { GameFooter } from "./GameFooter";
 import { EntryGuide } from "./EntryGuide";
 import { MarketPanel, type MarketPanelProps } from "./MarketPanel";
@@ -150,6 +151,137 @@ function EntryGuideFixture({
       recommendation={recommendation}
       onDismiss={() => setDismissed(true)}
       onRoute={() => undefined}
+    />
+  );
+}
+
+function StableGameShellFrameFixture() {
+  const [activePanel, setActivePanel] = useState<CommandPanel>("build");
+  const [entryGuideDismissed, setEntryGuideDismissed] = useState(false);
+  const selectPanel = (panel: CommandPanel) => setActivePanel(panel);
+  return (
+    <GameShellFrame
+      activePanel={activePanel}
+      army={armyProps}
+      build={{
+        ...buildProps,
+        collection: {
+          locked: false,
+          unclaimed: { wood: 184, clay: 120, stone: 96, gold: 0 },
+        },
+        onGather: () => undefined,
+      }}
+      desktopNavigation={{
+        activePanel,
+        copy,
+        onSelectPanel: (panel) => selectPanel(panel),
+      }}
+      entryGuide={
+        entryGuideDismissed
+          ? null
+          : {
+              copy,
+              recommendation: { kind: "upgrade", target: "build-panel" },
+              onDismiss: () => setEntryGuideDismissed(true),
+              onRoute: () => {
+                setEntryGuideDismissed(true);
+                selectPanel("build");
+              },
+            }
+      }
+      footer={{
+        authority: copy.gameAuthority,
+        resetLabel: copy.demoReset,
+        runtimeMode: "world",
+        status: copy.worldFooter("1"),
+      }}
+      hud={{
+        assetResult: { failed: [] },
+        capacity: 2500,
+        copy,
+        locale: "en-US",
+        onOpenSettings: () => undefined,
+        production: { wood: 56, clay: 42, stone: 36, gold: 18 },
+        resourceDefs,
+        resourceFormat: format,
+        resources: buildProps.state.resources,
+        runtimeMode: "world",
+        tokens: {
+          wood: { symbol: "WOOD" },
+          clay: { symbol: "CLAY" },
+          stone: { symbol: "STONE" },
+          gold: { symbol: "CGOLD" },
+        },
+        worldApp: { installed: true },
+        worldBadge: "WORLD",
+      }}
+      market={{
+        runtimeMode: "world",
+        tokens: {},
+        marketDraft: { resource: "wood", from: "wood", to: "clay", amount: 1 },
+        marketQuote: null,
+        busy: false,
+        copy,
+        onDraftChange: () => undefined,
+        onQuote: () => undefined,
+        onOrder: () => undefined,
+        onSwap: () => undefined,
+      }}
+      mobileNavigation={{
+        activePanel,
+        copy,
+        onSelectPanel: (panel) => selectPanel(panel),
+      }}
+      raid={{
+        state: { troops: armyProps.state.troops },
+        runtimeMode: "world",
+        busy: false,
+        troops: armyProps.troops,
+        resourceDefs,
+        format,
+        remainingTime: () => 0,
+        raidDraft: {
+          army: { spear: 0, archer: 0, rider: 0 },
+          targetAddress: "",
+          targetId: "",
+        },
+        selectedOpponent: null,
+        copy,
+        onDraftChange: () => undefined,
+        onPickOpponent: () => undefined,
+        onSendRaid: () => undefined,
+        onResolveRaid: () => undefined,
+      }}
+      reducedMotion={false}
+      settings={null}
+      villageMap={{
+        assetResult: { failed: [] },
+        assetsLoading: false,
+        buildings,
+        buildingLevels: buildProps.state.buildings,
+        capacity: 2500,
+        collectionStatus: {
+          assetResult: { failed: [] },
+          busy: false,
+          collection: { detail: "Resources ready", locked: false },
+          copy,
+          locale: "en-US",
+          onGather: () => undefined,
+          resourceDefs,
+          resourceFormat: format,
+          unclaimed: { wood: 184, clay: 120, stone: 96, gold: 0 },
+        },
+        copy: villageCopy,
+        feedback: "Timber Camp selected",
+        format,
+        onSelectBuilding: () => selectPanel("build"),
+        onSelectMarket: () => selectPanel("market"),
+        prestigeCount: 1,
+        runtimeMode: "world",
+        selectedBuilding: "timber",
+        activePanel,
+      }}
+      walletReview={null}
     />
   );
 }
@@ -424,6 +556,11 @@ export const RegistrationState = {
 export const VillageBuildOverview = {
   name: "CivilizationClient / Village and build overview",
   render: () => <Overview />,
+};
+
+export const StableGameShellFrameMobile = {
+  name: "GameShellFrame / Build, entry guide, and mobile navigation",
+  render: () => <StableGameShellFrameFixture />,
 };
 
 export const MobileVillageBuildNavigation = {

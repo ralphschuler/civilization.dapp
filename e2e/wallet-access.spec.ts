@@ -100,6 +100,30 @@ test("game teardown does not render a nested panel after its runtime is cleared"
   expect(pageErrors).toEqual([]);
 });
 
+test("the owning React client remounts one live game frame with usable navigation", async ({
+  page,
+}) => {
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+
+  await enterGame(page, "registered");
+  await expect(page.locator(".game-shell")).toHaveCount(1);
+  await page.getByTestId("civilization-game-remount").click();
+  await expect(page.locator(".game-shell")).toHaveCount(1);
+
+  const navigation = page.getByRole("navigation", {
+    name:
+      (page.viewportSize()?.width ?? 0) <= 960
+        ? "Schnellzugriff"
+        : "Dorfaktionen",
+  });
+  const marketAction = navigation.locator('[data-command-panel="market"]');
+  await marketAction.press("Enter");
+  await expect(marketAction).toHaveAttribute("aria-current", "page");
+  await expect(page.locator("[data-game-market-panel]")).toBeVisible();
+  expect(pageErrors).toEqual([]);
+});
+
 test("game area navigation announces its current area, keeps keyboard focus, and fits narrow layouts", async ({
   page,
 }) => {

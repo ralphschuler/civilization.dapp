@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { startCivilizationApp, stopCivilizationApp } from "@/app";
 import {
   CivilizationRuntimeGate,
@@ -66,6 +72,7 @@ function ProductionCivilizationClient({
   const onLocaleChangeRef = useRef(onLocaleChange);
   const onLogoutRef = useRef(onLogout);
   const [gate, setGate] = useState<CivilizationGateState | null>(null);
+  const [frame, setFrame] = useState<ReactNode>(null);
   const [retryGate, setRetryGate] = useState<(() => void) | null>(null);
   const onGateStateChange = useCallback(
     (nextGate: CivilizationGateState | null, retry: (() => void) | null) => {
@@ -110,6 +117,7 @@ function ProductionCivilizationClient({
       onLocaleChange: (nextLocale) => onLocaleChangeRef.current(nextLocale),
       onLogout: () => onLogoutRef.current(),
       onGateStateChange,
+      onFrameChange: setFrame,
     });
     return () => {
       stopCivilizationApp();
@@ -119,7 +127,7 @@ function ProductionCivilizationClient({
   if (registered) {
     return (
       <>
-        <div ref={root} />
+        <div ref={root}>{frame}</div>
         <CivilizationRuntimeGate gate={gate} onRetry={retryGate} />
       </>
     );

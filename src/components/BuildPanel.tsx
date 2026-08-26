@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect } from "react";
+
 import { BUILDING_ASSETS, MAX_BUILDING_LEVEL } from "../game-ui/constants.js";
 import { clock } from "../game-ui/helpers.js";
 import { boostConstructionStatus } from "../game-ui/boost-status.js";
@@ -63,6 +65,8 @@ type BuildingPlan = {
   durationKeys?: string[];
 };
 export type BuildPanelProps = {
+  /** The mounted shell keeps inactive drafts alive without starting World reads. */
+  active?: boolean;
   state: GameState;
   runtimeMode: "demo" | "world";
   busy: boolean;
@@ -210,10 +214,20 @@ function Impact({ props }: { props: BuildPanelProps }) {
 }
 
 function Plan({ props }: { props: BuildPanelProps }) {
-  const { copy = civilizationMessages(), buildingPlan, runtimeMode } = props;
-  if (runtimeMode !== "world" || !buildingPlan) return null;
-  const plan = buildingPlan();
-  props.requestPlanDurations?.(plan);
+  const {
+    active,
+    buildingPlan,
+    copy = civilizationMessages(),
+    requestPlanDurations,
+    runtimeMode,
+  } = props;
+  const plan = runtimeMode === "world" && buildingPlan ? buildingPlan() : null;
+  useEffect(() => {
+    if (active && plan) {
+      requestPlanDurations?.(plan);
+    }
+  }, [active, plan, requestPlanDurations]);
+  if (!plan) return null;
   if (!plan.ok)
     return (
       <section
@@ -330,7 +344,7 @@ function Plan({ props }: { props: BuildPanelProps }) {
   );
 }
 
-export function BuildPanel(props: BuildPanelProps) {
+export function BuildPanel({ active = true, ...props }: BuildPanelProps) {
   const copy = props.copy || civilizationMessages();
   const building = props.buildings[props.selectedBuilding];
   const level = props.state.buildings[props.selectedBuilding];
@@ -569,7 +583,7 @@ export function BuildPanel(props: BuildPanelProps) {
           </div>
         )}
         <Impact props={props} />
-        <Plan props={props} />
+        <Plan props={{ ...props, active }} />
       </NextTaskCard>
       <div className="inspector-divider" />
       {jobs.length ? (

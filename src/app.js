@@ -1,17 +1,6 @@
 import "./styles.css";
 import { createElement } from "react";
-import { createRoot } from "react-dom/client";
-import { GameShellHud } from "./components/GameShellHud";
-import { VillageMap } from "./components/VillageMap";
-import { BuildPanel } from "./components/BuildPanel";
-import { ArmyPanel } from "./components/ArmyPanel";
-import { MarketPanel } from "./components/MarketPanel";
-import { RaidPanel } from "./components/RaidPanel";
-import { CommandNavigation } from "./components/CommandNavigation";
-import { EntryGuide } from "./components/EntryGuide";
-import { SettingsDialog } from "./components/SettingsDialog";
-import { WalletReviewDialog } from "./components/WalletReviewDialog";
-import { GameFooter } from "./components/GameFooter";
+import { GameShellFrame } from "./components/GameShellFrame";
 import { canRenderGameWorld } from "./world-gate.js";
 import {
   BUILDINGS,
@@ -30,12 +19,6 @@ import { MAX_BUILDING_LEVEL } from "./game-ui/constants.js";
 import { deriveEntryGuide } from "./game-ui/next-action.js";
 import { loadCriticalAssets } from "./game-ui/assets.js";
 import { clock, remainingTime } from "./game-ui/helpers.js";
-import { buildPanel } from "./game-ui/views/build.js";
-import { armyPanel } from "./game-ui/views/army.js";
-import { marketPanel } from "./game-ui/views/market.js";
-import { raidPanel } from "./game-ui/views/raid.js";
-import { gameShell } from "./game-ui/views/shell.js";
-import { bindGameActions } from "./game-ui/bindings.js";
 import {
   createGateRetryHandle,
   deriveGateState,
@@ -94,6 +77,7 @@ function createRuntime(options) {
     onLocaleChange: options.onLocaleChange,
     onLogout: options.onLogout,
     onGateStateChange: options.onGateStateChange,
+    onFrameChange: options.onFrameChange,
     retryGate: null,
     settingsOpen: false,
     reducedMotion:
@@ -117,17 +101,6 @@ function createRuntime(options) {
     visibilityHandler: null,
     assetState: "loading",
     assetResult: { failed: [] },
-    hudRoot: null,
-    footerRoot: null,
-    desktopNavigationRoot: null,
-    mobileNavigationRoot: null,
-    villageMapRoot: null,
-    buildPanelRoot: null,
-    armyPanelRoot: null,
-    marketPanelRoot: null,
-    raidPanelRoot: null,
-    settingsDialogRoot: null,
-    entryGuideRoot: null,
     entryGuideDismissed: false,
   };
 }
@@ -258,81 +231,6 @@ function createController(runtime) {
       window.getComputedStyle(mobileNavigation).display !== "none"
     );
   };
-  const renderNavigation = () => {
-    ["desktop", "mobile"].forEach((navigation) => {
-      const mount = runtime.root?.querySelector(
-        `[data-game-command-navigation-mount="${navigation}"]`,
-      );
-      if (!mount) return;
-      const rootKey =
-        navigation === "mobile"
-          ? "mobileNavigationRoot"
-          : "desktopNavigationRoot";
-      runtime[rootKey] ??= createRoot(mount);
-      runtime[rootKey].render(
-        createElement(CommandNavigation, {
-          activePanel: runtime.activePanel,
-          copy: civilizationMessages(runtime.locale),
-          mobile: navigation === "mobile",
-          onSelectPanel: (panel, selectedNavigation) => {
-            actions.selectPanel(panel);
-            requestAnimationFrame(() => {
-              if (selectedNavigation === "mobile") {
-                focusCommandPanel();
-                return;
-              }
-              runtime.root
-                ?.querySelector(
-                  `[data-game-command-navigation="${selectedNavigation}"] [data-command-panel="${panel}"]`,
-                )
-                ?.focus();
-            });
-          },
-        }),
-      );
-    });
-  };
-  const renderHud = () => {
-    const hud = runtime.root?.querySelector("[data-game-shell-hud]");
-    if (!hud) return;
-    runtime.hudRoot ??= createRoot(hud);
-    runtime.hudRoot.render(
-      createElement(GameShellHud, {
-        assetResult: runtime.assetResult,
-        capacity: capacity(),
-        copy: civilizationMessages(runtime.locale),
-        locale: runtime.locale,
-        onOpenSettings: actions.openSettings,
-        production: production(),
-        resourceDefs: RESOURCE_DEFS,
-        resourceFormat,
-        resources: runtime.state.resources,
-        runtimeMode: runtime.mode,
-        tokens: TOKEN_REGISTRY,
-        worldApp: runtime.worldApp,
-        worldBadge: runtime.worldBadge,
-      }),
-    );
-  };
-  const renderFooter = () => {
-    const mount = runtime.root?.querySelector("[data-game-footer]");
-    if (!mount) return;
-    runtime.footerRoot ??= createRoot(mount);
-    const copy = civilizationMessages(runtime.locale);
-    runtime.footerRoot.render(
-      createElement(GameFooter, {
-        authority:
-          runtime.mode === "world" ? copy.gameAuthority : copy.demoStorage,
-        onReset: runtime.mode === "demo" ? actions.reset : undefined,
-        resetLabel: copy.demoReset,
-        runtimeMode: runtime.mode,
-        status:
-          runtime.mode === "demo"
-            ? copy.demoFooter(runtime.state.raids)
-            : copy.worldFooter(runtime.state.prestigeCount),
-      }),
-    );
-  };
   const entryGuideRecommendation = () => {
     const selectedBuilding = runtime.selectedBuilding;
     const level = runtime.state.buildings[selectedBuilding];
@@ -374,160 +272,9 @@ function createController(runtime) {
           runtime.state.constructionCapacity,
     });
   };
-  const dismissEntryGuide = () => {
-    runtime.entryGuideDismissed = true;
-    renderEntryGuide();
-  };
-  const renderEntryGuide = () => {
-    const mount = runtime.root?.querySelector("[data-entry-guide-mount]");
-    if (!mount) return;
-    runtime.entryGuideRoot ??= createRoot(mount);
-    if (runtime.entryGuideDismissed) {
-      runtime.entryGuideRoot.render(null);
-      return;
-    }
-    runtime.entryGuideRoot.render(
-      createElement(EntryGuide, {
-        copy: civilizationMessages(runtime.locale),
-        recommendation: entryGuideRecommendation(),
-        onDismiss: dismissEntryGuide,
-        onRoute: (recommendation) => {
-          dismissEntryGuide();
-          if (
-            recommendation.target === "building" &&
-            recommendation.buildingId
-          ) {
-            actions.selectBuilding(recommendation.buildingId);
-            requestAnimationFrame(() =>
-              runtime.root
-                ?.querySelector(
-                  `[data-map-building="${recommendation.buildingId}"]`,
-                )
-                ?.focus(),
-            );
-          } else if (recommendation.target === "collection") {
-            requestAnimationFrame(() =>
-              runtime.root?.querySelector("#gather")?.focus(),
-            );
-          } else if (recommendation.target === "completion") {
-            actions.selectPanel("build");
-            requestAnimationFrame(() =>
-              runtime.root
-                ?.querySelector('[data-next-action-button="complete"]')
-                ?.focus(),
-            );
-          } else if (recommendation.target === "build-panel") {
-            actions.selectPanel("build");
-            requestAnimationFrame(() => {
-              if (isMobileNavigationVisible()) {
-                focusCommandPanel();
-                return;
-              }
-              runtime.root
-                ?.querySelector(
-                  '[data-game-command-navigation="desktop"] [data-command-panel="build"]',
-                )
-                ?.focus();
-            });
-          }
-        },
-      }),
-    );
-  };
-  const renderVillageMap = (focusTarget) => {
-    const mount = runtime.root?.querySelector("[data-game-village-map]");
-    if (!mount) return;
-    const displayState =
-      runtime.mode === "world"
-        ? runtime.adapter.projectState(runtime.state, performance.now())
-        : runtime.state;
-    runtime.villageMapRoot ??= createRoot(mount);
-    runtime.villageMapRoot.render(
-      createElement(VillageMap, {
-        assetResult: runtime.assetResult,
-        assetsLoading: runtime.assetState === "loading",
-        buildings: BUILDINGS,
-        buildingLevels: runtime.state.buildings,
-        capacity: capacity(),
-        collectionStatus: {
-          assetResult: runtime.assetResult,
-          busy: runtime.busy,
-          collection: collection(),
-          copy: civilizationMessages(runtime.locale),
-          locale: runtime.locale,
-          onGather: actions.gather,
-          resourceDefs: RESOURCE_DEFS,
-          resourceFormat,
-          unclaimed: displayState.unclaimed,
-        },
-        copy: civilizationMessages(runtime.locale),
-        feedback: runtime.feedback,
-        format,
-        onSelectBuilding: actions.selectBuilding,
-        onSelectMarket: () => actions.selectPanel("market"),
-        prestigeCount: runtime.state.prestigeCount,
-        runtimeMode: runtime.mode,
-        selectedBuilding: runtime.selectedBuilding,
-        activePanel: runtime.activePanel,
-      }),
-    );
-    if (focusTarget) {
-      requestAnimationFrame(() =>
-        runtime.root?.querySelector(focusTarget)?.focus(),
-      );
-    }
-  };
-  const renderSettingsDialog = () => {
-    const settingsDialog = runtime.root?.querySelector(
-      "[data-game-settings-dialog]",
-    );
-    if (!settingsDialog) return;
-    runtime.settingsDialogRoot ??= createRoot(settingsDialog);
-    if (!runtime.settingsOpen) {
-      runtime.settingsDialogRoot.render(null);
-      return;
-    }
-    runtime.settingsDialogRoot.render(
-      createElement(SettingsDialog, {
-        copy: civilizationMessages(runtime.locale),
-        locale: runtime.locale,
-        onChangeLocale: actions.changeLocale,
-        onClose: actions.closeSettings,
-        onLogout: actions.logout,
-        onSetReducedMotion: actions.setReducedMotion,
-        reducedMotion: runtime.reducedMotion,
-        walletAddress: runtime.walletAddress,
-      }),
-    );
-  };
-  const renderWalletReviewDialog = () => {
-    const walletReviewDialog = runtime.root?.querySelector(
-      "[data-wallet-review-dialog]",
-    );
-    if (!walletReviewDialog) return;
-    runtime.walletReviewDialogRoot ??= createRoot(walletReviewDialog);
-    const review = runtime.review.state();
-    if (
-      !["reviewing", "invalidated", "confirming", "pending"].includes(
-        review.status,
-      )
-    ) {
-      runtime.walletReviewDialogRoot.render(null);
-      return;
-    }
-    runtime.walletReviewDialogRoot.render(
-      createElement(WalletReviewDialog, {
-        copy: civilizationMessages(runtime.locale),
-        onCancel: cancelWalletReview,
-        onConfirm: actions.confirmReview,
-        review,
-      }),
-    );
-  };
   const cancelWalletReview = () => {
     actions.cancelReview();
-    // The imperative root is recreated when a review closes. Restore focus to
-    // the current panel's equivalent navigation control after that replacement.
+    // Restore focus to the current panel's stable navigation control.
     requestAnimationFrame(() =>
       runtime.root
         ?.querySelector(
@@ -661,27 +408,128 @@ function createController(runtime) {
     };
     return context;
   };
-  const panel = () => {
-    const context = panelContext();
-    if (runtime.activePanel === "build") {
-      return buildPanel();
-    }
-    if (runtime.activePanel === "army") {
-      return armyPanel(context);
-    }
-    if (runtime.activePanel === "market") {
-      return marketPanel(context);
-    }
-    return raidPanel(context);
+  const dismissEntryGuide = () => {
+    runtime.entryGuideDismissed = true;
+    render();
   };
-  const renderBuildPanel = () => {
-    if (runtime.activePanel !== "build") return;
-    const mount = runtime.root?.querySelector("[data-game-build-panel]");
-    if (!mount) return;
-    runtime.buildPanelRoot ??= createRoot(mount);
+  const selectPanelFromNavigation = (panel, selectedNavigation) => {
+    actions.selectPanel(panel);
+    requestAnimationFrame(() => {
+      if (selectedNavigation === "mobile") {
+        focusCommandPanel();
+        return;
+      }
+      runtime.root
+        ?.querySelector(
+          `[data-game-command-navigation="${selectedNavigation}"] [data-command-panel="${panel}"]`,
+        )
+        ?.focus();
+    });
+  };
+  const entryGuide = () => {
+    if (runtime.entryGuideDismissed) return null;
+    return {
+      copy: civilizationMessages(runtime.locale),
+      recommendation: entryGuideRecommendation(),
+      onDismiss: dismissEntryGuide,
+      onRoute: (recommendation) => {
+        dismissEntryGuide();
+        if (recommendation.target === "building" && recommendation.buildingId) {
+          actions.selectBuilding(recommendation.buildingId);
+          requestAnimationFrame(() =>
+            runtime.root
+              ?.querySelector(
+                `[data-map-building="${recommendation.buildingId}"]`,
+              )
+              ?.focus(),
+          );
+        } else if (recommendation.target === "collection") {
+          requestAnimationFrame(() =>
+            runtime.root?.querySelector("#gather")?.focus(),
+          );
+        } else if (recommendation.target === "completion") {
+          actions.selectPanel("build");
+          requestAnimationFrame(() =>
+            runtime.root
+              ?.querySelector('[data-next-action-button="complete"]')
+              ?.focus(),
+          );
+        } else if (recommendation.target === "build-panel") {
+          actions.selectPanel("build");
+          requestAnimationFrame(() => {
+            if (isMobileNavigationVisible()) {
+              focusCommandPanel();
+              return;
+            }
+            runtime.root
+              ?.querySelector(
+                '[data-game-command-navigation="desktop"] [data-command-panel="build"]',
+              )
+              ?.focus();
+          });
+        }
+      },
+    };
+  };
+  const frame = () => {
+    const copy = civilizationMessages(runtime.locale);
     const context = panelContext();
-    runtime.buildPanelRoot.render(
-      createElement(BuildPanel, {
+    const displayState =
+      runtime.mode === "world"
+        ? runtime.adapter.projectState(runtime.state, performance.now())
+        : runtime.state;
+    const review = runtime.review.state();
+    return createElement(GameShellFrame, {
+      activePanel: runtime.activePanel,
+      hud: {
+        assetResult: runtime.assetResult,
+        capacity: capacity(),
+        copy,
+        locale: runtime.locale,
+        onOpenSettings: actions.openSettings,
+        production: production(),
+        resourceDefs: RESOURCE_DEFS,
+        resourceFormat,
+        resources: runtime.state.resources,
+        runtimeMode: runtime.mode,
+        tokens: TOKEN_REGISTRY,
+        worldApp: runtime.worldApp,
+        worldBadge: runtime.worldBadge,
+      },
+      entryGuide: entryGuide(),
+      villageMap: {
+        assetResult: runtime.assetResult,
+        assetsLoading: runtime.assetState === "loading",
+        buildings: BUILDINGS,
+        buildingLevels: runtime.state.buildings,
+        capacity: capacity(),
+        collectionStatus: {
+          assetResult: runtime.assetResult,
+          busy: runtime.busy,
+          collection: collection(),
+          copy,
+          locale: runtime.locale,
+          onGather: actions.gather,
+          resourceDefs: RESOURCE_DEFS,
+          resourceFormat,
+          unclaimed: displayState.unclaimed,
+        },
+        copy,
+        feedback: runtime.feedback,
+        format,
+        onSelectBuilding: actions.selectBuilding,
+        onSelectMarket: () => actions.selectPanel("market"),
+        prestigeCount: runtime.state.prestigeCount,
+        runtimeMode: runtime.mode,
+        selectedBuilding: runtime.selectedBuilding,
+        activePanel: runtime.activePanel,
+      },
+      desktopNavigation: {
+        activePanel: runtime.activePanel,
+        copy,
+        onSelectPanel: selectPanelFromNavigation,
+      },
+      build: {
         ...context,
         onUpgrade: actions.upgrade,
         onCompleteUpgrade: actions.completeUpgrade,
@@ -689,31 +537,13 @@ function createController(runtime) {
         onPrestige: actions.prestige,
         onOpenMarket: actions.openMarket,
         onGather: actions.gather,
-      }),
-    );
-  };
-  const renderArmyPanel = () => {
-    if (runtime.activePanel !== "army") return;
-    const mount = runtime.root?.querySelector("[data-game-army-panel]");
-    if (!mount) return;
-    runtime.armyPanelRoot ??= createRoot(mount);
-    const context = panelContext();
-    runtime.armyPanelRoot.render(
-      createElement(ArmyPanel, {
+      },
+      army: {
         ...context,
         onTrain: actions.train,
         onOpenMarket: actions.openMarket,
-      }),
-    );
-  };
-  const renderMarketPanel = () => {
-    if (runtime.activePanel !== "market") return;
-    const mount = runtime.root?.querySelector("[data-game-market-panel]");
-    if (!mount) return;
-    runtime.marketPanelRoot ??= createRoot(mount);
-    const context = panelContext();
-    runtime.marketPanelRoot.render(
-      createElement(MarketPanel, {
+      },
+      market: {
         ...context,
         marketDraft: runtime.marketDraft,
         marketOrigin: runtime.marketOrigin,
@@ -721,25 +551,58 @@ function createController(runtime) {
         onQuote: actions.quoteMarket,
         onOrder: actions.marketOrder,
         onSwap: actions.swap,
-      }),
-    );
-  };
-  const renderRaidPanel = () => {
-    if (runtime.activePanel !== "raid") return;
-    const mount = runtime.root?.querySelector("[data-game-raid-panel]");
-    if (!mount) return;
-    runtime.raidPanelRoot ??= createRoot(mount);
-    const context = panelContext();
-    runtime.raidPanelRoot.render(
-      createElement(RaidPanel, {
+      },
+      raid: {
         ...context,
         raidDraft: runtime.raidDraft,
         onDraftChange: actions.raidInputsChanged,
         onPickOpponent: actions.pickOpponent,
         onSendRaid: actions.sendRaid,
         onResolveRaid: actions.resolveRaid,
-      }),
-    );
+      },
+      footer: {
+        authority:
+          runtime.mode === "world" ? copy.gameAuthority : copy.demoStorage,
+        onReset: runtime.mode === "demo" ? actions.reset : undefined,
+        resetLabel: copy.demoReset,
+        runtimeMode: runtime.mode,
+        status:
+          runtime.mode === "demo"
+            ? copy.demoFooter(runtime.state.raids)
+            : copy.worldFooter(runtime.state.prestigeCount),
+      },
+      mobileNavigation: {
+        activePanel: runtime.activePanel,
+        copy,
+        onSelectPanel: selectPanelFromNavigation,
+      },
+      settings: runtime.settingsOpen
+        ? {
+            copy,
+            locale: runtime.locale,
+            onChangeLocale: actions.changeLocale,
+            onClose: actions.closeSettings,
+            onLogout: actions.logout,
+            onSetReducedMotion: actions.setReducedMotion,
+            reducedMotion: runtime.reducedMotion,
+            walletAddress: runtime.walletAddress,
+          }
+        : null,
+      walletReview: [
+        "reviewing",
+        "invalidated",
+        "confirming",
+        "pending",
+      ].includes(review.status)
+        ? {
+            copy,
+            onCancel: cancelWalletReview,
+            onConfirm: actions.confirmReview,
+            review,
+          }
+        : null,
+      reducedMotion: runtime.reducedMotion,
+    });
   };
   const render = () => {
     if (!isCurrent(runtime.token)) {
@@ -755,7 +618,7 @@ function createController(runtime) {
       copy: civilizationMessages(runtime.locale),
     });
     if (gate) {
-      runtime.root.replaceChildren();
+      runtime.onFrameChange(null);
       runtime.onGateStateChange?.(gate, runtime.retryGate);
       return;
     }
@@ -763,95 +626,7 @@ function createController(runtime) {
     if (runtime.mode === "demo") {
       settle(runtime.state);
     }
-    runtime.hudRoot?.unmount();
-    runtime.hudRoot = null;
-    runtime.footerRoot?.unmount();
-    runtime.footerRoot = null;
-    runtime.desktopNavigationRoot?.unmount();
-    runtime.desktopNavigationRoot = null;
-    runtime.mobileNavigationRoot?.unmount();
-    runtime.mobileNavigationRoot = null;
-    const activeMapControl = document.activeElement;
-    let mapFocusTarget = null;
-    if (
-      activeMapControl instanceof HTMLElement &&
-      runtime.root.contains(activeMapControl)
-    ) {
-      if (activeMapControl.dataset.mapBuilding) {
-        mapFocusTarget = `[data-map-building="${activeMapControl.dataset.mapBuilding}"]`;
-      } else if (activeMapControl.dataset.mapPanel) {
-        mapFocusTarget = `[data-map-panel="${activeMapControl.dataset.mapPanel}"]`;
-      }
-    }
-    runtime.villageMapRoot?.unmount();
-    runtime.villageMapRoot = null;
-    runtime.buildPanelRoot?.unmount();
-    runtime.buildPanelRoot = null;
-    runtime.armyPanelRoot?.unmount();
-    runtime.armyPanelRoot = null;
-    runtime.marketPanelRoot?.unmount();
-    runtime.marketPanelRoot = null;
-    runtime.raidPanelRoot?.unmount();
-    runtime.raidPanelRoot = null;
-    runtime.settingsDialogRoot?.unmount();
-    runtime.settingsDialogRoot = null;
-    runtime.entryGuideRoot?.unmount();
-    runtime.entryGuideRoot = null;
-    runtime.walletReviewDialogRoot?.unmount();
-    runtime.walletReviewDialogRoot = null;
-    runtime.root.innerHTML = gameShell({
-      state: runtime.state,
-      runtimeMode: runtime.mode,
-      worldApp: runtime.worldApp,
-      worldBadge: runtime.worldBadge,
-      feedback: runtime.feedback,
-      activePanel: runtime.activePanel,
-      selectedBuilding: runtime.selectedBuilding,
-      panel: panel(),
-      production: production(),
-      capacity: capacity(),
-      resourceDefs: RESOURCE_DEFS,
-      tokens: TOKEN_REGISTRY,
-      format,
-      resourceFormat,
-      buildings: BUILDINGS,
-      busy: runtime.busy,
-      review: runtime.review.state(),
-      locale: runtime.locale,
-      copy: civilizationMessages(runtime.locale),
-      locale: runtime.locale,
-      assetResult: runtime.assetResult,
-      assetsLoading: runtime.assetState === "loading",
-      reducedMotion: runtime.reducedMotion,
-    });
-    renderHud();
-    renderFooter();
-    renderEntryGuide();
-    bindGameActions(runtime.root, actions);
-    // All dynamic map content, including collection and map actions, belongs
-    // to this single React root. Bindings intentionally run before it mounts.
-    renderVillageMap(mapFocusTarget);
-    renderNavigation();
-    // Keep the BuildPanel outside the imperative binding pass: its controls
-    // are owned exclusively by React.
-    renderBuildPanel();
-    // Army training controls are likewise exclusively React-owned.
-    renderArmyPanel();
-    // Market form controls are controlled by React and excluded from bindings.
-    renderMarketPanel();
-    // Raid inputs and march status are exclusively React-owned.
-    renderRaidPanel();
-    // Settings is exclusively owned by React; imperative bindings do not
-    // attach listeners inside this mount point.
-    renderSettingsDialog();
-    // The wallet review keeps its frozen runtime intent and actions in a
-    // typed React modal; imperative bindings do not enter this mount point.
-    renderWalletReviewDialog();
-    world.requestBuildDuration(
-      runtime.selectedBuilding,
-      runtime.state.buildings[runtime.selectedBuilding] + 1,
-      MAX_BUILDING_LEVEL,
-    );
+    runtime.onFrameChange(frame());
   };
   world = createWorldRuntime({
     runtime,
@@ -923,27 +698,21 @@ function createController(runtime) {
     if (!runtime.state || !isCurrent(runtime.token)) {
       return;
     }
-    renderHud();
-    renderFooter();
-    renderVillageMap();
-    renderBuildPanel();
-    renderArmyPanel();
-    renderMarketPanel();
-    renderRaidPanel();
-    renderEntryGuide();
+    render();
   };
   return { render, refreshWorld: world.refresh, refreshTickValues, actions };
 }
 
 /**
- * @param {{ root: HTMLElement | null, runtimeMode?: "demo" | "world", worldAppInstalled?: boolean,
+ * @param {{ root: HTMLElement | null, onFrameChange: (frame: import("react").ReactNode | null) => void,
+ *   runtimeMode?: "demo" | "world", worldAppInstalled?: boolean,
  *   worldAccessConfirmed?: boolean, worldWalletAddress?: string | null, worldAdapter?: object | null,
  *   initialFeedback?: string, locale?: "de-DE" | "en-US", onLocaleChange?: (locale: "de-DE" | "en-US") => void,
  *   onLogout?: () => Promise<void>,
  *   onGateStateChange?: (gate: ({ kind: "access", detail: string, title: string } | { kind: "runtime", feedback: string, loading: boolean, retryLabel: string, title: string }) | null, retry: (() => void) | null) => void }} options
  */
 export function startCivilizationApp(options) {
-  if (!options.root || activeRuntime) {
+  if (!options.root || !options.onFrameChange || activeRuntime) {
     return;
   }
   const runtime = createRuntime({
@@ -1015,18 +784,6 @@ export function stopCivilizationApp() {
   runtime.timer = null;
   runtime.visibilityHandler = null;
   runtime.adapter = null;
-  // The parent React tree is removing the imperative root at this point.
-  // Calling unmount on its nested HUD root during that render races React.
-  runtime.hudRoot = null;
-  runtime.footerRoot = null;
-  runtime.desktopNavigationRoot = null;
-  runtime.mobileNavigationRoot = null;
-  runtime.villageMapRoot = null;
-  runtime.settingsDialogRoot = null;
-  runtime.entryGuideRoot = null;
-  runtime.walletReviewDialogRoot = null;
-  // Nested React roots can still flush work that was queued by the final
-  // render while their parent is being removed. Keep this inert snapshot
-  // available until those roots are collected; `activeRuntime = null` above
-  // prevents it from being rendered or mutated by the application.
+  runtime.onFrameChange(null);
+  runtime.onFrameChange = null;
 }

@@ -1,88 +1,46 @@
-# React UI migration slices
+# React UI migration
 
-The first slice moves only the access and World-runtime gates into React. The
-second slice moves the shell header HUD (resource values, production, World
-status, and settings trigger) into a typed React component. The third slice
-moves Build-panel content into the typed `BuildPanel` island. Its imperative
-shell markup is only a stable mount point; details, requirements, costs,
-construction progress, boosts, upgrade planning, disabled states, and actions
-are rendered by React. The runtime/controller remains the single source of
-truth and passes action callbacks into the island.
-
-The fourth slice moves Army-panel content into the typed `ArmyPanel` island.
-Its imperative shell markup is only a stable mount point; troop counts,
-requirements, costs, disabled/busy states, and training callbacks are rendered
-by React. The runtime/controller remains the single source of truth.
-
-The fifth slice moves Market-panel content into the typed `MarketPanel` island.
-Its imperative shell markup is only a stable mount point; the runtime owns the
-market draft, quote, and revision. Any resource, direction, or amount change
-invalidates the quote, and an async quote is accepted only when it still matches
-the current draft.
-
-The imperative shell still owns the map and game actions. The sixth slice moves Raid-panel content into the typed
-`RaidPanel` island. The runtime owns the address/target and troop draft, while
-React owns its controlled controls, report, busy states, and march countdown.
-Tick updates re-render every React island from existing runtime state; they do
-not write into React-owned nodes.
+`GameShellFrame` is now the one typed React owner of the game document. It
+contains the HUD, desktop and mobile command navigation, village map, Build,
+Army, Market, and Raid panels, settings and wallet-review dialogs, and the
+footer. There is no imperative game root, shell markup, panel renderer, or
+event-binding layer.
 
 ```
-CivilizationClient
-├─ imperative game root (map, panels, ticks, bindings)
-│  ├─ GameShellHud (typed React HUD island)
-│  ├─ GameFooter (typed React footer island)
-│  ├─ CommandNavigation (typed React desktop and mobile navigation islands)
-│  ├─ BuildPanel (typed React build island)
-│  ├─ ArmyPanel (typed React army island)
-│  ├─ MarketPanel (typed React market island)
-│  ├─ RaidPanel (typed React raid island)
-│  ├─ SettingsDialog (typed React dialog island)
-│  └─ WalletReviewDialog (typed React dialog island)
-└─ CivilizationRuntimeGate (access and runtime feedback)
+CivilizationClient (owning React client)
+├─ owns the host element and React frame state
+└─ renders GameShellFrame as its normal child
+   ├─ GameShellHud
+   ├─ CommandNavigation (desktop and mobile)
+   ├─ VillageMap
+   │  └─ CollectionStatus
+   ├─ BuildPanel
+   ├─ ArmyPanel
+   ├─ MarketPanel
+   ├─ RaidPanel
+   ├─ SettingsDialog
+   ├─ WalletReviewDialog
+   └─ GameFooter
 ```
 
-The seventh slice moves the Settings dialog into the typed `SettingsDialog`
-island. Its mount point remains in the imperative shell, while the runtime is
-still the source of truth for dialog visibility, locale, reduced-motion state,
-and logout action. React owns clipboard feedback, pending logout UI, initial
-focus, Escape/backdrop close, and the dialog focus trap. The HUD trigger is an
-icon-only, labelled 44px control rendered by `GameShellHud`.
+The imperative runtime/controller remains the sole source of game state: selected panel,
+map state, resources, construction and collection state, market and raid
+drafts, dialogs, locale, accessibility focus handoffs, and action feedback.
+It emits a typed `GameShellFrame` element (or `null` while gated) through its
+frame callback. The owning React client stores that element in React state and
+renders it inside its existing host element; it never creates a nested root.
+`GameShellFrame` receives that state and the callbacks as typed props and
+renders all dynamic content through React. React owns controls, semantics,
+controlled inputs, dynamic feedback, asset fallback UI, and dialog keyboard
+lifecycles.
 
-The eighth slice moves the wallet-review dialog into the typed
-`WalletReviewDialog` island. The runtime-owned, frozen review intent remains
-the only action source; React renders its details and confirm/cancel controls.
-It preserves the non-dismissable backdrop, focuses the modal action on open,
-traps Tab navigation, restores focus to the active panel navigation after
-cancel, and cancels a review on Escape when it is not waiting for wallet or
-chain finality.
+World polling updates the runtime state and re-renders the same
+`GameShellFrame`. The normal tick refreshes projected values; after 30 World
+ticks it performs exactly one quiet World-state refresh. Visibility restoration
+also uses a quiet refresh. These refreshes do not create a second shell or
+write into React-owned DOM nodes.
 
-The ninth slice moves the collection control and field-stock status into the
-typed `CollectionStatus` island. Runtime state remains the source for the
-collection lock/countdown, busy state, field stock, and gather callback. Each
-live tick re-renders the island; the former imperative collection tick writer
-is removed.
-
-The tenth slice moves command tabs and mobile quick access into the typed
-`CommandNavigation` island. The imperative shell provides one stable mount for
-each responsive layout, while the runtime remains the only source for the
-active panel and action feedback. Both mounts call the same runtime
-`selectPanel` action; React owns the semantic labelled controls and the
-post-selection focus restoration, so the former navigation string rendering and
-imperative navigation listener are removed. Map market selection remains an
-imperative map action.
-
-The eleventh slice moves the dynamic village map into the typed `VillageMap`
-island. The imperative shell now provides only its stable map mount. The
-runtime remains the sole source of map state (levels, selected building, active
-panel, assets, feedback, collection, and callbacks), while React renders the
-map heading, terrain fallback states, markers, live feedback, and the existing
-`CollectionStatus` as a child of the same root. Map marker actions call the
-runtime callbacks directly; the render cycle records and restores the matching
-map-button focus. Consequently, `bindGameActions` neither binds map controls
-nor attaches map asset listeners.
-
-The twelfth slice moves the dynamic game footer into the typed `GameFooter`
-island. The imperative shell exposes only its stable mount. The runtime remains
-the source of its authority and status values, while React renders the semantic
-footer and its demo-only reset control. Reset is invoked solely through the
-supplied `actions.reset` callback; World never receives or renders that button.
+The access and runtime gate remains outside the game document: it decides
+whether the controller emits the typed game frame. A gate transition emits
+`null`, so normal React unmount/remount runs component cleanups naturally. It
+does not own game markup or imperative bindings.

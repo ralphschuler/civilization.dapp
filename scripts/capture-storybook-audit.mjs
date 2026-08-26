@@ -42,6 +42,11 @@ const shots = [
     { width: 390, height: 844 },
   ],
   [
+    "mobile-stable-game-shell-frame-195.png",
+    "ui-audit-civilization--stable-game-shell-frame-mobile",
+    { width: 195, height: 422 },
+  ],
+  [
     "mobile-village-build-navigation-195.png",
     "ui-audit-civilization--mobile-village-build-navigation",
     { width: 195, height: 422 },
@@ -340,6 +345,21 @@ for (const [name, id, viewport] of shots) {
       throw new Error("Bottom navigation control is smaller than 44px");
     await page.screenshot({ path: join(output, name) });
     screenshotTaken = true;
+  }
+  if (id === "ui-audit-civilization--stable-game-shell-frame-mobile") {
+    const layout = await page.evaluate(() => ({
+      entryGuide: Boolean(document.querySelector("[data-entry-guide]")),
+      mobileNavigation: Boolean(
+        document.querySelector('[data-game-command-navigation="mobile"]'),
+      ),
+      buildPanel: Boolean(document.querySelector("[data-game-build-panel]")),
+      scrollWidth: document.documentElement.scrollWidth,
+      viewportWidth: window.innerWidth,
+    }));
+    if (!layout.entryGuide || !layout.mobileNavigation || !layout.buildPanel)
+      throw new Error("Stable GameShellFrame is missing its mobile landmarks");
+    if (layout.scrollWidth > layout.viewportWidth)
+      throw new Error("Stable GameShellFrame has horizontal overflow");
   }
   if (id === "ui-audit-civilization--resource-status-header") {
     const layout = await page.evaluate(() => {

@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 export default function DemoClient() {
   const root = useRef<HTMLDivElement>(null);
+  const [frame, setFrame] = useState<ReactNode>(null);
   useEffect(() => {
     (
       globalThis as typeof globalThis & { __CIVILIZATION_ASSET_BASE__: string }
@@ -16,7 +17,11 @@ export default function DemoClient() {
           return;
         }
         stop = stopCivilizationApp;
-        startCivilizationApp({ root: root.current, runtimeMode: "demo" });
+        startCivilizationApp({
+          root: root.current,
+          runtimeMode: "demo",
+          onFrameChange: setFrame,
+        });
       },
     );
     return () => {
@@ -24,5 +29,5 @@ export default function DemoClient() {
       stop?.();
     };
   }, []);
-  return <div ref={root} />;
+  return <div ref={root}>{frame}</div>;
 }
