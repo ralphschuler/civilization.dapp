@@ -12,14 +12,20 @@ export default async function Home({
 }: {
   searchParams: Promise<{
     buildPanelE2e?: string;
+    appearanceE2e?: string;
     entryGuideE2e?: string;
     feedbackE2e?: string;
     raidHistoryE2e?: string;
   }>;
 }) {
   if (walletAccessE2eModeEnabled()) {
-    const { buildPanelE2e, entryGuideE2e, feedbackE2e, raidHistoryE2e } =
-      await searchParams;
+    const {
+      appearanceE2e,
+      buildPanelE2e,
+      entryGuideE2e,
+      feedbackE2e,
+      raidHistoryE2e,
+    } = await searchParams;
     if (entryGuideE2e === "mobile-focus") return <EntryGuideE2eHarness />;
     if (raidHistoryE2e === "reports") return <RaidHistoryE2eHarness />;
     if (
@@ -30,7 +36,12 @@ export default async function Home({
     ) {
       return <BuildPanelE2eHarness scenario={buildPanelE2e} />;
     }
-    return <WalletAccessE2eHarness initialFeedback={feedbackE2e} />;
+    return (
+      <WalletAccessE2eHarness
+        appearanceE2e={appearanceE2e === "world"}
+        initialFeedback={feedbackE2e}
+      />
+    );
   }
   const configuration = runtimeConfiguration();
   if (!configuration.ready) {

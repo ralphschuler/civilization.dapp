@@ -11,6 +11,15 @@ type SettingsCopy = Pick<
   | "account"
   | "addressCopied"
   | "addressCopyFailed"
+  | "appearance"
+  | "appearanceApply"
+  | "appearanceApplying"
+  | "appearanceClassic"
+  | "appearanceDescription"
+  | "appearanceDusk"
+  | "appearanceReset"
+  | "appearanceSaved"
+  | "appearanceUnavailable"
   | "connectedWallet"
   | "completionNotifications"
   | "completionNotificationsDescription"
@@ -32,6 +41,12 @@ export type SettingsDialogProps = {
   copy: SettingsCopy;
   locale: CivilizationLocale;
   onChangeLocale: (locale: CivilizationLocale) => void;
+  appearance: "classic" | "dusk";
+  appearancePending: boolean;
+  appearanceStatus: string;
+  onApplyAppearance: () => Promise<void> | void;
+  onChangeAppearance: (appearance: "classic" | "dusk") => void;
+  onResetAppearance: () => Promise<void> | void;
   onClose: () => void;
   onLogout: () => Promise<void> | void;
   onSetCompletionNotifications: (enabled: boolean) => void;
@@ -161,6 +176,50 @@ export function SettingsDialog(props: SettingsDialogProps) {
               {props.copy.copyAddress}
             </button>
           </section>
+          <section aria-labelledby="settings-appearance-title">
+            <h3 id="settings-appearance-title">{props.copy.appearance}</h3>
+            <p className="settings-description">
+              {props.copy.appearanceDescription}
+            </p>
+            <label className="settings-field" htmlFor="village-appearance">
+              <span>{props.copy.appearance}</span>
+              <select
+                id="village-appearance"
+                value={props.appearance}
+                disabled={props.appearancePending}
+                onChange={(event) =>
+                  props.onChangeAppearance(
+                    event.currentTarget.value as "classic" | "dusk",
+                  )
+                }
+              >
+                <option value="classic">{props.copy.appearanceClassic}</option>
+                <option value="dusk">{props.copy.appearanceDusk}</option>
+              </select>
+            </label>
+            <div className="settings-appearance-actions">
+              <button
+                type="button"
+                className="settings-secondary-action"
+                disabled={props.appearancePending}
+                onClick={() => void props.onApplyAppearance()}
+              >
+                {props.appearancePending
+                  ? props.copy.appearanceApplying
+                  : props.copy.appearanceApply}
+              </button>
+              <button
+                type="button"
+                className="settings-secondary-action"
+                disabled={
+                  props.appearancePending || props.appearance === "classic"
+                }
+                onClick={() => void props.onResetAppearance()}
+              >
+                {props.copy.appearanceReset}
+              </button>
+            </div>
+          </section>
           <section aria-labelledby="settings-motion-title">
             <h3 id="settings-motion-title">{props.copy.motion}</h3>
             <label className="settings-toggle">
@@ -208,7 +267,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
             role="status"
             aria-live="polite"
           >
-            {feedback}
+            {feedback || props.appearanceStatus}
           </p>
         </div>
       </section>

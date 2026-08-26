@@ -13,7 +13,7 @@ test("WalletAccess E2E mode is limited to an explicit development server flag", 
   assert.match(mode, /env\.CIVILIZATION_WALLET_E2E_TEST_MODE === "enabled"/);
 });
 
-test("feedback E2E query input is read only within the server E2E gate", async () => {
+test("E2E query inputs are read only within the server E2E gate", async () => {
   const page = await readFile(
     new URL("../src/app/page.tsx", import.meta.url),
     "utf8",
@@ -22,13 +22,25 @@ test("feedback E2E query input is read only within the server E2E gate", async (
   const gateEnd = page.indexOf(
     "  const configuration = runtimeConfiguration();",
   );
-  const feedbackRead = page.indexOf("feedbackE2e", gateStart);
+  const e2eQueryParameters = [
+    "appearanceE2e",
+    "buildPanelE2e",
+    "entryGuideE2e",
+    "feedbackE2e",
+    "raidHistoryE2e",
+  ];
 
   assert.ok(gateStart >= 0);
-  assert.ok(feedbackRead > gateStart && feedbackRead < gateEnd);
+  for (const parameter of e2eQueryParameters) {
+    const read = page.indexOf(parameter, gateStart);
+    assert.ok(read > gateStart && read < gateEnd, parameter);
+  }
   assert.match(
     page.slice(gateStart, gateEnd),
-    /<WalletAccessE2eHarness initialFeedback=\{feedbackE2e\} \/>/,
+    /<WalletAccessE2eHarness\s+appearanceE2e=\{appearanceE2e === "world"\}\s+initialFeedback=\{feedbackE2e\}\s+\/>/,
   );
-  assert.doesNotMatch(page.slice(gateEnd), /feedbackE2e/);
+  assert.doesNotMatch(
+    page.slice(gateEnd),
+    /appearanceE2e|buildPanelE2e|entryGuideE2e|feedbackE2e|raidHistoryE2e/,
+  );
 });

@@ -52,9 +52,19 @@ test("the shipped migration files have a deterministic ascending order", async (
       ["007", "007_wallet_auth_challenge_source_capacity.sql"],
       ["008", "008_chain_indexer_foundation.sql"],
       ["009", "009_chain_indexer_raid_history_indexes.sql"],
+      ["010", "010_village_appearance_preferences.sql"],
     ],
   );
   assert.ok(loaded.every(({ checksum }) => /^[a-f0-9]{64}$/.test(checksum)));
+});
+
+test("migration 010 persists only an allowlisted appearance per wallet", async () => {
+  const migration = (await loadMigrations("migrations")).find(
+    ({ version }) => version === "010",
+  );
+  assert.match(migration.sql, /wallet_address text PRIMARY KEY/);
+  assert.match(migration.sql, /CHECK \(appearance IN \('classic', 'dusk'\)\)/);
+  assert.doesNotMatch(migration.sql, /token|balance|purchase|entitlement/i);
 });
 
 test("migration 009 adds fixed RaidResolved participant keyset indexes", async () => {
@@ -255,6 +265,7 @@ test("schema readiness requires every expected version in order", async () => {
       { version: "007" },
       { version: "008" },
       { version: "009" },
+      { version: "010" },
     ]),
     true,
   );
@@ -276,7 +287,7 @@ test("schema readiness requires every expected version in order", async () => {
   assert.match(query.sql, /^SELECT version FROM schema_migrations/);
   assert.match(query.sql, /ORDER BY version ASC$/);
   assert.deepEqual(query.parameters, [
-    ["001", "002", "003", "004", "005", "006", "007", "008", "009"],
+    ["001", "002", "003", "004", "005", "006", "007", "008", "009", "010"],
   ]);
 });
 

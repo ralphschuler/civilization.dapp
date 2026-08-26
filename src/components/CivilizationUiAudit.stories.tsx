@@ -13,6 +13,7 @@ import { WalletAccess } from "./WalletAccess";
 import { WalletReviewDialog } from "./WalletReviewDialog";
 import { WalletVillageRegistrationGate } from "./CivilizationClient/WalletVillageRegistrationGate";
 import { RaidPanel } from "./RaidPanel";
+import { SettingsDialog } from "./SettingsDialog";
 import { civilizationMessages } from "@/lib/civilization-locale";
 
 const copy = civilizationMessages("en-US");
@@ -1054,5 +1055,31 @@ export const RaidHistoryCheckpointResetBehavior = {
         },
       ]}
     />
+  ),
+};
+
+export const VillageAppearanceDuskSettings = {
+  name: "Village appearance / Dusk draft and explicit apply (static 390px audit)",
+  render: () => (
+    <main className="game-shell" data-village-appearance="dusk">
+      <SettingsDialog
+        copy={copy}
+        locale="en-US"
+        appearance="dusk"
+        appearancePending={false}
+        appearanceStatus=""
+        completionNotificationsEnabled={false}
+        reducedMotion={false}
+        walletAddress="0x1111111111111111111111111111111111111111"
+        onApplyAppearance={() => undefined}
+        onChangeAppearance={() => undefined}
+        onChangeLocale={() => undefined}
+        onClose={() => undefined}
+        onLogout={() => undefined}
+        onResetAppearance={() => undefined}
+        onSetCompletionNotifications={() => undefined}
+        onSetReducedMotion={() => undefined}
+      />
+    </main>
   ),
 };

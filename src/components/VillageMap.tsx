@@ -41,6 +41,7 @@ export type VillageMapProps = {
   runtimeMode: "demo" | "world";
   selectedBuilding: string;
   activePanel: string;
+  appearance?: "classic" | "dusk";
 };
 
 function assetFailed(assetResult: VillageMapProps["assetResult"], src: string) {
@@ -111,6 +112,9 @@ export function VillageMap(props: VillageMapProps) {
   return (
     <section
       className={`village-map ${mapAssetFailed ? "has-asset-error" : ""}`}
+      data-village-appearance={
+        mapAssetFailed ? "classic" : props.appearance || "classic"
+      }
       id="dorf"
       aria-label={props.copy.interactiveMap}
       data-asset-container

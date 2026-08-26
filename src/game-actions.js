@@ -106,6 +106,9 @@ export function createGameActions(runtime, services) {
     openSettings: () => services.openSettings?.(),
     closeSettings: () => services.closeSettings?.(),
     setReducedMotion: (enabled) => services.setReducedMotion?.(enabled),
+    changeAppearance: (appearance) => services.changeAppearance?.(appearance),
+    applyAppearance: () => services.applyAppearance?.(),
+    resetAppearance: () => services.resetAppearance?.(),
     logout: () => services.logout?.(),
     selectBuilding(id) {
       runtime.selectedBuilding = id;
