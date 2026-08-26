@@ -1392,6 +1392,61 @@ button {
 .raid-result.failure {
   border-color: #985c59;
 }
+.raid-history {
+  grid-column: 1/-1;
+  display: grid;
+  gap: 0.55rem;
+  padding-top: 0.2rem;
+}
+.raid-history-heading {
+  display: grid;
+  gap: 0.18rem;
+}
+.raid-history-heading > span,
+.raid-history-report > span {
+  color: #f0d772;
+  font-size: 0.58rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+}
+.raid-history-heading small,
+.raid-history-status,
+.raid-history-report small {
+  margin: 0;
+  color: #b7c8af;
+  font-size: 0.62rem;
+  line-height: 1.4;
+}
+.raid-history-report {
+  display: grid;
+  gap: 0.3rem;
+  padding: 0.75rem;
+  border: 1px solid #617e63;
+  border-radius: 0.75rem;
+  background: #172216;
+}
+.raid-history-report.failure {
+  border-color: #985c59;
+}
+.raid-history-report b {
+  font-size: 0.72rem;
+}
+.raid-history-more,
+.raid-history-retry {
+  min-height: 2.75rem;
+  border: 1px solid #738a5c;
+  border-radius: 0.75rem;
+  background: #142015;
+  color: #e8ebc4;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+.raid-history-more:focus-visible,
+.raid-history-retry:focus-visible {
+  outline: 2px solid #f0d772;
+  outline-offset: 2px;
+}
 .game-footer {
   max-width: 112rem;
   margin: 1rem auto 0;

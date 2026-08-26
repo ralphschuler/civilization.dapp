@@ -281,6 +281,23 @@ const copy = {
     noLoot: "Keine Beute",
     raidSummary: (loot: string, losses: string) =>
       `Feldlager-Beute: ${loot} · Verluste: ${losses}`,
+    raidHistoryTitle: "FINALISIERTE BERICHTE",
+    raidHistoryCoverage:
+      "Gespeicherte Wiederholungen können unvollständig sein.",
+    raidHistoryLoading: "Berichte werden geladen …",
+    raidHistoryEmpty: "Keine gespeicherten Wiederholungen verfügbar.",
+    raidHistoryUnavailable: "Berichte sind momentan nicht verfügbar.",
+    raidHistoryRetry: "Berichte erneut laden",
+    raidHistorySessionExpired:
+      "Deine Sitzung ist abgelaufen. Melde dich erneut an.",
+    raidHistoryUpdated: "Der Verlauf wurde aktualisiert.",
+    raidHistoryLoadMore: "Mehr laden",
+    raidHistoryYouAttacked: "Du hast angegriffen",
+    raidHistoryYouDefended: "Du hast verteidigt",
+    raidHistoryAgainst: (opponent: string) => `gegen ${opponent}`,
+    raidHistoryFinalized: "FINALISIERT",
+    raidHistoryResources: (resources: string) =>
+      `Bewegte Ressourcen: ${resources}`,
     attackAgainst: (attack: string, defense: string) =>
       `Angriff ${attack} gegen ${defense}`,
     targetLocation: "Zielort",
@@ -723,6 +740,21 @@ const copy = {
     noLoot: "No loot",
     raidSummary: (loot: string, losses: string) =>
       `Field-camp loot: ${loot} · Losses: ${losses}`,
+    raidHistoryTitle: "FINALIZED REPORTS",
+    raidHistoryCoverage: "Stored replays may be incomplete.",
+    raidHistoryLoading: "Loading reports …",
+    raidHistoryEmpty: "No stored replays are available.",
+    raidHistoryUnavailable: "Reports are unavailable right now.",
+    raidHistoryRetry: "Retry reports",
+    raidHistorySessionExpired: "Your session expired. Please sign in again.",
+    raidHistoryUpdated: "History updated.",
+    raidHistoryLoadMore: "Load more",
+    raidHistoryYouAttacked: "You attacked",
+    raidHistoryYouDefended: "You defended",
+    raidHistoryAgainst: (opponent: string) => `against ${opponent}`,
+    raidHistoryFinalized: "FINALIZED",
+    raidHistoryResources: (resources: string) =>
+      `Resources moved: ${resources}`,
     attackAgainst: (attack: string, defense: string) =>
       `Attack ${attack} against ${defense}`,
     targetLocation: "Target location",
