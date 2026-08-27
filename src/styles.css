@@ -1481,6 +1481,58 @@ button {
   outline: 2px solid #f0d772;
   outline-offset: 2px;
 }
+.build-history {
+  grid-column: 1/-1;
+  display: grid;
+  gap: 0.55rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid #3f503e;
+}
+.build-history-heading {
+  display: grid;
+  gap: 0.18rem;
+}
+.build-history-heading > span,
+.build-history-fact > span {
+  color: #aebba0;
+  font-size: 0.58rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+}
+.build-history-heading small,
+.build-history-status {
+  margin: 0;
+  color: #b7c8af;
+  font-size: 0.62rem;
+  line-height: 1.4;
+}
+.build-history-fact {
+  display: grid;
+  gap: 0.28rem;
+  padding: 0.7rem;
+  border: 1px solid #52644e;
+  border-radius: 0.75rem;
+  background: #142015;
+}
+.build-history-fact b {
+  font-size: 0.72rem;
+}
+.build-history-more,
+.build-history-retry {
+  min-height: 2.75rem;
+  border: 1px solid #738a5c;
+  border-radius: 0.75rem;
+  background: #142015;
+  color: #e8ebc4;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+.build-history-more:focus-visible,
+.build-history-retry:focus-visible {
+  outline: 2px solid #f0d772;
+  outline-offset: 2px;
+}
 .game-footer {
   max-width: 112rem;
   margin: 1rem auto 0;

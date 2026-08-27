@@ -704,6 +704,55 @@ export const BuildingDetail = {
     </main>
   ),
 };
+export const BuildHistoryLoaded = {
+  name: "Build history / Finalized facts (320px and 390px audit)",
+  render: () => (
+    <main className="game-shell">
+      <section className="command-panel">
+        <BuildPanel
+          {...buildProps}
+          buildHistoryPresentation={{
+            facts: [
+              {
+                dedupeId: "build-audit-start",
+                kind: "upgrade_started",
+                building: 1,
+                value: "1800003600",
+              },
+              {
+                dedupeId: "build-audit-finish",
+                kind: "building_upgraded",
+                building: 1,
+                value: "9",
+              },
+            ],
+            cursor: "more",
+            status: "ready",
+            updated: false,
+          }}
+        />
+      </section>
+    </main>
+  ),
+};
+export const BuildHistoryUpdated = {
+  name: "Build history / Changed checkpoint state",
+  render: () => (
+    <main className="game-shell">
+      <section className="command-panel">
+        <BuildPanel
+          {...buildProps}
+          buildHistoryPresentation={{
+            facts: [],
+            cursor: null,
+            status: "empty",
+            updated: true,
+          }}
+        />
+      </section>
+    </main>
+  ),
+};
 export const NextActionCollect = {
   name: "Village build / Next action: collect first",
   render: () => (

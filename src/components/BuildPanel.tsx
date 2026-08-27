@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { BUILDING_ASSETS, MAX_BUILDING_LEVEL } from "../game-ui/constants.js";
 import { clock } from "../game-ui/helpers.js";
@@ -10,6 +10,12 @@ import { civilizationMessages } from "../lib/civilization-locale";
 import { marketPrefill } from "../world-game/market-intent.js";
 import { deriveNextAction } from "../game-ui/next-action.js";
 import { NextTaskCard, type NextTaskCardAction } from "./NextTaskCard";
+import {
+  appendStoredBuildFacts,
+  buildHistoryFailureStatus,
+  mapStoredBuildHistory,
+  type BuildHistoryPresentationState,
+} from "./build-history";
 
 type ResourceDefinition = { color?: string; short?: string; label: string };
 type Building = {
@@ -96,7 +102,198 @@ export type BuildPanelProps = {
   }) => void;
   collection?: { locked: boolean; unclaimed: Record<string, number> };
   onGather?: () => void;
+  /** Injectable for controlled fixtures; production uses same-origin fetch only. */
+  requestBuildHistory?: typeof fetch;
+  buildHistoryPresentation?: BuildHistoryPresentationState;
 };
+
+const buildingIds = [
+  "townhall",
+  "timber",
+  "claypit",
+  "quarry",
+  "warehouse",
+  "workshop",
+  "goldmine",
+  "barracks",
+];
+function BuildHistoryView({
+  props,
+  history,
+  onLoadMore,
+  onRetry,
+}: {
+  props: BuildPanelProps;
+  history: BuildHistoryPresentationState;
+  onLoadMore?: () => void;
+  onRetry?: () => void;
+}) {
+  const copy = props.copy || civilizationMessages();
+  const message =
+    history.status === "loading"
+      ? copy.buildHistoryLoading
+      : history.status === "empty"
+        ? copy.buildHistoryEmpty
+        : history.status === "session"
+          ? copy.buildHistorySessionExpired
+          : history.status === "error"
+            ? copy.buildHistoryUnavailable
+            : "";
+  return (
+    <section
+      className="build-history"
+      aria-labelledby="build-history-title"
+      data-build-history-status={history.status}
+      data-build-history-updated={history.updated || undefined}
+    >
+      <div className="build-history-heading">
+        <span id="build-history-title">{copy.buildHistoryTitle}</span>
+        <small>{copy.buildHistoryCoverage}</small>
+      </div>
+      <p className="build-history-status" role="status" aria-live="polite">
+        {history.updated ? copy.buildHistoryUpdated : message}
+      </p>
+      {history.facts.map((fact) => {
+        const name =
+          props.buildings[buildingIds[fact.building]]?.label ||
+          copy.buildHistoryBuilding;
+        return (
+          <article className="build-history-fact" key={fact.dedupeId}>
+            <span>{copy.buildHistoryFinalized}</span>
+            <b>
+              {fact.kind === "upgrade_started"
+                ? copy.buildHistoryStarted(name)
+                : copy.buildHistoryFinished(name, fact.value)}
+            </b>
+          </article>
+        );
+      })}
+      {history.cursor === "more" ? (
+        <button
+          type="button"
+          className="build-history-more"
+          disabled={history.status === "loading"}
+          onClick={onLoadMore}
+        >
+          {copy.buildHistoryLoadMore}
+        </button>
+      ) : null}
+      {history.status === "error" ? (
+        <button type="button" className="build-history-retry" onClick={onRetry}>
+          {copy.buildHistoryRetry}
+        </button>
+      ) : null}
+    </section>
+  );
+}
+type BuildHistoryControllerState = BuildHistoryPresentationState & {
+  nextCursor: string | null;
+};
+function BuildHistory({ props }: { props: BuildPanelProps }) {
+  const [history, setHistory] = useState<BuildHistoryControllerState>({
+    facts: [],
+    nextCursor: null,
+    cursor: null,
+    status: "idle",
+    updated: false,
+  });
+  const requesting = useRef(false);
+  const loadRef = useRef<(cursor: string | null) => Promise<void>>(
+    async () => undefined,
+  );
+  const load = useCallback(
+    async (cursor: string | null) => {
+      if (requesting.current) return;
+      requesting.current = true;
+      setHistory((current) => ({
+        ...current,
+        status: "loading",
+        ...(cursor ? {} : { facts: [], nextCursor: null, cursor: null }),
+      }));
+      try {
+        const query = new URLSearchParams({ limit: "20" });
+        if (cursor) query.set("cursor", cursor);
+        const response = await (props.requestBuildHistory ?? fetch)(
+          `/api/history/builds?${query}`,
+          { credentials: "same-origin" },
+        );
+        if (response.status === 409 && cursor) {
+          requesting.current = false;
+          setHistory({
+            facts: [],
+            nextCursor: null,
+            cursor: null,
+            status: "loading",
+            updated: true,
+          });
+          await loadRef.current(null);
+          return;
+        }
+        if (response.status === 401 || !response.ok) {
+          setHistory({
+            facts: [],
+            nextCursor: null,
+            cursor: null,
+            status: buildHistoryFailureStatus(response.status),
+            updated: false,
+          });
+          return;
+        }
+        const page = mapStoredBuildHistory(await response.json());
+        if (!page) {
+          setHistory({
+            facts: [],
+            nextCursor: null,
+            cursor: null,
+            status: "error",
+            updated: false,
+          });
+          return;
+        }
+        setHistory((current) => {
+          const facts = cursor
+            ? appendStoredBuildFacts(current.facts, page.facts)
+            : page.facts;
+          return {
+            facts,
+            nextCursor: page.nextCursor,
+            cursor: page.nextCursor ? "more" : null,
+            status: facts.length ? "ready" : "empty",
+            updated: current.updated,
+          };
+        });
+      } catch {
+        setHistory({
+          facts: [],
+          nextCursor: null,
+          cursor: null,
+          status: "error",
+          updated: false,
+        });
+      } finally {
+        requesting.current = false;
+      }
+    },
+    [props.requestBuildHistory],
+  );
+  useEffect(() => {
+    loadRef.current = load;
+  }, [load]);
+  useEffect(() => {
+    const request = window.setTimeout(() => void loadRef.current(null), 0);
+    return () => window.clearTimeout(request);
+  }, [load]);
+  return (
+    <BuildHistoryView
+      props={props}
+      history={history}
+      onLoadMore={
+        history.nextCursor ? () => void load(history.nextCursor) : undefined
+      }
+      onRetry={history.status === "error" ? () => void load(null) : undefined}
+    />
+  );
+}
 
 function CostLine({
   cost,
@@ -657,6 +854,16 @@ export function BuildPanel({ active = true, ...props }: BuildPanelProps) {
             );
           })}
         </section>
+      ) : null}
+      {props.runtimeMode === "world" && active ? (
+        props.buildHistoryPresentation ? (
+          <BuildHistoryView
+            props={props}
+            history={props.buildHistoryPresentation}
+          />
+        ) : (
+          <BuildHistory props={props} />
+        )
       ) : null}
     </div>
   );
