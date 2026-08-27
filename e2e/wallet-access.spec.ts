@@ -336,7 +336,9 @@ test("appearance preview applies and resets through only the explicitly mocked p
           ? { appearance: "dusk" }
           : putCall === 2
             ? { appearance: "classic" }
-            : { appearance: "classic", error: "appearance_unavailable" },
+            : putCall === 3
+              ? { appearance: "classic", error: "appearance_unavailable" }
+              : { appearance: "dawn" },
       ),
     });
   });
@@ -376,10 +378,17 @@ test("appearance preview applies and resets through only the explicitly mocked p
   await expect(dialog.getByRole("status")).toContainText(
     "Klassisch bleibt aktiv",
   );
+  await appearance.selectOption("dawn");
+  await expect(appearance).toHaveValue("dawn");
+  await expect(shell).toHaveAttribute("data-village-appearance", "dawn");
+  await apply.click();
+  await expect(dialog.getByRole("status")).toContainText("gespeichert");
+  await expect(shell).toHaveAttribute("data-village-appearance", "dawn");
   expect(methods.filter((method) => method === "GET").length).toBeGreaterThan(
     0,
   );
   expect(methods.filter((method) => method === "PUT")).toEqual([
+    "PUT",
     "PUT",
     "PUT",
     "PUT",
@@ -388,6 +397,7 @@ test("appearance preview applies and resets through only the explicitly mocked p
     { appearance: "dusk" },
     { appearance: "classic" },
     { appearance: "dusk" },
+    { appearance: "dawn" },
   ]);
 
   for (const width of [320, 390]) {
@@ -497,6 +507,131 @@ test("Dusk removes its terrain filter and uses the Canvas fallback in forced col
   const terrain = page.locator(".village-map-terrain");
   const terrainImage = terrain.locator("img");
   await expect(shell).toHaveAttribute("data-village-appearance", "dusk");
+  await expect(terrainImage).toHaveCSS("filter", "none");
+  const forcedColorFallback = await terrain.evaluate((node) => {
+    const canvasProbe = document.createElement("div");
+    canvasProbe.style.background = "Canvas";
+    document.body.append(canvasProbe);
+    const canvas = getComputedStyle(canvasProbe).backgroundColor;
+    canvasProbe.remove();
+
+    const shellStyles = getComputedStyle(
+      document.querySelector(".game-shell")!,
+    );
+    const terrainStyles = getComputedStyle(node);
+    const imageStyles = getComputedStyle(node.querySelector("img")!);
+    return {
+      shellBackground: shellStyles.backgroundColor,
+      terrainBackground: terrainStyles.backgroundColor,
+      imageBackground: imageStyles.backgroundColor,
+      shellBackgroundImage: shellStyles.backgroundImage,
+      terrainImageBackgroundImage: imageStyles.backgroundImage,
+      canvas,
+    };
+  });
+  expect(forcedColorFallback).toEqual({
+    shellBackground: forcedColorFallback.canvas,
+    terrainBackground: forcedColorFallback.canvas,
+    imageBackground: forcedColorFallback.canvas,
+    shellBackgroundImage: "none",
+    terrainImageBackgroundImage: "none",
+    canvas: forcedColorFallback.canvas,
+  });
+});
+
+test("Dawn uses classic terrain and tokens when higher contrast is requested", async ({
+  page,
+}) => {
+  await page.emulateMedia({ contrast: "more" });
+  const supportsMoreContrast = await page.evaluate(
+    () => matchMedia("(prefers-contrast: more)").matches,
+  );
+  test.skip(
+    !supportsMoreContrast,
+    "The current browser does not support prefers-contrast media emulation.",
+  );
+
+  await page.route("**/api/village-appearance", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ appearance: "classic" }),
+    });
+  });
+  await page.route("**/api/history/raids?*", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ events: [], nextCursor: null }),
+    });
+  });
+  await page.goto("/?appearanceE2e=world");
+  await enterGame(page, "registered");
+
+  const shell = page.locator(".game-shell");
+  await page.getByRole("button", { name: "Einstellungen" }).click();
+  await page
+    .getByRole("dialog", { name: "Einstellungen" })
+    .locator("#village-appearance")
+    .selectOption("dawn");
+  await expect(shell).toHaveAttribute("data-village-appearance", "dawn");
+  await expect(page.locator(".village-map-terrain img")).toHaveCSS(
+    "filter",
+    "none",
+  );
+  expect(
+    await shell.evaluate((node) => {
+      const styles = getComputedStyle(node);
+      return {
+        frame: styles.getPropertyValue("--village-frame-base").trim(),
+        shellA: styles.getPropertyValue("--village-shell-a").trim(),
+        shellB: styles.getPropertyValue("--village-shell-b").trim(),
+        wash: styles.getPropertyValue("--village-map-wash").trim(),
+      };
+    }),
+  ).toEqual({
+    frame: "#172516",
+    shellA: "#49632b",
+    shellB: "#2b3d28",
+    wash: "transparent",
+  });
+});
+
+test("Dawn removes its terrain filter and uses the Canvas fallback in forced colors", async ({
+  page,
+}) => {
+  await page.emulateMedia({ forcedColors: "active" });
+  const supportsForcedColors = await page.evaluate(
+    () => matchMedia("(forced-colors: active)").matches,
+  );
+  test.skip(
+    !supportsForcedColors,
+    "The current browser does not support forced-colors media emulation.",
+  );
+
+  await page.route("**/api/village-appearance", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ appearance: "classic" }),
+    });
+  });
+  await page.route("**/api/history/raids?*", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ events: [], nextCursor: null }),
+    });
+  });
+  await page.goto("/?appearanceE2e=world");
+  await enterGame(page, "registered");
+
+  await page.getByRole("button", { name: "Einstellungen" }).click();
+  await page
+    .getByRole("dialog", { name: "Einstellungen" })
+    .locator("#village-appearance")
+    .selectOption("dawn");
+
+  const shell = page.locator(".game-shell");
+  const terrain = page.locator(".village-map-terrain");
+  const terrainImage = terrain.locator("img");
+  await expect(shell).toHaveAttribute("data-village-appearance", "dawn");
   await expect(terrainImage).toHaveCSS("filter", "none");
   const forcedColorFallback = await terrain.evaluate((node) => {
     const canvasProbe = document.createElement("div");

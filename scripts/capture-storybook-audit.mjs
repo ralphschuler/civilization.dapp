@@ -159,6 +159,16 @@ const allShots = [
     { width: 390, height: 844 },
   ],
   [
+    "mobile-village-appearance-dawn-settings-320.png",
+    "ui-audit-civilization--village-appearance-dawn-settings",
+    { width: 320, height: 844 },
+  ],
+  [
+    "mobile-village-appearance-dawn-settings-390.png",
+    "ui-audit-civilization--village-appearance-dawn-settings",
+    { width: 390, height: 844 },
+  ],
+  [
     "mobile-bottom-navigation-390.png",
     "ui-audit-civilization--bottom-navigation",
     { width: 390, height: 844 },
@@ -544,7 +554,10 @@ for (const [name, id, viewport] of shots) {
     if (layout.scrollWidth > layout.viewportWidth)
       throw new Error("Stable GameShellFrame has horizontal overflow");
   }
-  if (id === "ui-audit-civilization--village-appearance-dusk-settings") {
+  if (
+    id === "ui-audit-civilization--village-appearance-dusk-settings" ||
+    id === "ui-audit-civilization--village-appearance-dawn-settings"
+  ) {
     const layout = await page.evaluate(() => {
       const dialog = document.querySelector(".settings-dialog");
       const select = document.querySelector("#village-appearance");
@@ -580,6 +593,8 @@ for (const [name, id, viewport] of shots) {
       throw new Error(
         "Village appearance select or Apply/Reset action is not a readable 44px target",
       );
+    await page.screenshot({ path: join(visualReview, name), fullPage: true });
+    screenshotTaken = true;
   }
   if (id === "ui-audit-civilization--resource-status-header") {
     const layout = await page.evaluate(() => {

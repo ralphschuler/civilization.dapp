@@ -40,6 +40,7 @@ import {
 import {
   DEFAULT_VILLAGE_APPEARANCE,
   resolveVillageAppearance,
+  VILLAGE_APPEARANCES,
 } from "./lib/village-appearance.js";
 
 let activeRuntime = null;
@@ -790,7 +791,7 @@ function createController(runtime) {
         if (
           !response.ok ||
           !payload ||
-          !["classic", "dusk"].includes(payload.appearance)
+          !VILLAGE_APPEARANCES.includes(payload.appearance)
         )
           throw new Error("appearance_unavailable");
         runtime.villageAppearance = resolveVillageAppearance(
