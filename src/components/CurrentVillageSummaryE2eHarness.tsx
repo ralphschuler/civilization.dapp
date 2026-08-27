@@ -38,11 +38,7 @@ const buildProps: BuildPanelProps = {
 };
 
 /** Browser fixture: the render itself must not dispatch a wallet action. */
-export function CurrentVillageSummaryE2eHarness({
-  scenario,
-}: {
-  scenario: "actions" | "build";
-}) {
+export function CurrentVillageSummaryE2eHarness() {
   const shell = useRef<HTMLElement>(null);
   const [collects, setCollects] = useState(0);
   const [completions, setCompletions] = useState(0);
@@ -57,21 +53,8 @@ export function CurrentVillageSummaryE2eHarness({
       <CurrentVillageSummary
         copy={copy}
         buildingNames={copy.buildingNames}
-        summary={
-          scenario === "actions"
-            ? {
-                ready: { buildingId: "quarry", slot: 1 },
-                collectible: true,
-                showBuild: false,
-              }
-            : { ready: null, collectible: false, showBuild: true }
-        }
+        summary={{ ready: { buildingId: "quarry", slot: 1 } }}
         onCollect={() => setCollects((value) => value + 1)}
-        onOpenBuild={() =>
-          shell.current
-            ?.querySelector<HTMLButtonElement>("[data-build-decision]")
-            ?.focus()
-        }
         onOpenCompletion={(slot) =>
           shell.current
             ?.querySelector<HTMLButtonElement>(
@@ -80,9 +63,6 @@ export function CurrentVillageSummaryE2eHarness({
             ?.focus()
         }
       />
-      <button type="button" data-build-decision>
-        Build decision
-      </button>
       <section className="command-panel">
         <BuildPanel
           {...buildProps}

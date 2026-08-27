@@ -31,8 +31,8 @@ export default async function Home({
     } = await searchParams;
     if (entryGuideE2e === "mobile-focus") return <EntryGuideE2eHarness />;
     if (raidHistoryE2e === "reports") return <RaidHistoryE2eHarness />;
-    if (currentVillageE2e === "actions" || currentVillageE2e === "build")
-      return <CurrentVillageSummaryE2eHarness scenario={currentVillageE2e} />;
+    if (currentVillageE2e === "actions")
+      return <CurrentVillageSummaryE2eHarness />;
     if (
       buildPanelE2e === "one-job" ||
       buildPanelE2e === "two-jobs" ||

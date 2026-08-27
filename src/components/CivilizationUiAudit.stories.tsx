@@ -686,13 +686,8 @@ export const CurrentVillageActions = {
       <CurrentVillageSummary
         copy={copy}
         buildingNames={copy.buildingNames}
-        summary={{
-          ready: { buildingId: "timber", slot: 0 },
-          collectible: true,
-          showBuild: false,
-        }}
+        summary={{ ready: { buildingId: "timber", slot: 0 } }}
         onCollect={() => undefined}
-        onOpenBuild={() => undefined}
         onOpenCompletion={() => undefined}
       />
     </main>

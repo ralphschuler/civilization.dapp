@@ -9,7 +9,7 @@ const snapshot = (overrides = {}) => ({
   ...overrides,
 });
 
-test("current village summary projects ready-only from chain time", () => {
+test("current village summary stays absent when only construction is ready", () => {
   assert.deepEqual(
     projectCurrentVillageSummary({
       state: snapshot({
@@ -20,22 +20,18 @@ test("current village summary projects ready-only from chain time", () => {
       collection: { locked: true },
       unclaimed: { wood: 20 },
     }),
-    {
-      ready: { buildingId: "timber", slot: 2 },
-      collectible: false,
-      showBuild: false,
-    },
+    null,
   );
 });
 
-test("current village summary projects collect-only and a next-build route", () => {
+test("current village summary stays absent without concurrent actions", () => {
   assert.deepEqual(
     projectCurrentVillageSummary({
       state: snapshot(),
       collection: { locked: false },
       unclaimed: { wood: 1 },
     }),
-    { ready: null, collectible: true, showBuild: false },
+    null,
   );
   assert.deepEqual(
     projectCurrentVillageSummary({
@@ -43,11 +39,11 @@ test("current village summary projects collect-only and a next-build route", () 
       collection: { locked: true },
       unclaimed: { wood: 1 },
     }),
-    { ready: null, collectible: false, showBuild: true },
+    null,
   );
 });
 
-test("current village summary keeps ready construction and collection independently visible", () => {
+test("current village summary projects ready construction and collection together", () => {
   const summary = projectCurrentVillageSummary({
     state: snapshot({
       constructions: [
@@ -59,8 +55,6 @@ test("current village summary keeps ready construction and collection independen
   });
   assert.deepEqual(summary, {
     ready: { buildingId: "quarry", slot: 1 },
-    collectible: true,
-    showBuild: false,
   });
 });
 
@@ -71,8 +65,8 @@ test("a replacement snapshot replaces stale ready state and never uses browser t
         { pending: true, buildingId: "timber", completesAt: 1_000, slot: 0 },
       ],
     }),
-    collection: { locked: true },
-    unclaimed: {},
+    collection: { locked: false },
+    unclaimed: { wood: 1 },
   });
   const replacement = projectCurrentVillageSummary({
     state: snapshot({
@@ -81,12 +75,11 @@ test("a replacement snapshot replaces stale ready state and never uses browser t
         { pending: true, buildingId: "timber", completesAt: 1_000, slot: 0 },
       ],
     }),
-    collection: { locked: true },
-    unclaimed: {},
+    collection: { locked: false },
+    unclaimed: { wood: 1 },
   });
-  assert.equal(stale?.ready?.slot, 0);
-  assert.equal(replacement?.ready, null);
-  assert.equal(replacement?.showBuild, true);
+  assert.equal(stale?.ready.slot, 0);
+  assert.equal(replacement, null);
   assert.equal(
     projectCurrentVillageSummary({
       state: snapshot({ registered: false }),

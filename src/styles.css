@@ -390,6 +390,7 @@ button {
   min-width: 0;
 }
 .current-village-actions button {
+  flex: 1 1 0;
   min-height: 2.75rem;
   padding: 0.5rem 0.7rem;
   border: 1px solid #d5bf5c8c;
@@ -397,6 +398,8 @@ button {
   color: #fff3bf;
   background: #54451e66;
   cursor: pointer;
+  font-size: 0.72rem;
+  line-height: 1.25;
 }
 .current-village-actions button:focus-visible {
   outline: 2px solid #fff3bf;
@@ -1639,19 +1642,20 @@ button {
 }
 @media (max-width: 640px) {
   .current-village-summary {
-    align-items: flex-start;
+    align-items: stretch;
+    flex-direction: column;
     margin-top: 0.55rem;
     padding: 0.6rem;
   }
   .current-village-heading > p {
-    padding-top: 0.7rem;
+    padding-top: 0;
   }
   .current-village-actions {
-    flex-direction: column;
-    align-items: stretch;
+    width: 100%;
   }
   .current-village-actions button {
-    width: 100%;
+    min-width: 0;
+    padding-inline: 0.35rem;
     overflow-wrap: anywhere;
   }
   .settings-appearance-actions > button {

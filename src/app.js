@@ -505,20 +505,6 @@ function createController(runtime) {
       },
     };
   };
-  const openBuildDecision = () => {
-    actions.selectPanel("build");
-    requestAnimationFrame(() => {
-      if (isMobileNavigationVisible()) {
-        focusCommandPanel();
-        return;
-      }
-      runtime.root
-        ?.querySelector(
-          '[data-game-command-navigation="desktop"] [data-command-panel="build"]',
-        )
-        ?.focus();
-    });
-  };
   const currentVillageSummary = (displayState) => {
     if (runtime.mode !== "world" || !runtime.ready) return null;
     const summary = projectCurrentVillageSummary({
@@ -532,7 +518,6 @@ function createController(runtime) {
       buildingNames: civilizationMessages(runtime.locale).buildingNames,
       summary,
       onCollect: actions.gather,
-      onOpenBuild: openBuildDecision,
       onOpenCompletion: (slot) => {
         actions.selectPanel("build");
         requestAnimationFrame(() =>

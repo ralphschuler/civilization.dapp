@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("current village routes ready and collect independently without dispatching on render", async ({
+test("current village routes concurrent ready and collect without dispatching on render", async ({
   page,
 }) => {
   await page.goto("/?currentVillageE2e=actions");
@@ -31,15 +31,4 @@ test("current village stays within the mobile viewport", async ({ page }) => {
       .locator("html")
       .evaluate((node) => node.scrollWidth <= window.innerWidth),
   ).toBe(true);
-});
-
-test("current village opens the existing build decision without starting an upgrade", async ({
-  page,
-}) => {
-  await page.goto("/?currentVillageE2e=build");
-  await expect(page.getByTestId("wallet-dispatches")).toHaveText("0");
-  await page.locator('[data-current-village-action="build"]').click();
-  await expect(page.locator("[data-build-decision]")).toBeFocused();
-  await expect(page.getByTestId("wallet-dispatches")).toHaveText("0");
-  await expect(page.getByTestId("completion-dispatches")).toHaveText("0");
 });

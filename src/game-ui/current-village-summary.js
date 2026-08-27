@@ -21,15 +21,12 @@ export function projectCurrentVillageSummary({ state, collection, unclaimed }) {
     !collection?.locked &&
     Object.values(unclaimed || {}).some((value) => Number(value) > 0);
 
+  if (!ready || !collectible) return null;
+
   return {
-    ready: ready
-      ? {
-          buildingId: ready.buildingId,
-          slot: Number.isInteger(ready.slot) ? ready.slot : 0,
-        }
-      : null,
-    collectible,
-    // Build is a focus route only; it never starts an upgrade.
-    showBuild: !ready && !collectible,
+    ready: {
+      buildingId: ready.buildingId,
+      slot: Number.isInteger(ready.slot) ? ready.slot : 0,
+    },
   };
 }

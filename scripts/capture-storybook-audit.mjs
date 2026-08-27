@@ -829,6 +829,8 @@ for (const [name, id, viewport] of shots) {
     );
     if (measurements.some(({ height }) => height < 44))
       throw new Error("Current village actions must have 44px touch targets");
+    if (Math.abs(measurements[0].width - measurements[1].width) > 0.5)
+      throw new Error("Current village actions must have equal widths");
     const overflow = await page
       .locator("html")
       .evaluate((node) => node.scrollWidth > window.innerWidth);
