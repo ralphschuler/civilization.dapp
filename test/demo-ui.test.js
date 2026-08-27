@@ -1295,7 +1295,10 @@ test("entry guide primary routes dismiss the current session before every focus-
     stories,
     /querySelector<HTMLButtonElement>\(\s*'\[data-complete-upgrade\]',?\s*\)/,
   );
-  assert.match(audit, /document\.querySelector\('\[data-complete-upgrade\]'\)/);
+  assert.match(
+    audit,
+    /document\.querySelector\('\[data-complete-upgrade\]'\)/,
+  );
   assert.match(stories, /\{entryGuideDismissed \? null : \(/);
 });
 
