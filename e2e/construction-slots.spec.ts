@@ -2,7 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 async function mountPanel(
   page: Page,
-  scenario: "one-job" | "two-jobs" | "impact",
+  scenario: "one-job" | "two-jobs" | "ready-with-claimable" | "impact",
 ) {
   await page.goto(`/?buildPanelE2e=${scenario}`);
   await expect(page.getByTestId("build-panel-e2e-harness")).toBeVisible();
@@ -16,6 +16,27 @@ async function expectNoHorizontalOverflow(page: Page, width: number) {
       .evaluate((node) => node.scrollWidth <= window.innerWidth),
   ).toBe(true);
 }
+
+test("ready construction remains directly completable when field resources are claimable", async ({
+  page,
+}) => {
+  await mountPanel(page, "ready-with-claimable");
+  const job = page.locator(
+    '[data-construction-job][data-construction-slot="0"]',
+  );
+  const complete = job.getByRole("button", {
+    name: "Ausbau abschließen",
+    exact: true,
+  });
+
+  await expect(complete).toBeEnabled();
+  await expect(
+    page.locator('[data-next-action-button="complete"]'),
+  ).toHaveCount(0);
+  await complete.click();
+  await expect(page.getByTestId("build-panel-completions")).toHaveText("0");
+  await expect(page.getByTestId("build-panel-gathers")).toHaveText("0");
+});
 
 test("workshop 11 with one job retains a keyboard-reachable start composer at 320px and 390px", async ({
   page,

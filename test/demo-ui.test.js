@@ -560,7 +560,8 @@ test("build mobile hierarchy exposes one primary path and statuses for unavailab
     inspector.indexOf("data-boost-construction") + 350,
   );
   assert.doesNotMatch(boostControl, /disabled=/);
-  assert.doesNotMatch(inspector, /data-complete-upgrade/);
+  assert.match(inspector, /data-complete-upgrade/);
+  assert.match(inspector, /disabled=\{props\.busy\}/);
   assert.match(
     css,
     /\.next-action > \.primary-action\s*\{[\s\S]*?bottom: calc\(4\.35rem \+ env\(safe-area-inset-bottom\)\)/,
