@@ -94,5 +94,8 @@ test("stored Build History Storybook state renders direct final facts at the mob
   assert.match(capture, /width: 320, height: 844/);
   assert.match(capture, /width: 390, height: 844/);
   assert.match(capture, /Mobile build history has horizontal overflow/);
-  assert.match(capture, /Build history load-more control is not keyboard reachable/);
+  assert.match(
+    capture,
+    /Build history load-more control is not keyboard reachable/,
+  );
 });
