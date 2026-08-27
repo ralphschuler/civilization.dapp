@@ -11,7 +11,8 @@ import {
 } from "../world-game/projections.js";
 import { civilizationMessages } from "../lib/civilization-locale";
 
-type Scenario = "one-job" | "two-jobs" | "impact" | "dependency";
+type Scenario =
+  "one-job" | "two-jobs" | "ready-with-claimable" | "impact" | "dependency";
 
 const resources = {
   wood: 100_000,
@@ -173,25 +174,40 @@ function dependencyProps() {
 /** Browser-only fixture, gated by the existing server-side E2E mode. */
 export function BuildPanelE2eHarness({ scenario }: { scenario: Scenario }) {
   const [starts, setStarts] = useState(0);
+  const [completions, setCompletions] = useState<number[]>([]);
+  const [gathers, setGathers] = useState(0);
   const props =
     scenario === "one-job"
       ? constructionProps(11, 1)
       : scenario === "two-jobs"
         ? constructionProps(21, 2)
-        : scenario === "impact"
-          ? impactProps()
-          : dependencyProps();
+        : scenario === "ready-with-claimable"
+          ? {
+              ...constructionProps(11, 1),
+              collection: { locked: false, unclaimed: { wood: 20 } },
+              remainingTime: () => 0,
+            }
+          : scenario === "impact"
+            ? impactProps()
+            : dependencyProps();
 
   return (
     <main className="command-panel" data-testid="build-panel-e2e-harness">
       <output data-testid="build-panel-upgrade-starts">{starts}</output>
+      <output data-testid="build-panel-completions">
+        {completions.join(",")}
+      </output>
+      <output data-testid="build-panel-gathers">{gathers}</output>
       <BuildPanel
         {...props}
         onUpgrade={() => setStarts((value) => value + 1)}
-        onCompleteUpgrade={() => {}}
+        onCompleteUpgrade={(slot) =>
+          setCompletions((value) => [...value, slot ?? -1])
+        }
         onBoost={() => {}}
         onPrestige={() => {}}
         onOpenMarket={() => {}}
+        onGather={() => setGathers((value) => value + 1)}
       />
     </main>
   );

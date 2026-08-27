@@ -407,8 +407,6 @@ export function BuildPanel({ active = true, ...props }: BuildPanelProps) {
                   props.selectedBuilding
               ]?.label || building.label,
             ),
-            label: copy.completeUpgrade,
-            onClick: () => props.onCompleteUpgrade(nextAction.slot),
           }
         : nextAction.kind === "upgrade"
           ? {
@@ -627,6 +625,18 @@ export function BuildPanel({ active = true, ...props }: BuildPanelProps) {
                 ) : (
                   <small data-construction-status>{copy.completeUpgrade}</small>
                 )}
+                {!seconds ? (
+                  <button
+                    type="button"
+                    className="secondary-action"
+                    data-complete-upgrade
+                    data-construction-slot={slot}
+                    disabled={props.busy}
+                    onClick={() => props.onCompleteUpgrade(slot)}
+                  >
+                    {copy.completeUpgrade}
+                  </button>
+                ) : null}
                 {boost.eligible ? (
                   <button
                     type="button"

@@ -31,6 +31,7 @@ export default async function Home({
     if (
       buildPanelE2e === "one-job" ||
       buildPanelE2e === "two-jobs" ||
+      buildPanelE2e === "ready-with-claimable" ||
       buildPanelE2e === "impact" ||
       buildPanelE2e === "dependency"
     ) {

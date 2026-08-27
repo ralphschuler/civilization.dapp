@@ -542,9 +542,7 @@ function MobileBuildActionFocusFixture() {
   const focusBuildAction = () => {
     requestAnimationFrame(() =>
       shell.current
-        ?.querySelector<HTMLButtonElement>(
-          '[data-next-action-button="complete"]',
-        )
+        ?.querySelector<HTMLButtonElement>("[data-complete-upgrade]")
         ?.focus(),
     );
   };
