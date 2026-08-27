@@ -1409,7 +1409,10 @@ test("dawn appearance keeps classic accessibility fallbacks and the settings opt
 test("Dawn settings Storybook audit mirrors the Dusk mobile coverage", async () => {
   const [stories, audit] = await Promise.all([
     readFile(
-      new URL("../src/components/CivilizationUiAudit.stories.tsx", import.meta.url),
+      new URL(
+        "../src/components/CivilizationUiAudit.stories.tsx",
+        import.meta.url,
+      ),
       "utf8",
     ),
     readFile(
