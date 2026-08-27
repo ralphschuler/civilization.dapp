@@ -564,10 +564,16 @@ for (const [name, id, viewport] of shots) {
       const actions = Array.from(
         document.querySelectorAll(".settings-appearance-actions button"),
       );
+      const apply = document.querySelector(".settings-primary-action");
+      const reset = document.querySelector(".settings-appearance-reset");
       if (
         !dialog ||
         !(select instanceof HTMLSelectElement) ||
-        actions.length !== 2
+        actions.length !== 2 ||
+        !(apply instanceof HTMLButtonElement) ||
+        !(reset instanceof HTMLButtonElement) ||
+        actions[0] !== apply ||
+        actions[1] !== reset
       )
         throw new Error("Missing village appearance settings audit fixture");
       const rect = (element) => {
@@ -578,6 +584,24 @@ for (const [name, id, viewport] of shots) {
         dialog: rect(dialog),
         select: rect(select),
         actions: actions.map(rect),
+        apply: {
+          background: getComputedStyle(apply).backgroundImage,
+          focus: (() => {
+            apply.focus();
+            return document.activeElement === apply
+              ? getComputedStyle(apply).outlineStyle
+              : "none";
+          })(),
+        },
+        reset: {
+          background: getComputedStyle(reset).backgroundImage,
+          focus: (() => {
+            reset.focus();
+            return document.activeElement === reset
+              ? getComputedStyle(reset).outlineStyle
+              : "none";
+          })(),
+        },
         scrollWidth: document.documentElement.scrollWidth,
         viewportWidth: window.innerWidth,
       };
@@ -592,6 +616,17 @@ for (const [name, id, viewport] of shots) {
     )
       throw new Error(
         "Village appearance select or Apply/Reset action is not a readable 44px target",
+      );
+    if (
+      layout.apply.background === "none" ||
+      layout.reset.background !== "none"
+    )
+      throw new Error(
+        "Village appearance Apply must be visually primary and Reset visually secondary",
+      );
+    if (layout.apply.focus === "none" || layout.reset.focus === "none")
+      throw new Error(
+        "Village appearance actions have no visible keyboard focus",
       );
     await page.screenshot({ path: join(visualReview, name), fullPage: true });
     screenshotTaken = true;
