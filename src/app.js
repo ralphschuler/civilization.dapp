@@ -17,6 +17,7 @@ import {
 import { loadDemoState, saveDemoState } from "./demo/storage.js";
 import { MAX_BUILDING_LEVEL } from "./game-ui/constants.js";
 import { deriveEntryGuide } from "./game-ui/next-action.js";
+import { projectCurrentVillageSummary } from "./game-ui/current-village-summary.js";
 import { loadCriticalAssets } from "./game-ui/assets.js";
 import { clock, remainingTime } from "./game-ui/helpers.js";
 import {
@@ -504,6 +505,44 @@ function createController(runtime) {
       },
     };
   };
+  const openBuildDecision = () => {
+    actions.selectPanel("build");
+    requestAnimationFrame(() => {
+      if (isMobileNavigationVisible()) {
+        focusCommandPanel();
+        return;
+      }
+      runtime.root
+        ?.querySelector(
+          '[data-game-command-navigation="desktop"] [data-command-panel="build"]',
+        )
+        ?.focus();
+    });
+  };
+  const currentVillageSummary = (displayState) => {
+    if (runtime.mode !== "world" || !runtime.ready) return null;
+    const summary = projectCurrentVillageSummary({
+      state: runtime.state,
+      collection: collection(),
+      unclaimed: displayState?.unclaimed,
+    });
+    if (!summary) return null;
+    return {
+      copy: civilizationMessages(runtime.locale),
+      buildingNames: civilizationMessages(runtime.locale).buildingNames,
+      summary,
+      onCollect: actions.gather,
+      onOpenBuild: openBuildDecision,
+      onOpenCompletion: (slot) => {
+        actions.selectPanel("build");
+        requestAnimationFrame(() =>
+          runtime.root
+            ?.querySelector(`[data-complete-upgrade-slot="${slot}"]`)
+            ?.focus(),
+        );
+      },
+    };
+  };
   const frame = () => {
     const copy = civilizationMessages(runtime.locale);
     // A failed static asset never leaves a partially themed village behind.
@@ -518,6 +557,7 @@ function createController(runtime) {
     const review = runtime.review.state();
     return createElement(GameShellFrame, {
       activePanel: runtime.activePanel,
+      currentVillageSummary: currentVillageSummary(displayState),
       hud: {
         assetResult: runtime.assetResult,
         capacity: capacity(),

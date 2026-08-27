@@ -352,6 +352,56 @@ button {
   border-radius: 0.85rem;
   background: linear-gradient(135deg, #3b351b, #172216);
 }
+.current-village-summary {
+  max-width: 112rem;
+  margin: 0.75rem auto 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid #d4c37b42;
+  border-radius: 0.7rem;
+  color: #fff9df;
+  background: #172118;
+}
+.current-village-heading {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+.current-village-heading > p {
+  margin: 0;
+  color: #e2ca72;
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
+  white-space: nowrap;
+}
+.current-village-heading > span {
+  color: #f4f0d8;
+  font-size: 0.72rem;
+}
+.current-village-actions {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.45rem;
+  min-width: 0;
+}
+.current-village-actions button {
+  min-height: 2.75rem;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid #d5bf5c8c;
+  border-radius: 0.55rem;
+  color: #fff3bf;
+  background: #54451e66;
+  cursor: pointer;
+}
+.current-village-actions button:focus-visible {
+  outline: 2px solid #fff3bf;
+  outline-offset: 2px;
+}
 .entry-guide p {
   margin: 0 0 0.16rem;
   color: #f0d772;
@@ -1588,6 +1638,22 @@ button {
   }
 }
 @media (max-width: 640px) {
+  .current-village-summary {
+    align-items: flex-start;
+    margin-top: 0.55rem;
+    padding: 0.6rem;
+  }
+  .current-village-heading > p {
+    padding-top: 0.7rem;
+  }
+  .current-village-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .current-village-actions button {
+    width: 100%;
+    overflow-wrap: anywhere;
+  }
   .settings-appearance-actions > button {
     flex: 1 1 100%;
   }
