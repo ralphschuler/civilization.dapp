@@ -25,7 +25,7 @@ import {
 
 export type GameShellFrameProps = {
   activePanel: CommandPanel;
-  appearance?: "classic" | "dusk";
+  appearance?: "classic" | "dusk" | "dawn";
   army: ArmyPanelProps;
   build: BuildPanelProps;
   completionReady: CompletionReadyNoticeProps | null;

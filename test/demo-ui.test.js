@@ -1352,60 +1352,93 @@ test("resource header audit protects the narrow two-by-two layout without changi
   assert.match(audit, /Resource settings control is smaller than 44px/);
 });
 
-test("dusk appearance keeps a classic high-contrast fallback and static mobile audit", async () => {
-  const [css, audit, stories] = await Promise.all([
+test("dawn appearance keeps classic accessibility fallbacks and the settings option", async () => {
+  const [css, settings] = await Promise.all([
     readFile(new URL("../src/styles.css", import.meta.url), "utf8"),
     readFile(
-      new URL("../scripts/capture-storybook-audit.mjs", import.meta.url),
-      "utf8",
-    ),
-    readFile(
-      new URL(
-        "../src/components/CivilizationUiAudit.stories.tsx",
-        import.meta.url,
-      ),
+      new URL("../src/components/SettingsDialog.tsx", import.meta.url),
       "utf8",
     ),
   ]);
-  assert.match(stories, /export const VillageAppearanceDuskSettings/);
-  const defaultDuskTokens = css.indexOf(
-    '[data-village-appearance="dusk"] {\n  --village-frame-base: #211a2a;',
+  assert.match(
+    settings,
+    /<option value="dawn">\{props\.copy\.appearanceDawn\}<\/option>/,
   );
-  const defaultDuskTerrain = css.indexOf(
-    '.village-map[data-village-appearance="dusk"] .village-map-terrain img {\n  filter: sepia(',
+  const defaultDawnTokens = css.indexOf(
+    '[data-village-appearance="dawn"] {\n  --village-frame-base: #4b341d;',
+  );
+  const defaultDawnTerrain = css.indexOf(
+    '.village-map[data-village-appearance="dawn"] .village-map-terrain img {\n  filter: sepia(',
   );
   const highContrastFallback = css.indexOf(
-    "@media (prefers-contrast: more) {\n  /* Dusk is decorative.",
+    "@media (prefers-contrast: more) {\n  /* Dusk and Dawn are decorative.",
   );
   const forcedColorsFallback = css.indexOf(
     "@media (forced-colors: active) {",
     highContrastFallback,
   );
-  assert.ok(defaultDuskTokens >= 0, "default Dusk tokens are present");
-  assert.ok(defaultDuskTerrain >= 0, "default Dusk terrain filter is present");
+  assert.ok(defaultDawnTokens >= 0, "default Dawn tokens are present");
+  assert.ok(defaultDawnTerrain >= 0, "default Dawn terrain filter is present");
   assert.ok(
-    highContrastFallback > defaultDuskTokens &&
-      highContrastFallback > defaultDuskTerrain,
-    "high-contrast Dusk fallback follows every default Dusk declaration",
+    highContrastFallback > defaultDawnTokens &&
+      highContrastFallback > defaultDawnTerrain,
+    "high-contrast Dawn fallback follows every default Dawn declaration",
   );
   assert.ok(
-    forcedColorsFallback > defaultDuskTerrain,
-    "forced-colors Dusk fallback follows the default terrain filter",
+    forcedColorsFallback > defaultDawnTerrain,
+    "forced-colors Dawn fallback follows the default terrain filter",
   );
   const highContrastBlock = css.slice(
     highContrastFallback,
     forcedColorsFallback,
   );
   assert.match(highContrastBlock, /--village-frame-base:\s*#172516/);
+  assert.match(
+    highContrastBlock,
+    /\[data-village-appearance="dawn"\][\s\S]*?--village-map-wash:\s*transparent/,
+  );
   assert.match(highContrastBlock, /filter:\s*none/);
   assert.doesNotMatch(highContrastBlock, /!important/);
+  const forcedColorsBlock = css.slice(forcedColorsFallback);
+  assert.match(
+    forcedColorsBlock,
+    /\.game-shell\[data-village-appearance="dawn"\][\s\S]*?filter:\s*none[\s\S]*?background:\s*Canvas/,
+  );
+});
+
+test("Dawn settings Storybook audit mirrors the Dusk mobile coverage", async () => {
+  const [stories, audit] = await Promise.all([
+    readFile(
+      new URL("../src/components/CivilizationUiAudit.stories.tsx", import.meta.url),
+      "utf8",
+    ),
+    readFile(
+      new URL("../scripts/capture-storybook-audit.mjs", import.meta.url),
+      "utf8",
+    ),
+  ]);
+  assert.match(
+    stories,
+    /export const VillageAppearanceDawnSettings = \{[\s\S]*?data-village-appearance="dawn"[\s\S]*?appearance="dawn"/,
+  );
   for (const width of [320, 390])
     assert.match(
       audit,
       new RegExp(
-        `mobile-village-appearance-dusk-settings-${width}\\.png[\\s\\S]*?width: ${width}, height: 844`,
+        `mobile-village-appearance-dawn-settings-${width}\\.png[\\s\\S]*?ui-audit-civilization--village-appearance-dawn-settings[\\s\\S]*?width: ${width}, height: 844`,
       ),
     );
+  assert.match(
+    audit,
+    /ui-audit-civilization--village-appearance-dusk-settings[\s\S]*?ui-audit-civilization--village-appearance-dawn-settings/,
+  );
+  assert.match(
+    audit,
+    /ui-audit-civilization--village-appearance-dawn-settings[\s\S]*?page\.screenshot\(\{ path: join\(visualReview, name\), fullPage: true \}\)[\s\S]*?screenshotTaken = true/,
+  );
   assert.match(audit, /Village appearance settings have horizontal overflow/);
-  assert.match(audit, /readable 44px target/);
+  assert.match(
+    audit,
+    /Village appearance select or Apply\/Reset action is not a readable 44px target/,
+  );
 });

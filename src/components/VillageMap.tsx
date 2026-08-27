@@ -41,7 +41,7 @@ export type VillageMapProps = {
   runtimeMode: "demo" | "world";
   selectedBuilding: string;
   activePanel: string;
-  appearance?: "classic" | "dusk";
+  appearance?: "classic" | "dusk" | "dawn";
 };
 
 function assetFailed(assetResult: VillageMapProps["assetResult"], src: string) {

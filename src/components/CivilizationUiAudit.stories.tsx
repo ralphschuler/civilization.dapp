@@ -1083,3 +1083,29 @@ export const VillageAppearanceDuskSettings = {
     </main>
   ),
 };
+
+export const VillageAppearanceDawnSettings = {
+  name: "Village appearance / Dawn draft and explicit apply (static 390px audit)",
+  render: () => (
+    <main className="game-shell" data-village-appearance="dawn">
+      <SettingsDialog
+        copy={copy}
+        locale="en-US"
+        appearance="dawn"
+        appearancePending={false}
+        appearanceStatus=""
+        completionNotificationsEnabled={false}
+        reducedMotion={false}
+        walletAddress="0x1111111111111111111111111111111111111111"
+        onApplyAppearance={() => undefined}
+        onChangeAppearance={() => undefined}
+        onChangeLocale={() => undefined}
+        onClose={() => undefined}
+        onLogout={() => undefined}
+        onResetAppearance={() => undefined}
+        onSetCompletionNotifications={() => undefined}
+        onSetReducedMotion={() => undefined}
+      />
+    </main>
+  ),
+};

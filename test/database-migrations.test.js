@@ -53,6 +53,7 @@ test("the shipped migration files have a deterministic ascending order", async (
       ["008", "008_chain_indexer_foundation.sql"],
       ["009", "009_chain_indexer_raid_history_indexes.sql"],
       ["010", "010_village_appearance_preferences.sql"],
+      ["011", "011_village_appearance_dawn.sql"],
     ],
   );
   assert.ok(loaded.every(({ checksum }) => /^[a-f0-9]{64}$/.test(checksum)));
@@ -64,6 +65,21 @@ test("migration 010 persists only an allowlisted appearance per wallet", async (
   );
   assert.match(migration.sql, /wallet_address text PRIMARY KEY/);
   assert.match(migration.sql, /CHECK \(appearance IN \('classic', 'dusk'\)\)/);
+  assert.doesNotMatch(migration.sql, /token|balance|purchase|entitlement/i);
+});
+
+test("migration 011 safely expands the appearance check constraint for dawn", async () => {
+  const migration = (await loadMigrations("migrations")).find(
+    ({ version }) => version === "011",
+  );
+  assert.match(
+    migration.sql,
+    /DROP CONSTRAINT IF EXISTS village_appearance_preferences_appearance_check/,
+  );
+  assert.match(
+    migration.sql,
+    /ADD CONSTRAINT village_appearance_preferences_appearance_check\s+CHECK \(appearance IN \('classic', 'dusk', 'dawn'\)\)/,
+  );
   assert.doesNotMatch(migration.sql, /token|balance|purchase|entitlement/i);
 });
 
@@ -266,6 +282,7 @@ test("schema readiness requires every expected version in order", async () => {
       { version: "008" },
       { version: "009" },
       { version: "010" },
+      { version: "011" },
     ]),
     true,
   );
@@ -287,7 +304,19 @@ test("schema readiness requires every expected version in order", async () => {
   assert.match(query.sql, /^SELECT version FROM schema_migrations/);
   assert.match(query.sql, /ORDER BY version ASC$/);
   assert.deepEqual(query.parameters, [
-    ["001", "002", "003", "004", "005", "006", "007", "008", "009", "010"],
+    [
+      "001",
+      "002",
+      "003",
+      "004",
+      "005",
+      "006",
+      "007",
+      "008",
+      "009",
+      "010",
+      "011",
+    ],
   ]);
 });
 

@@ -10,6 +10,7 @@ test("unknown presentation values fail safely to classic", () => {
   for (const value of [null, undefined, "night", {}, "DUSK"])
     assert.equal(resolveVillageAppearance(value), DEFAULT_VILLAGE_APPEARANCE);
   assert.equal(resolveVillageAppearance("dusk"), "dusk");
+  assert.equal(resolveVillageAppearance("dawn"), "dawn");
 });
 
 test("appearance API derives identity only from the authenticated session", async () => {
@@ -19,7 +20,7 @@ test("appearance API derives identity only from the authenticated session", asyn
     expiredWalletAuthSessionCookie: () => "session=; Max-Age=0",
     readWalletAuthSession: async () => "0xSessionWallet",
     readVillageAppearance: async (_db, wallet) =>
-      wallet === "0xSessionWallet" ? "dusk" : "classic",
+      wallet === "0xSessionWallet" ? "dawn" : "classic",
     runtimeConfiguration: () => ({ ready: true }),
     saveVillageAppearance: async (_db, wallet, appearance) => {
       saved = { wallet, appearance };
@@ -31,17 +32,17 @@ test("appearance API derives identity only from the authenticated session", asyn
       headers: { cookie: "ignored" },
     }),
   );
-  assert.deepEqual(await get.json(), { appearance: "dusk" });
+  assert.deepEqual(await get.json(), { appearance: "dawn" });
   assert.equal(get.headers.get("cache-control"), "no-store");
   assert.equal(get.headers.get("vary"), "Cookie");
   const put = await route.PUT(
     new Request("https://example.test/api/village-appearance", {
       method: "PUT",
-      body: JSON.stringify({ appearance: "dusk", walletAddress: "0xAttacker" }),
+      body: JSON.stringify({ appearance: "dawn", walletAddress: "0xAttacker" }),
     }),
   );
   assert.equal(put.status, 200);
-  assert.deepEqual(saved, { wallet: "0xSessionWallet", appearance: "dusk" });
+  assert.deepEqual(saved, { wallet: "0xSessionWallet", appearance: "dawn" });
 });
 
 test("appearance GET resolves malformed dependency output safely at its response boundary", async () => {

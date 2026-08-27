@@ -1899,12 +1899,44 @@ button {
 .village-map[data-village-appearance="dusk"] .village-map-terrain img {
   filter: sepia(0.2) saturate(0.8) hue-rotate(238deg) brightness(0.72);
 }
-/* These fallbacks intentionally follow every default Dusk rule above so
+[data-village-appearance="dawn"] {
+  --village-frame-base: #4b341d;
+  --village-shell-a: #d8824a;
+  --village-shell-b: #e3bf6f;
+  --village-map-wash: #eaa75b36;
+}
+.game-shell[data-village-appearance="dawn"] {
+  background:
+    radial-gradient(
+      circle at 22% 30%,
+      var(--village-shell-a) 0,
+      transparent 26rem
+    ),
+    radial-gradient(
+      circle at 82% 1%,
+      var(--village-shell-b) 0,
+      transparent 32rem
+    ),
+    #352116;
+}
+.village-map[data-village-appearance="dawn"] .village-map-terrain {
+  background: var(--village-map-wash);
+}
+.village-map[data-village-appearance="dawn"] .village-map-terrain img {
+  filter: sepia(0.24) saturate(1.12) hue-rotate(338deg) brightness(1.08);
+}
+/* These fallbacks intentionally follow every default Dusk and Dawn rule above so
    equal-specificity declarations cannot restore the decorative treatment. */
 @media (prefers-contrast: more) {
-  /* Dusk is decorative. In higher-contrast mode retain the classic palette
+  /* Dusk and Dawn are decorative. In higher-contrast mode retain the classic palette
      and unfiltered terrain so map landmarks stay legible. */
   [data-village-appearance="dusk"] {
+    --village-frame-base: #172516;
+    --village-shell-a: #49632b;
+    --village-shell-b: #2b3d28;
+    --village-map-wash: transparent;
+  }
+  [data-village-appearance="dawn"] {
     --village-frame-base: #172516;
     --village-shell-a: #49632b;
     --village-shell-b: #2b3d28;
@@ -1915,14 +1947,25 @@ button {
       radial-gradient(circle at 22% 30%, #49632b 0, transparent 26rem),
       radial-gradient(circle at 82% 1%, #2b3d28 0, transparent 32rem), #07100e;
   }
+  .game-shell[data-village-appearance="dawn"] {
+    background:
+      radial-gradient(circle at 22% 30%, #49632b 0, transparent 26rem),
+      radial-gradient(circle at 82% 1%, #2b3d28 0, transparent 32rem), #07100e;
+  }
   .village-map[data-village-appearance="dusk"] .village-map-terrain img {
+    filter: none;
+  }
+  .village-map[data-village-appearance="dawn"] .village-map-terrain img {
     filter: none;
   }
 }
 @media (forced-colors: active) {
   .game-shell[data-village-appearance="dusk"],
+  .game-shell[data-village-appearance="dawn"],
   .village-map[data-village-appearance="dusk"] .village-map-terrain,
-  .village-map[data-village-appearance="dusk"] .village-map-terrain img {
+  .village-map[data-village-appearance="dawn"] .village-map-terrain,
+  .village-map[data-village-appearance="dusk"] .village-map-terrain img,
+  .village-map[data-village-appearance="dawn"] .village-map-terrain img {
     filter: none;
     background: Canvas;
   }

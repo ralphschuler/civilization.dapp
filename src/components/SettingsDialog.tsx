@@ -15,6 +15,7 @@ type SettingsCopy = Pick<
   | "appearanceApply"
   | "appearanceApplying"
   | "appearanceClassic"
+  | "appearanceDawn"
   | "appearanceDescription"
   | "appearanceDusk"
   | "appearanceReset"
@@ -41,11 +42,11 @@ export type SettingsDialogProps = {
   copy: SettingsCopy;
   locale: CivilizationLocale;
   onChangeLocale: (locale: CivilizationLocale) => void;
-  appearance: "classic" | "dusk";
+  appearance: "classic" | "dusk" | "dawn";
   appearancePending: boolean;
   appearanceStatus: string;
   onApplyAppearance: () => Promise<void> | void;
-  onChangeAppearance: (appearance: "classic" | "dusk") => void;
+  onChangeAppearance: (appearance: "classic" | "dusk" | "dawn") => void;
   onResetAppearance: () => Promise<void> | void;
   onClose: () => void;
   onLogout: () => Promise<void> | void;
@@ -189,12 +190,13 @@ export function SettingsDialog(props: SettingsDialogProps) {
                 disabled={props.appearancePending}
                 onChange={(event) =>
                   props.onChangeAppearance(
-                    event.currentTarget.value as "classic" | "dusk",
+                    event.currentTarget.value as "classic" | "dusk" | "dawn",
                   )
                 }
               >
                 <option value="classic">{props.copy.appearanceClassic}</option>
                 <option value="dusk">{props.copy.appearanceDusk}</option>
+                <option value="dawn">{props.copy.appearanceDawn}</option>
               </select>
             </label>
             <div className="settings-appearance-actions">

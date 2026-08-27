@@ -76,7 +76,19 @@ test(
       );
       assert.deepEqual(
         versions.rows.map(({ version }) => version),
-        ["001", "002", "003", "004", "005", "006", "007", "008", "009", "010"],
+        [
+          "001",
+          "002",
+          "003",
+          "004",
+          "005",
+          "006",
+          "007",
+          "008",
+          "009",
+          "010",
+          "011",
+        ],
       );
       const tables = await pool.query(
         "SELECT tablename FROM pg_tables WHERE schemaname = current_schema() ORDER BY tablename",
@@ -125,7 +137,7 @@ test(
       await runMigrations(pool, migrations);
       assert.equal(
         (await pool.query("SELECT version FROM schema_migrations")).rowCount,
-        10,
+        11,
       );
     });
   },
@@ -137,15 +149,15 @@ test(
   async () => {
     const migrations = await shippedMigrations();
     const broken = {
-      version: "010",
-      name: "010_broken.sql",
+      version: "012",
+      name: "012_broken.sql",
       checksum: "broken",
       sql: "CREATE TABLE rollback_probe (id integer); SELECT missing_migration_function();",
     };
     await inOwnedSchema(async (pool) => {
       await assert.rejects(
         runMigrations(pool, [...migrations, broken]),
-        /migration_failed:010/,
+        /migration_failed:012/,
       );
       assert.equal(
         (await pool.query("SELECT to_regclass('rollback_probe') AS table_name"))
@@ -155,10 +167,10 @@ test(
       assert.equal(
         (
           await pool.query(
-            "SELECT 1 FROM schema_migrations WHERE version = '010'",
+            "SELECT 1 FROM schema_migrations WHERE version = '012'",
           )
         ).rowCount,
-        1,
+        0,
       );
     });
   },

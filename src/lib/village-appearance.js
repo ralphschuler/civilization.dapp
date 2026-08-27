@@ -1,4 +1,4 @@
-export const VILLAGE_APPEARANCES = Object.freeze(["classic", "dusk"]);
+export const VILLAGE_APPEARANCES = Object.freeze(["classic", "dusk", "dawn"]);
 export const DEFAULT_VILLAGE_APPEARANCE = "classic";
 
 /** Untrusted DB, network, and UI values always resolve to the safe skin. */
