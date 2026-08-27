@@ -13,6 +13,13 @@ export function deriveNextAction({
   affordable,
   atCapacity,
 }) {
+  const readyJob = (jobs || []).find(
+    (job) => remainingTime(job.completesAt) <= 0,
+  );
+  // Claiming field stock is optional. A ready construction can be completed
+  // independently, and the on-chain completion settles its own accrual.
+  if (readyJob) return { kind: "complete", slot: readyJob.slot };
+
   const claimable =
     collection &&
     !collection.locked &&
@@ -20,11 +27,6 @@ export function deriveNextAction({
       (value) => Number(value) > 0,
     );
   if (claimable) return { kind: "collect" };
-
-  const readyJob = (jobs || []).find(
-    (job) => remainingTime(job.completesAt) <= 0,
-  );
-  if (readyJob) return { kind: "complete", slot: readyJob.slot };
 
   if (level >= maxLevel) return { kind: "max-level" };
   if ((requirements || []).length) return { kind: "requirements" };
