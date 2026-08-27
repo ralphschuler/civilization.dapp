@@ -189,7 +189,13 @@ function BuildHistoryView({
 type BuildHistoryControllerState = BuildHistoryPresentationState & {
   nextCursor: string | null;
 };
-function BuildHistory({ props }: { props: BuildPanelProps }) {
+function BuildHistory({
+  active,
+  props,
+}: {
+  active: boolean;
+  props: BuildPanelProps;
+}) {
   const [history, setHistory] = useState<BuildHistoryControllerState>({
     facts: [],
     nextCursor: null,
@@ -198,6 +204,7 @@ function BuildHistory({ props }: { props: BuildPanelProps }) {
     updated: false,
   });
   const requesting = useRef(false);
+  const wasActive = useRef(active);
   const loadRef = useRef<(cursor: string | null) => Promise<void>>(
     async () => undefined,
   );
@@ -280,9 +287,13 @@ function BuildHistory({ props }: { props: BuildPanelProps }) {
     loadRef.current = load;
   }, [load]);
   useEffect(() => {
+    const becameActive = active && !wasActive.current;
+    wasActive.current = active;
+    if (!becameActive) return;
     const request = window.setTimeout(() => void loadRef.current(null), 0);
     return () => window.clearTimeout(request);
-  }, [load]);
+  }, [active, load]);
+  if (!active) return null;
   return (
     <BuildHistoryView
       props={props}
@@ -855,14 +866,16 @@ export function BuildPanel({ active = true, ...props }: BuildPanelProps) {
           })}
         </section>
       ) : null}
-      {props.runtimeMode === "world" && active ? (
+      {props.runtimeMode === "world" ? (
         props.buildHistoryPresentation ? (
-          <BuildHistoryView
-            props={props}
-            history={props.buildHistoryPresentation}
-          />
+          active ? (
+            <BuildHistoryView
+              props={props}
+              history={props.buildHistoryPresentation}
+            />
+          ) : null
         ) : (
-          <BuildHistory props={props} />
+          <BuildHistory active={active} props={props} />
         )
       ) : null}
     </div>
