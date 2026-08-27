@@ -936,7 +936,7 @@ for (const [name, id, viewport] of shots) {
     if (await page.locator("[data-entry-guide]").count())
       throw new Error("Primary guide route did not dismiss the entry guide");
     const layout = await page.evaluate(() => {
-      const action = document.querySelector('[data-complete-upgrade]');
+      const action = document.querySelector("[data-complete-upgrade]");
       const nav = document.querySelector(".mobile-hud");
       const panel = document.querySelector("[data-build-action-focus-panel]");
       if (!(action instanceof HTMLElement) || !nav || !panel)

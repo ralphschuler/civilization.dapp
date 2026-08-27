@@ -1278,7 +1278,7 @@ test("entry guide primary routes dismiss the current session before every focus-
   );
   for (const target of ["building", "collection", "completion", "build-panel"])
     assert.match(route, new RegExp(`recommendation\\.target === "${target}"`));
-  assert.match(route, /querySelector\('\[data-complete-upgrade\]'\)/);
+  assert.match(route, /querySelector\((["'])\[data-complete-upgrade\]\1\)/);
   assert.doesNotMatch(
     route,
     /actions\.(?:gather|upgrade|completeUpgrade|boost|prestige|train|swap|marketOrder|sendRaid|resolveRaid)/,
@@ -1293,11 +1293,11 @@ test("entry guide primary routes dismiss the current session before every focus-
   );
   assert.match(
     stories,
-    /querySelector<HTMLButtonElement>\(\s*'\[data-complete-upgrade\]',?\s*\)/,
+    /querySelector<HTMLButtonElement>\(\s*(["'])\[data-complete-upgrade\]\1,?\s*\)/,
   );
   assert.match(
     audit,
-    /document\.querySelector\('\[data-complete-upgrade\]'\)/,
+    /document\.querySelector\((["'])\[data-complete-upgrade\]\1\)/,
   );
   assert.match(stories, /\{entryGuideDismissed \? null : \(/);
 });
