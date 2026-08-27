@@ -27,7 +27,7 @@ test("the runtime emits a typed frame through its owning React clients", async (
   }
 });
 
-test("BuildPanel defaults active callers while hidden drafts skip World durations", async () => {
+test("BuildPanel defaults active callers while hidden drafts skip World reads", async () => {
   const [panel, frame] = await Promise.all([
     source("../src/components/BuildPanel.tsx"),
     source("../src/components/GameShellFrame.tsx"),
@@ -38,6 +38,11 @@ test("BuildPanel defaults active callers while hidden drafts skip World duration
     /export function BuildPanel\(\{ active = true, \.\.\.props \}: BuildPanelProps\)/,
   );
   assert.match(panel, /useEffect\(\(\) => \{\s*if \(active && plan\)/);
+  assert.match(
+    panel,
+    /function BuildHistory\(\{\s*active,[\s\S]*?const wasActive = useRef\(active\);[\s\S]*?useEffect\(\(\) => \{\s*const becameActive = active && !wasActive\.current;[\s\S]*?if \(!becameActive\) return;[\s\S]*?\}, \[active, load\]\)/,
+  );
+  assert.match(panel, /<BuildHistory active=\{active\} props=\{props\} \/>/);
   assert.match(
     frame,
     /<BuildPanel\s+\{\.\.\.props\.build\}\s+active=\{props\.activePanel === "build"\}\s*\/>/,

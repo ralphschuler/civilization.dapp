@@ -54,6 +54,7 @@ test("the shipped migration files have a deterministic ascending order", async (
       ["009", "009_chain_indexer_raid_history_indexes.sql"],
       ["010", "010_village_appearance_preferences.sql"],
       ["011", "011_village_appearance_dawn.sql"],
+      ["012", "012_chain_indexer_build_history_indexes.sql"],
     ],
   );
   assert.ok(loaded.every(({ checksum }) => /^[a-f0-9]{64}$/.test(checksum)));
@@ -98,6 +99,24 @@ test("migration 009 adds fixed RaidResolved participant keyset indexes", async (
   assert.match(
     migration.sql,
     /af390e913745195551ff780aa23ddccc7690fcc6889ed8f3561f369430dcfc06/,
+  );
+});
+
+test("migration 012 adds the player-scoped Build History keyset index", async () => {
+  const migration = (await loadMigrations("migrations")).find(
+    ({ version }) => version === "012",
+  );
+  assert.match(
+    migration.sql,
+    /chain_indexer_build_history_player_idx[\s\S]*topics->>1[\s\S]*block_number DESC/,
+  );
+  assert.match(
+    migration.sql,
+    /144141764db612aa165244e4757ada45377f0b035a67623f12033b0eb8301296/,
+  );
+  assert.match(
+    migration.sql,
+    /325e62cb3e0c4cb63ebf0d0f649861aa0425dceca42189cc0b5d7c7d797a971e/,
   );
 });
 
@@ -283,6 +302,7 @@ test("schema readiness requires every expected version in order", async () => {
       { version: "009" },
       { version: "010" },
       { version: "011" },
+      { version: "012" },
     ]),
     true,
   );
@@ -316,6 +336,7 @@ test("schema readiness requires every expected version in order", async () => {
       "009",
       "010",
       "011",
+      "012",
     ],
   ]);
 });

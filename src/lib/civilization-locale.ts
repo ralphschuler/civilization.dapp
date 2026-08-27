@@ -122,6 +122,22 @@ const copy = {
       "Kartenbild nicht verfügbar. Die Dorfsteuerung bleibt nutzbar.",
     buildingAssetUnavailable: (name: string) =>
       `${name}-Symbol nicht verfügbar. Die Gebäudesteuerung bleibt nutzbar.`,
+    buildHistoryTitle: "BAUVERLAUF",
+    buildHistoryCoverage: "Nur gespeicherte, finalisierte Chain-Fakten.",
+    buildHistoryLoading: "Gespeicherte Bau-Fakten werden geladen.",
+    buildHistoryEmpty: "Noch keine gespeicherten Bau-Fakten.",
+    buildHistorySessionExpired:
+      "Deine Sitzung ist abgelaufen. Bauverlauf ist nicht verfügbar.",
+    buildHistoryUnavailable: "Bauverlauf ist derzeit nicht verfügbar.",
+    buildHistoryUpdated:
+      "Der gespeicherte Stand hat sich geändert. Bauverlauf wurde aktualisiert.",
+    buildHistoryFinalized: "FINALISIERT",
+    buildHistoryBuilding: "Gebäude",
+    buildHistoryStarted: (name: string) => `${name}-Ausbau gestartet.`,
+    buildHistoryFinished: (name: string, level: string) =>
+      `${name} auf Stufe ${level} ausgebaut.`,
+    buildHistoryLoadMore: "Weitere Fakten laden",
+    buildHistoryRetry: "Erneut versuchen",
     resourceAssetUnavailable: (name: string) =>
       `${name}-Symbol nicht verfügbar.`,
     troopAssetUnavailable: (name: string) =>
@@ -597,6 +613,22 @@ const copy = {
       "Map image unavailable. Village controls remain available.",
     buildingAssetUnavailable: (name: string) =>
       `${name} symbol unavailable. Building controls remain available.`,
+    buildHistoryTitle: "BUILD HISTORY",
+    buildHistoryCoverage: "Only stored, finalized chain facts.",
+    buildHistoryLoading: "Loading stored build facts.",
+    buildHistoryEmpty: "No stored build facts yet.",
+    buildHistorySessionExpired:
+      "Your session expired. Build history is unavailable.",
+    buildHistoryUnavailable: "Build history is currently unavailable.",
+    buildHistoryUpdated:
+      "The stored checkpoint changed. Build history was updated.",
+    buildHistoryFinalized: "FINALIZED",
+    buildHistoryBuilding: "Building",
+    buildHistoryStarted: (name: string) => `${name} upgrade started.`,
+    buildHistoryFinished: (name: string, level: string) =>
+      `${name} upgraded to level ${level}.`,
+    buildHistoryLoadMore: "Load more facts",
+    buildHistoryRetry: "Try again",
     resourceAssetUnavailable: (name: string) => `${name} symbol unavailable.`,
     troopAssetUnavailable: (name: string) =>
       `${name} symbol unavailable. Army controls remain available.`,

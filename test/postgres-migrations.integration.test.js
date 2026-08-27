@@ -88,6 +88,7 @@ test(
           "009",
           "010",
           "011",
+          "012",
         ],
       );
       const tables = await pool.query(
@@ -137,7 +138,7 @@ test(
       await runMigrations(pool, migrations);
       assert.equal(
         (await pool.query("SELECT version FROM schema_migrations")).rowCount,
-        11,
+        12,
       );
     });
   },
@@ -149,15 +150,15 @@ test(
   async () => {
     const migrations = await shippedMigrations();
     const broken = {
-      version: "012",
-      name: "012_broken.sql",
+      version: "013",
+      name: "013_broken.sql",
       checksum: "broken",
       sql: "CREATE TABLE rollback_probe (id integer); SELECT missing_migration_function();",
     };
     await inOwnedSchema(async (pool) => {
       await assert.rejects(
         runMigrations(pool, [...migrations, broken]),
-        /migration_failed:012/,
+        /migration_failed:013/,
       );
       assert.equal(
         (await pool.query("SELECT to_regclass('rollback_probe') AS table_name"))
@@ -167,7 +168,7 @@ test(
       assert.equal(
         (
           await pool.query(
-            "SELECT 1 FROM schema_migrations WHERE version = '012'",
+            "SELECT 1 FROM schema_migrations WHERE version = '013'",
           )
         ).rowCount,
         0,

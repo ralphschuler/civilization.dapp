@@ -178,6 +178,83 @@ test("game area navigation announces its current area, keeps keyboard focus, and
   await expectNoSeriousAxe(page, "[data-testid='civilization-game-root']");
 });
 
+test("Build History stays idle outside Build and loads after Build is selected", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const nativeFetch = window.fetch.bind(window);
+    let buildHistoryRequests = 0;
+    Object.defineProperty(window, "__buildHistoryRequests", {
+      get: () => buildHistoryRequests,
+    });
+    window.fetch = async (input, init) => {
+      const url = new URL(
+        typeof input === "string"
+          ? input
+          : input instanceof Request
+            ? input.url
+            : input.href,
+        window.location.origin,
+      );
+      if (url.pathname === "/api/history/builds") {
+        buildHistoryRequests += 1;
+        return new Response(
+          JSON.stringify({
+            availability: "stored_finalized_events",
+            coverage: { complete: true },
+            events: [],
+            nextCursor: null,
+          }),
+          { headers: { "content-type": "application/json" } },
+        );
+      }
+      return nativeFetch(input, init);
+    };
+  });
+  await page.route("**/api/village-appearance", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ appearance: "classic" }),
+    });
+  });
+  await page.route("**/api/history/raids?*", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ events: [], nextCursor: null }),
+    });
+  });
+  await page.goto("/?appearanceE2e=world");
+  await enterGame(page, "registered");
+  const navigation = page.getByRole("navigation", {
+    name:
+      (page.viewportSize()?.width ?? 0) <= 960
+        ? "Schnellzugriff"
+        : "Dorfaktionen",
+  });
+  const marketAction = navigation.locator('[data-command-panel="market"]');
+  const buildAction = navigation.locator('[data-command-panel="build"]');
+
+  await marketAction.click();
+  await page.waitForTimeout(100);
+  expect(unexpectedRequests.get(page)).not.toContain("/api/history/builds");
+
+  await buildAction.click();
+
+  await expect(page.locator(".build-history")).toHaveAttribute(
+    "data-build-history-status",
+    "empty",
+  );
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (window as typeof window & { __buildHistoryRequests: number })
+            .__buildHistoryRequests,
+      ),
+    )
+    .toBe(1);
+});
+
 test("mobile bottom navigation reveals its selected panel at 195 by 422", async ({
   page,
 }, testInfo) => {

@@ -1,6 +1,6 @@
 import { database } from "./database.mjs";
 
-export const REQUIRED_SCHEMA_VERSION = "011";
+export const REQUIRED_SCHEMA_VERSION = "012";
 export const REQUIRED_SCHEMA_VERSIONS = Object.freeze([
   "001",
   "002",
@@ -13,6 +13,7 @@ export const REQUIRED_SCHEMA_VERSIONS = Object.freeze([
   "009",
   "010",
   "011",
+  "012",
 ]);
 
 /** Pure evaluation of the ordered migration versions returned by PostgreSQL. */

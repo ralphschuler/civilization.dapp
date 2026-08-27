@@ -34,6 +34,16 @@ const mobileAuditMeasurements = [];
 const resourceHeaderMeasurements = [];
 const allShots = [
   [
+    "mobile-build-history-loaded-320.png",
+    "ui-audit-civilization--build-history-loaded",
+    { width: 320, height: 844 },
+  ],
+  [
+    "mobile-build-history-loaded-390.png",
+    "ui-audit-civilization--build-history-loaded",
+    { width: 390, height: 844 },
+  ],
+  [
     "desktop-village-build-overview.png",
     "ui-audit-civilization--village-build-overview",
     { width: 1440, height: 1000 },
@@ -283,6 +293,59 @@ for (const [name, id, viewport] of shots) {
         '.raid-history[data-raid-history-status="ready"][data-raid-history-updated="true"]',
       )
       .waitFor();
+  if (id === "ui-audit-civilization--build-history-loaded")
+    await page
+      .locator('.build-history[data-build-history-status="ready"]')
+      .waitFor();
+  if (id === "ui-audit-civilization--build-history-loaded") {
+    const layout = await page.evaluate(() => {
+      const history = document.querySelector(".build-history");
+      if (!history) throw new Error("Missing build-history audit fixture");
+      const facts = Array.from(
+        history.querySelectorAll(".build-history-fact"),
+        (fact) => {
+          const { width, height } = fact.getBoundingClientRect();
+          return {
+            width,
+            height,
+            clipped: fact.scrollHeight > fact.clientHeight + 1,
+          };
+        },
+      );
+      const loadMore = history.querySelector(".build-history-more");
+      const action = loadMore?.getBoundingClientRect();
+      const historyBounds = history.getBoundingClientRect();
+      return {
+        scrollWidth: document.documentElement.scrollWidth,
+        viewportWidth: window.innerWidth,
+        historyWidth: historyBounds.width,
+        facts,
+        action: action && { width: action.width, height: action.height },
+      };
+    });
+    if (layout.scrollWidth > layout.viewportWidth)
+      throw new Error("Mobile build history has horizontal overflow");
+    if (
+      layout.facts.length !== 2 ||
+      layout.facts.some(
+        (fact) => fact.width < layout.historyWidth - 2 || fact.clipped,
+      ) ||
+      !layout.action ||
+      layout.action.width < 44 ||
+      layout.action.height < 44
+    )
+      throw new Error(
+        "Build history mobile facts or load-more action are clipped",
+      );
+    const loadMore = page.locator(".build-history-more");
+    await loadMore.focus();
+    if (
+      !(await loadMore.evaluate((button) => document.activeElement === button))
+    )
+      throw new Error(
+        "Build history load-more control is not keyboard reachable",
+      );
+  }
   if (
     id === "ui-audit-civilization--raid-history-loaded" ||
     id === "ui-audit-civilization--raid-history-updated-final-state"
