@@ -936,9 +936,7 @@ for (const [name, id, viewport] of shots) {
     if (await page.locator("[data-entry-guide]").count())
       throw new Error("Primary guide route did not dismiss the entry guide");
     const layout = await page.evaluate(() => {
-      const action = document.querySelector(
-        '[data-next-action-button="complete"]',
-      );
+      const action = document.querySelector('[data-complete-upgrade]');
       const nav = document.querySelector(".mobile-hud");
       const panel = document.querySelector("[data-build-action-focus-panel]");
       if (!(action instanceof HTMLElement) || !nav || !panel)
@@ -963,7 +961,7 @@ for (const [name, id, viewport] of shots) {
     if (layout.scrollWidth > layout.viewportWidth)
       throw new Error("Composed mobile BuildPanel has horizontal overflow");
     if (!layout.focused)
-      throw new Error("Next-action route did not focus the BuildPanel action");
+      throw new Error("Completion route did not focus the BuildPanel action");
     if (layout.action.bottom > layout.mobileNav.top)
       throw new Error(
         "Focused BuildPanel action is hidden by bottom navigation",

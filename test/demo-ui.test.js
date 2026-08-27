@@ -1249,13 +1249,17 @@ test("old mount callbacks cannot update the replacement runtime", async () => {
 });
 
 test("entry guide primary routes dismiss the current session before every focus-only handoff", async () => {
-  const [app, stories] = await Promise.all([
+  const [app, stories, audit] = await Promise.all([
     readFile(new URL("../src/app.js", import.meta.url), "utf8"),
     readFile(
       new URL(
         "../src/components/CivilizationUiAudit.stories.tsx",
         import.meta.url,
       ),
+      "utf8",
+    ),
+    readFile(
+      new URL("../scripts/capture-storybook-audit.mjs", import.meta.url),
       "utf8",
     ),
   ]);
@@ -1291,6 +1295,7 @@ test("entry guide primary routes dismiss the current session before every focus-
     stories,
     /querySelector<HTMLButtonElement>\(\s*'\[data-complete-upgrade\]',?\s*\)/,
   );
+  assert.match(audit, /document\.querySelector\('\[data-complete-upgrade\]'\)/);
   assert.match(stories, /\{entryGuideDismissed \? null : \(/);
 });
 
