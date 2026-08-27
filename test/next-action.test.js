@@ -16,14 +16,27 @@ const base = {
   atCapacity: false,
 };
 
-test("next action prioritizes claimable field resources over every build action", () => {
+test("next action completes a ready construction without first collecting field resources", () => {
   assert.deepEqual(
     deriveNextAction({
       ...base,
       collection: { locked: false, unclaimed: { wood: 20 } },
       jobs: [{ slot: 0, completesAt: 0 }],
+      remainingTime: () => 0,
     }),
-    { kind: "collect" },
+    { kind: "complete", slot: 0 },
+  );
+});
+
+test("next action completes a ready construction after a voluntary collection", () => {
+  assert.deepEqual(
+    deriveNextAction({
+      ...base,
+      collection: { locked: true, unclaimed: {} },
+      jobs: [{ slot: 0, completesAt: 0 }],
+      remainingTime: () => 0,
+    }),
+    { kind: "complete", slot: 0 },
   );
 });
 test("next action completes ready construction before starting an upgrade", () => {
@@ -37,7 +50,7 @@ test("next action completes ready construction before starting an upgrade", () =
   );
 });
 
-test("next action reports the concrete build blocker in priority order", () => {
+test("next action retains concrete upgrade dependencies when no construction is ready", () => {
   assert.equal(
     deriveNextAction({ ...base, requirements: [{ id: "townhall", level: 2 }] })
       .kind,
