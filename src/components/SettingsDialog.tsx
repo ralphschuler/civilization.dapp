@@ -202,7 +202,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
             <div className="settings-appearance-actions">
               <button
                 type="button"
-                className="settings-secondary-action"
+                className="settings-primary-action"
                 disabled={props.appearancePending}
                 onClick={() => void props.onApplyAppearance()}
               >
@@ -212,7 +212,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
               </button>
               <button
                 type="button"
-                className="settings-secondary-action"
+                className="settings-appearance-reset"
                 disabled={
                   props.appearancePending || props.appearance === "classic"
                 }

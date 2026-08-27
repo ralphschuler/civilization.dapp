@@ -829,6 +829,19 @@ test("settings dialog is a typed React island with runtime-owned actions and key
   assert.match(settings, /aria-live="polite"/);
   assert.match(settings, /checked=\{props\.reducedMotion\}/);
   assert.match(settings, /logoutPending \? props\.copy\.logoutPending/);
+  assert.match(
+    settings,
+    /className="settings-primary-action"[\s\S]*?onClick=\{\(\) => void props\.onApplyAppearance\(\)\}/,
+  );
+  assert.match(
+    settings,
+    /className="settings-appearance-reset"[\s\S]*?onClick=\{\(\) => void props\.onResetAppearance\(\)\}/,
+  );
+  assert.ok(
+    settings.indexOf("settings-primary-action") <
+      settings.indexOf("settings-appearance-reset"),
+    "Apply remains before Reset in the appearance action order",
+  );
   assert.match(hud, /data-open-settings/);
   assert.match(hud, /aria-label=\{props\.copy\.settings\}/);
   assert.match(hud, /title=\{props\.copy\.settings\}/);
