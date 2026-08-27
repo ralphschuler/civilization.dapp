@@ -839,6 +839,7 @@ export function BuildPanel({ active = true, ...props }: BuildPanelProps) {
                     className="secondary-action"
                     data-complete-upgrade
                     data-construction-slot={slot}
+                    data-complete-upgrade-slot={slot ?? index}
                     disabled={props.busy}
                     onClick={() => props.onCompleteUpgrade(slot)}
                   >

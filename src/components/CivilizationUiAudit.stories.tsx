@@ -3,6 +3,7 @@ import { BuildPanel, type BuildPanelProps } from "./BuildPanel";
 import { ArmyPanel, type ArmyPanelProps } from "./ArmyPanel";
 import { CommandNavigation, type CommandPanel } from "./CommandNavigation";
 import { CompletionReadyNotice } from "./CompletionReadyNotice";
+import { CurrentVillageSummary } from "./CurrentVillageSummary";
 import { GameShellHud } from "./GameShellHud";
 import { GameShellFrame } from "./GameShellFrame";
 import { GameFooter } from "./GameFooter";
@@ -292,6 +293,7 @@ function StableGameShellFrameFixture() {
         onGather: () => undefined,
       }}
       completionReady={null}
+      currentVillageSummary={null}
       desktopNavigation={{
         activePanel,
         copy,
@@ -675,6 +677,21 @@ export const RegistrationState = {
 export const VillageBuildOverview = {
   name: "CivilizationClient / Village and build overview",
   render: () => <Overview />,
+};
+
+export const CurrentVillageActions = {
+  name: "Village now / Ready and collect (320px and 390px audit)",
+  render: () => (
+    <main className="game-shell">
+      <CurrentVillageSummary
+        copy={copy}
+        buildingNames={copy.buildingNames}
+        summary={{ ready: { buildingId: "timber", slot: 0 } }}
+        onCollect={() => undefined}
+        onOpenCompletion={() => undefined}
+      />
+    </main>
+  ),
 };
 
 export const StableGameShellFrameMobile = {

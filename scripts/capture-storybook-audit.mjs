@@ -144,6 +144,16 @@ const allShots = [
     { width: 390, height: 844 },
   ],
   [
+    "mobile-current-village-actions-320.png",
+    "ui-audit-civilization--current-village-actions",
+    { width: 320, height: 844 },
+  ],
+  [
+    "mobile-current-village-actions-390.png",
+    "ui-audit-civilization--current-village-actions",
+    { width: 390, height: 844 },
+  ],
+  [
     "mobile-construction-ready-320.png",
     "ui-audit-civilization--construction-ready",
     { width: 320, height: 844 },
@@ -803,6 +813,29 @@ for (const [name, id, viewport] of shots) {
       throw new Error(
         "Inert completion notice action unexpectedly changed the fixture",
       );
+  }
+  if (id === "ui-audit-civilization--current-village-actions") {
+    const summary = page.locator("[data-current-village-summary]");
+    const actions = summary.locator("[data-current-village-action]");
+    if ((await summary.count()) !== 1 || (await actions.count()) !== 2)
+      throw new Error(
+        "Current village audit must expose ready and collect together",
+      );
+    const measurements = await actions.evaluateAll((nodes) =>
+      nodes.map((node) => {
+        const rect = node.getBoundingClientRect();
+        return { width: rect.width, height: rect.height };
+      }),
+    );
+    if (measurements.some(({ height }) => height < 44))
+      throw new Error("Current village actions must have 44px touch targets");
+    if (Math.abs(measurements[0].width - measurements[1].width) > 0.5)
+      throw new Error("Current village actions must have equal widths");
+    const overflow = await page
+      .locator("html")
+      .evaluate((node) => node.scrollWidth > window.innerWidth);
+    if (overflow)
+      throw new Error("Current village summary has horizontal overflow");
   }
   if (id === "ui-audit-civilization--army-training-quantity-choice") {
     await page.locator('[data-training-amount="spear"]').fill("3");

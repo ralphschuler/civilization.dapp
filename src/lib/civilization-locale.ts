@@ -59,6 +59,10 @@ const copy = {
     completionReady: (building: string) =>
       `${building} kann jetzt abgeschlossen werden.`,
     completionReadyAction: "Bauplan öffnen",
+    villageNowTitle: "DORF JETZT",
+    villageNowReadyAndCollectible: "Bau und Feldressourcen bereit",
+    villageNowComplete: (building: string) => `${building} abschließen`,
+    villageNowCollect: "Feldressourcen sammeln",
     loginTitle: "Baue dein Reich. Zug um Zug.",
     loginIntro:
       "Civilization bringt deine Strategie direkt in die World App – bereit, wenn du es bist.",
@@ -551,6 +555,10 @@ const copy = {
     completionReadyTitle: "CONSTRUCTION READY",
     completionReady: (building: string) => `${building} can be completed now.`,
     completionReadyAction: "Open build plan",
+    villageNowTitle: "VILLAGE NOW",
+    villageNowReadyAndCollectible: "Construction and field resources ready",
+    villageNowComplete: (building: string) => `Complete ${building}`,
+    villageNowCollect: "Collect field resources",
     loginTitle: "Build your realm. Turn by turn.",
     loginIntro:
       "Civilization brings your strategy straight to World App — ready when you are.",

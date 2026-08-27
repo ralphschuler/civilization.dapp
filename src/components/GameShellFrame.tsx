@@ -12,6 +12,10 @@ import {
   type CommandPanel,
 } from "./CommandNavigation";
 import { EntryGuide, type EntryGuideRecommendation } from "./EntryGuide";
+import {
+  CurrentVillageSummary,
+  type CurrentVillageSummaryProps,
+} from "./CurrentVillageSummary";
 import { GameFooter, type GameFooterProps } from "./GameFooter";
 import { GameShellHud, type GameShellHudProps } from "./GameShellHud";
 import { MarketPanel, type MarketPanelProps } from "./MarketPanel";
@@ -29,6 +33,7 @@ export type GameShellFrameProps = {
   army: ArmyPanelProps;
   build: BuildPanelProps;
   completionReady: CompletionReadyNoticeProps | null;
+  currentVillageSummary: CurrentVillageSummaryProps | null;
   desktopNavigation: Omit<CommandNavigationProps, "mobile">;
   entryGuide: {
     copy: Parameters<typeof EntryGuide>[0]["copy"];
@@ -59,6 +64,11 @@ export function GameShellFrame(props: GameShellFrameProps) {
     >
       <div data-game-shell-hud>
         <GameShellHud {...props.hud} />
+      </div>
+      <div data-current-village-summary-mount>
+        {props.currentVillageSummary ? (
+          <CurrentVillageSummary {...props.currentVillageSummary} />
+        ) : null}
       </div>
       <div data-entry-guide-mount>
         {props.entryGuide ? <EntryGuide {...props.entryGuide} /> : null}
