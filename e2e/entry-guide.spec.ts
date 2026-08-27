@@ -64,7 +64,7 @@ test("mobile entry guide routes to the rendered completion action and focuses it
   await mountEntryGuide(page);
   const guide = page.locator("[data-entry-guide]");
   const cta = guide.getByRole("button", { name: "Bau abschließen öffnen" });
-  const completionAction = page.locator('[data-next-action-button="complete"]');
+  const completionAction = page.locator('[data-complete-upgrade]');
 
   await expect(completionAction).toHaveCount(0);
   await cta.click();

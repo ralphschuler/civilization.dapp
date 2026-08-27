@@ -543,7 +543,7 @@ function MobileBuildActionFocusFixture() {
     requestAnimationFrame(() =>
       shell.current
         ?.querySelector<HTMLButtonElement>(
-          '[data-next-action-button="complete"]',
+          '[data-complete-upgrade]',
         )
         ?.focus(),
     );

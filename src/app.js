@@ -486,7 +486,7 @@ function createController(runtime) {
           actions.selectPanel("build");
           requestAnimationFrame(() =>
             runtime.root
-              ?.querySelector('[data-next-action-button="complete"]')
+              ?.querySelector('[data-complete-upgrade]')
               ?.focus(),
           );
         } else if (recommendation.target === "build-panel") {
@@ -545,7 +545,7 @@ function createController(runtime) {
               actions.selectPanel("build");
               requestAnimationFrame(() =>
                 runtime.root
-                  ?.querySelector('[data-next-action-button="complete"]')
+                  ?.querySelector('[data-complete-upgrade]')
                   ?.focus(),
               );
             },

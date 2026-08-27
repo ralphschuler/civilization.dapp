@@ -58,7 +58,7 @@ export function EntryGuideE2eHarness() {
     requestAnimationFrame(() =>
       shell.current
         ?.querySelector<HTMLButtonElement>(
-          '[data-next-action-button="complete"]',
+          '[data-complete-upgrade]',
         )
         ?.focus(),
     );
