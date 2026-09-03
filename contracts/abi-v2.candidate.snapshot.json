@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "kind": "civilization-proxy-abi/v2-source-candidate-not-deployed",
   "source": "contracts/src/CivilizationGame.sol",
-  "sourceSha256": "3a101c77cd06060e476f03e5952dd1d633f4b215f6ae27499373d042ba2618c1",
+  "sourceSha256": "ba356b967983e25728847df917582d3b8ef8edbb119193d292d1dcc945446ad0",
   "compiler": "0.8.30+commit.73712a01.Emscripten.clang",
   "profile": {
     "optimizer": {
