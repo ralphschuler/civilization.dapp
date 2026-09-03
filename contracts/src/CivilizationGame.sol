@@ -1478,10 +1478,11 @@ contract CivilizationGame is Initializable {
             base.stone = _ceilMul(base.stone, factor);
             base.gold = _ceilMul(base.gold, factor);
         }
-        // The first workshop unlocks construction capacity.  Its primary
-        // resource price and all requirements remain intact; only its CGOLD
-        // cost is waived.  Subsequent workshop levels use the normal curve.
-        if (building == Building.Workshop && level == 0) base.gold = 0;
+        // Gold production requires Workshop II.  Waive CGOLD for both
+        // prerequisite Workshop levels; primary-resource costs and all
+        // requirements remain intact.  Later Workshop levels use the normal
+        // curve.
+        if (building == Building.Workshop && level <= 1) base.gold = 0;
         return base;
     }
 

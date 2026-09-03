@@ -1541,7 +1541,7 @@ test("V1.1 timelock upgrade keeps V1 state and makes Workshop 0 to 1 reachable w
   assert.equal(pending[8].building, 5);
 });
 
-test("production V2 timelock upgrade preserves V1 state and keeps first Workshop gold-free", async () => {
+test("production V2 timelock upgrade preserves V1 state and keeps prerequisite Workshop levels gold-free", async () => {
   const f = await fixture();
   ok(await call(f.game, alice, "registerWallet", [], 1_000n));
   ok(await call(f.game, alice, "claim", [], 90_000n));
@@ -1584,6 +1584,21 @@ test("production V2 timelock upgrade preserves V1 state and keeps first Workshop
   const workshop = await read(game, "constructionJob", [alice, 0], at);
   assert.equal(workshop & 1n, 1n);
   assert.equal((workshop >> 8n) & 0xffn, 5n);
+
+  at = (await read(game, "playerState", [alice], at))[8].completesAt;
+  ok(await call(game, alice, "completeUpgrade", [], at));
+  at += 86_400n;
+  ok(await call(game, alice, "claim", [], at));
+  assert.equal(
+    await read(game, "balanceOf", [alice], at),
+    0n,
+    "Goldmine requires Workshop II, so Workshop I -> II must not require CGOLD",
+  );
+  ok(await call(game, alice, "upgrade", [5], at));
+  const workshopTwo = await read(game, "constructionJob", [alice, 0], at);
+  assert.equal(workshopTwo & 1n, 1n);
+  assert.equal((workshopTwo >> 8n) & 0xffn, 5n);
+  assert.equal(await read(game, "balanceOf", [alice], at), 0n);
 });
 
 test("timelock-configured reward claims mint through the proxy and survive a V1/V2 upgrade", async () => {
