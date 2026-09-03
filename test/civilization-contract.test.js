@@ -1202,7 +1202,7 @@ test("upgrade scheduling consumes the shared authoritative construction duration
   assert.equal(state[8].completesAt, 90_000n + exactBuildDuration(1));
 });
 
-test("workshop bootstrap waives only CGOLD and later levels retain its normal CGOLD curve", async () => {
+test("Workshop prerequisite levels waive CGOLD and preserve an existing balance", async () => {
   const f = await fixture();
   const at = 10_000n;
   ok(await call(f.game, alice, "registerWallet", [], at));
@@ -1243,8 +1243,8 @@ test("workshop bootstrap waives only CGOLD and later levels retain its normal CG
   assert.deepEqual(state[3], { wood: 0n, clay: 0n, stone: 0n, gold: 0n });
   assert.equal(
     await read(f.game, "balanceOf", [alice]),
-    0n,
-    "workshop 1 -> 2 keeps the regular 24 CGOLD cost",
+    24n * 10n ** 18n,
+    "Workshop 1 -> 2 must not burn CGOLD before Goldmine is unlockable",
   );
 });
 
@@ -1998,12 +1998,12 @@ test("deterministic mint and gameplay burn preserve CGOLD balance and totalSuppl
   ok(await call(f.game, alice, "upgrade", [5], 8_200n));
   assert.equal(
     await read(f.game, "balanceOf", [alice]),
-    minted - 24n * 10n ** 18n,
+    minted,
   );
   assert.equal(
     await read(f.game, "totalSupply"),
-    minted - 24n * 10n ** 18n,
-    "the executed gameplay burn decreases totalSupply by exactly the player balance decrease",
+    minted,
+    "Workshop II is a prerequisite, so its upgrade must not burn CGOLD or supply",
   );
 });
 
