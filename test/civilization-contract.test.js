@@ -1980,30 +1980,28 @@ test("reward distributor independently enforces signed bounds while pause/revoke
 
 test("deterministic mint and gameplay burn preserve CGOLD balance and totalSupply accounting", async () => {
   const f = await fixture();
+  const burn = 39n * 10n ** 18n;
   ok(await call(f.game, alice, "registerWallet", [], 1_000n));
-  await setGameplayGoldField(f, alice, 24n);
+  await setGameplayGoldField(f, alice, 39n);
   ok(await call(f.game, alice, "claim", [], 4_600n));
   const minted = await read(f.game, "balanceOf", [alice]);
   assert.equal(await read(f.game, "totalSupply"), minted);
-  assert.ok(minted >= 24n * 10n ** 18n);
+  assert.ok(minted >= burn);
   await setConstructionTestPlayer(f, alice, {
-    stored: { wood: 144n, clay: 176n, stone: 168n, gold: 0n },
+    stored: { wood: 231n, clay: 282n, stone: 269n, gold: 0n },
     buildings: constructionTestBuildings({
       timber: 2n,
       claypit: 2n,
       quarry: 2n,
-      workshop: 1n,
+      workshop: 2n,
     }),
   });
   ok(await call(f.game, alice, "upgrade", [5], 8_200n));
-  assert.equal(
-    await read(f.game, "balanceOf", [alice]),
-    minted,
-  );
+  assert.equal(await read(f.game, "balanceOf", [alice]), minted - burn);
   assert.equal(
     await read(f.game, "totalSupply"),
-    minted,
-    "Workshop II is a prerequisite, so its upgrade must not burn CGOLD or supply",
+    minted - burn,
+    "Workshop III burns exactly 39 CGOLD from both the player balance and total supply",
   );
 });
 
