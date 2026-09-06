@@ -164,7 +164,7 @@ test("construction reads retain stable slots for the legacy and parallel queues"
   assert.equal(state.constructionCapacity, 3);
 });
 
-test("World client mirrors the workshop CGOLD bootstrap cost only for level 1", () => {
+test("World client waives CGOLD for prerequisite Workshop Levels 1 and 2", () => {
   const state = projectedSnapshot();
   const bootstrap = getContractBuildingCost(state, "workshop");
   assert.deepEqual(bootstrap, { wood: 90, clay: 110, stone: 105, gold: 0 });
@@ -173,8 +173,10 @@ test("World client mirrors the workshop CGOLD bootstrap cost only for level 1", 
     wood: 144,
     clay: 176,
     stone: 168,
-    gold: 24,
+    gold: 0,
   });
+  state.buildings.workshop = 2;
+  assert.equal(getContractBuildingCost(state, "workshop").gold, 39);
 });
 
 test("every single-call Civilization action uses its deployed ABI selector and arguments", () => {

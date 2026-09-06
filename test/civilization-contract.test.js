@@ -1202,7 +1202,7 @@ test("upgrade scheduling consumes the shared authoritative construction duration
   assert.equal(state[8].completesAt, 90_000n + exactBuildDuration(1));
 });
 
-test("workshop bootstrap waives only CGOLD and later levels retain its normal CGOLD curve", async () => {
+test("Workshop prerequisite levels waive CGOLD and preserve an existing balance", async () => {
   const f = await fixture();
   const at = 10_000n;
   ok(await call(f.game, alice, "registerWallet", [], at));
@@ -1243,8 +1243,8 @@ test("workshop bootstrap waives only CGOLD and later levels retain its normal CG
   assert.deepEqual(state[3], { wood: 0n, clay: 0n, stone: 0n, gold: 0n });
   assert.equal(
     await read(f.game, "balanceOf", [alice]),
-    0n,
-    "workshop 1 -> 2 keeps the regular 24 CGOLD cost",
+    24n * 10n ** 18n,
+    "Workshop 1 -> 2 must not burn CGOLD before Goldmine is unlockable",
   );
 });
 
@@ -1541,7 +1541,7 @@ test("V1.1 timelock upgrade keeps V1 state and makes Workshop 0 to 1 reachable w
   assert.equal(pending[8].building, 5);
 });
 
-test("production V2 timelock upgrade preserves V1 state and keeps first Workshop gold-free", async () => {
+test("production V2 timelock upgrade preserves V1 state and keeps prerequisite Workshop levels gold-free", async () => {
   const f = await fixture();
   ok(await call(f.game, alice, "registerWallet", [], 1_000n));
   ok(await call(f.game, alice, "claim", [], 90_000n));
@@ -1584,6 +1584,21 @@ test("production V2 timelock upgrade preserves V1 state and keeps first Workshop
   const workshop = await read(game, "constructionJob", [alice, 0], at);
   assert.equal(workshop & 1n, 1n);
   assert.equal((workshop >> 8n) & 0xffn, 5n);
+
+  at = (await read(game, "playerState", [alice], at))[8].completesAt;
+  ok(await call(game, alice, "completeUpgrade", [], at));
+  at += 86_400n;
+  ok(await call(game, alice, "claim", [], at));
+  assert.equal(
+    await read(game, "balanceOf", [alice], at),
+    0n,
+    "Goldmine requires Workshop II, so Workshop I -> II must not require CGOLD",
+  );
+  ok(await call(game, alice, "upgrade", [5], at));
+  const workshopTwo = await read(game, "constructionJob", [alice, 0], at);
+  assert.equal(workshopTwo & 1n, 1n);
+  assert.equal((workshopTwo >> 8n) & 0xffn, 5n);
+  assert.equal(await read(game, "balanceOf", [alice], at), 0n);
 });
 
 test("timelock-configured reward claims mint through the proxy and survive a V1/V2 upgrade", async () => {
@@ -1965,30 +1980,28 @@ test("reward distributor independently enforces signed bounds while pause/revoke
 
 test("deterministic mint and gameplay burn preserve CGOLD balance and totalSupply accounting", async () => {
   const f = await fixture();
+  const burn = 39n * 10n ** 18n;
   ok(await call(f.game, alice, "registerWallet", [], 1_000n));
-  await setGameplayGoldField(f, alice, 24n);
+  await setGameplayGoldField(f, alice, 39n);
   ok(await call(f.game, alice, "claim", [], 4_600n));
   const minted = await read(f.game, "balanceOf", [alice]);
   assert.equal(await read(f.game, "totalSupply"), minted);
-  assert.ok(minted >= 24n * 10n ** 18n);
+  assert.ok(minted >= burn);
   await setConstructionTestPlayer(f, alice, {
-    stored: { wood: 144n, clay: 176n, stone: 168n, gold: 0n },
+    stored: { wood: 231n, clay: 282n, stone: 269n, gold: 0n },
     buildings: constructionTestBuildings({
       timber: 2n,
       claypit: 2n,
       quarry: 2n,
-      workshop: 1n,
+      workshop: 2n,
     }),
   });
   ok(await call(f.game, alice, "upgrade", [5], 8_200n));
-  assert.equal(
-    await read(f.game, "balanceOf", [alice]),
-    minted - 24n * 10n ** 18n,
-  );
+  assert.equal(await read(f.game, "balanceOf", [alice]), minted - burn);
   assert.equal(
     await read(f.game, "totalSupply"),
-    minted - 24n * 10n ** 18n,
-    "the executed gameplay burn decreases totalSupply by exactly the player balance decrease",
+    minted - burn,
+    "Workshop III burns exactly 39 CGOLD from both the player balance and total supply",
   );
 });
 
